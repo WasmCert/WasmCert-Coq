@@ -6,6 +6,7 @@ From Coq Require Extraction.
 From Wasm Require Import
   datatypes_properties
   binary_format_parser
+  text_format_parser
   instantiation_func
   interpreter_ctx
   type_checker
@@ -21,6 +22,7 @@ Extraction Language OCaml.
 
 Extraction "extract"
   run_parse_module
+  run_parse_arg
   Instantiation_func_extract
   Interpreter_ctx_extract
   PP

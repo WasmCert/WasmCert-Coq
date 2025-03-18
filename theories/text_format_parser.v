@@ -1,11 +1,11 @@
 (** Parser for the Wasm text format. **)
 (* (C) J. Pichon - see LICENSE.txt *)
 
-From Wasm Require Import datatypes_properties typing.
+From Wasm Require Import datatypes_properties typing numerics.
 From compcert Require Import Integers.
 From parseque Require Import Parseque.
 Require Import Strings.Byte.
-Require Import ZArith BinInt.
+Require Import ZArith.
 
 Open Scope Z.
 
@@ -40,28 +40,25 @@ Definition parse_underscore_forget {n} : byte_parser unit n :=
   exact_byte x5f $> tt.
 
 Definition parse_digit {n} : byte_parser Z n :=
-  exact_byte x30 $> 0 <|>
-  exact_byte x31 $> 1 <|>
-  exact_byte x32 $> 2 <|>
-  exact_byte x33 $> 3 <|>
-  exact_byte x34 $> 4 <|>
-  exact_byte x35 $> 5 <|>
-  exact_byte x36 $> 6 <|>
-  exact_byte x37 $> 7 <|>
-  exact_byte x38 $> 8 <|>
-  exact_byte x39 $> 9.
-
-Definition parse_hexdigit {n} : byte_parser Z n :=
-  parse_digit <|>
-  ((exact_byte x41 <|> exact_byte x61) $> 10) <|>
-  ((exact_byte x42 <|> exact_byte x62) $> 11) <|>
-  ((exact_byte x43 <|> exact_byte x63) $> 12) <|>
-  ((exact_byte x44 <|> exact_byte x64) $> 13) <|>
-  ((exact_byte x45 <|> exact_byte x65) $> 14) <|>
-  ((exact_byte x46 <|> exact_byte x66) $> 15).
+  exact_byte "0" $> 0 <|>
+  exact_byte "1" $> 1 <|>
+  exact_byte "2" $> 2 <|>
+  exact_byte "3" $> 3 <|>
+  exact_byte "4" $> 4 <|>
+  exact_byte "5" $> 5 <|>
+  exact_byte "6" $> 6 <|>
+  exact_byte "7" $> 7 <|>
+  exact_byte "8" $> 8 <|>
+  exact_byte "9" $> 9.
 
 Definition parse_num_aux {n} : byte_parser (Z -> Z) n :=
-  (fun n d => 10*n+d) <$> parse_underscore_forget &> parse_digit.
+  (fun d n => 10*n+d) <$>
+  ((fun res =>
+     match res with
+     | (_, d) => d
+     end
+  ) <$>
+  (parse_underscore_forget <?&> parse_digit)).
 
 Definition parse_num_after {n} (f: byte_parser Z n) : byte_parser Z n :=
   @iteratel _ _ _ _ _ _ _ _ _ _ n f parse_num_aux.
@@ -69,8 +66,23 @@ Definition parse_num_after {n} (f: byte_parser Z n) : byte_parser Z n :=
 Definition parse_num {n} : byte_parser Z n :=
   parse_num_after parse_digit.
 
+Definition parse_hexdigit {n} : byte_parser Z n :=
+  parse_digit <|>
+  ((exact_byte "A" <|> exact_byte "a") $> 10) <|>
+  ((exact_byte "B" <|> exact_byte "b") $> 11) <|>
+  ((exact_byte "C" <|> exact_byte "c") $> 12) <|>
+  ((exact_byte "D" <|> exact_byte "d") $> 13) <|>
+  ((exact_byte "E" <|> exact_byte "e") $> 14) <|>
+  ((exact_byte "F" <|> exact_byte "f") $> 15).
+
 Definition parse_hexnum_aux {n} : byte_parser (Z -> Z) n :=
-  (fun n h => 16*n+h) <$> parse_underscore_forget &> parse_hexdigit.
+  (fun h n => 16*n+h) <$>
+  ((fun res =>
+     match res with
+     | (_, h) => h
+     end
+  ) <$>
+  (parse_underscore_forget <?&> parse_hexdigit)).
 
 Definition parse_hexnum_after {n} (f: byte_parser Z n) : byte_parser Z n :=
   @iteratel _ _ _ _ _ _ _ _ _ _ n f parse_hexnum_aux.
@@ -78,13 +90,47 @@ Definition parse_hexnum_after {n} (f: byte_parser Z n) : byte_parser Z n :=
 Definition parse_hexnum {n} : byte_parser Z n :=
   parse_hexnum_after parse_hexdigit.
 
-End Language.
+(* Hex needs to be first *)
+Definition parse_unsigned_int {n} : byte_parser Z n :=
+  (exact_byte "0" &> exact_byte "x" &> parse_hexnum) <|>
+  parse_num.
+
+Definition parse_signed_int {n} : byte_parser Z n :=
+  (fun sgn_z =>
+     match sgn_z with
+     | (sgn_plus, z) => z
+     | (sgn_minus, z) => -z
+     end
+  ) <$>
+    (parse_sign <&> ((exact_byte "0" &> exact_byte "x" &> parse_hexnum)
+                       <|> parse_num)).
+
+Definition parse_uninterpreted_int {n} : byte_parser Z n :=
+  parse_unsigned_int <|>
+  parse_signed_int.
+
+Definition parse_i32_sym {n}: byte_parser number_type n :=
+  exact_byte "i" &> exact_byte "3" &> exact_byte "2" $> T_i32.
+
+Definition parse_i64_sym {n}: byte_parser number_type n :=
+  exact_byte "i" &> exact_byte "6" &> exact_byte "4" $> T_i64.
+
+Definition parse_f32_sym {n}: byte_parser number_type n :=
+  exact_byte "f" &> exact_byte "3" &> exact_byte "2" $> T_f32.
+
+Definition parse_f64_sym {n}: byte_parser number_type n :=
+  exact_byte "f" &> exact_byte "6" &> exact_byte "4" $> T_f64.
+
+Definition parse_dotconst {n} : byte_parser unit n :=
+  exact_byte "." &> exact_byte "c" &> exact_byte "o" &> exact_byte "n" &>
+             exact_byte "s" &> exact_byte "t" $> tt.
+
+Definition parse_arg {n} : byte_parser datatypes.value n :=
+  parse_i32_sym &> parse_dotconst &> exact_byte " " &> ((fun z => VAL_num (VAL_int32 (Wasm_int.Int32.repr z))) <$> parse_uninterpreted_int) <|>
+  parse_i64_sym &> parse_dotconst &> exact_byte " " &> ((fun z => VAL_num (VAL_int64 (Wasm_int.Int64.repr z))) <$> parse_uninterpreted_int).
 
 Record Language (n : nat) : Type := MkLanguage {
-  _be : byte_parser basic_instruction n;
-  _bes_end_with_x0b : byte_parser (list basic_instruction) n;
-  _bes_end_with_x05 : byte_parser (list basic_instruction) n;
-  _bes_end_with_x0b_or_x05_ctd : byte_parser (list basic_instruction * list basic_instruction) n;
+  _parse_arg: byte_parser datatypes.value n;
 }.
 
 Arguments MkLanguage {_}.
@@ -92,50 +138,9 @@ Arguments MkLanguage {_}.
 Context
   {Tok : Type} {A B : Type} {n : nat}.
 
-Definition language : [ Language ] := Fix Language (fun k rec =>
-  let be_aux := Induction.map _be _ rec in
-  let bes_end_with_x0b_aux := Induction.map _bes_end_with_x0b _ rec in
-  let bes_end_with_x05_aux := Induction.map _bes_end_with_x05 _ rec in
-  let bes_end_with_x0b_or_x05_ctd_aux := Induction.map _bes_end_with_x0b_or_x05_ctd _ rec in
-  let parse_block :=
-    exact_byte x02 &> ((BI_block <$> parse_block_type) <*> bes_end_with_x0b_aux) in
-  let parse_loop :=
-    exact_byte x03 &> ((BI_loop <$> parse_block_type) <*> bes_end_with_x0b_aux) in
-  let parse_if_body :=
-    (((fun x y => (x, y)) <$> parse_block_type) <*> bes_end_with_x0b_or_x05_ctd_aux) in
-  let parse_if :=
-    (fun '(x, (y, z)) => BI_if x y z) <$> (exact_byte x04 &> parse_if_body) in
-  let parse_be :=
-    parse_unreachable <|>
-    parse_nop <|>
-    parse_block <|>
-    parse_loop <|>
-    parse_if <|>
-    parse_br <|>
-    parse_br_if <|>
-    parse_br_table <|>
-    parse_return <|>
-    parse_call <|>
-    parse_call_indirect <|>
-    parse_reference_instruction <|>
-    parse_parametric_instruction <|>
-    parse_variable_instruction <|>
-    parse_table_instruction <|>
-    parse_memory_instruction <|>
-    parse_numeric_instruction in
-  let parse_bes_end_with_x0b :=
-    (exact_byte x0b $> nil) <|>
-    ((cons <$> parse_be) <*> bes_end_with_x0b_aux) in
-  let parse_bes_end_with_x05 :=
-    (exact_byte x05 $> nil) <|>
-    ((cons <$> parse_be) <*> bes_end_with_x05_aux) in
-  let parse_bes_end_with_x0b_or_x05_ctd :=
-    ((nil, nil) <$ exact_byte x0b) <|>
-    (((fun x => (nil, x)) <$ exact_byte x05) <*> parse_bes_end_with_x0b) <|>
-    (((fun x '(y, z) => (cons x y, z)) <$> parse_be) <*> bes_end_with_x0b_or_x05_ctd_aux) in
-  MkLanguage parse_be parse_bes_end_with_x0b parse_bes_end_with_x05 parse_bes_end_with_x0b_or_x05_ctd).
+Definition language : [ Language ] := (fun k => MkLanguage parse_arg).
 
-Definition parse_be : [ byte_parser basic_instruction ] := fun n => _be n (language n).
+End Language.
 
 Inductive Singleton (A : Type) : A -> Type :=
   MkSingleton : forall a, Singleton A a.
@@ -176,5 +181,5 @@ Definition run : list byte -> [ Parser (SizedList Tok) Tok M A ] -> option A := 
 
 End Run.
 
-Definition run_parse_num (bs : list byte) : option Z :=
-  run bs parse_num.
+Definition run_parse_arg (bs : list byte) : option datatypes.value :=
+  run bs (fun n => parse_arg).

@@ -27,10 +27,10 @@ val repl : Output.verbosity -> ((Extract.Equality.sort * Interpreter.store_recor
 
 (** Given a verbosity level, a boolean stating whether the program should crash if the interpreted
    code does, a configuration tuple, a function name, interpret the Wasm function. *)
-val invocation_interpret : Output.verbosity -> bool -> ((Extract.Equality.sort * Interpreter.store_record) * Extract.frame) * Extract.administrative_instruction list -> string -> unit Host.host_event
+val invocation_interpret : Output.verbosity -> bool -> (((Extract.Equality.sort * Interpreter.store_record) * Extract.frame) * Extract.administrative_instruction list) * Extract.value0 list -> string -> unit Host.host_event
 
 (** Given a verbosity level, a boolean stating whether interactive mode is enable, another boolan
    stating whether the program should crash if the interpreted code does, a module, a function name,
    instantiate, then interpret a parsed Wasm module. *)
-val instantiate_interpret : Output.verbosity -> bool -> Extract.module0 -> string -> unit Host.host_event
+val instantiate_interpret : Output.verbosity -> bool -> Extract.module0 -> Extract.value0 list -> string -> unit Host.host_event
 

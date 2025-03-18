@@ -8,7 +8,6 @@ Section Instantiation_func.
 
 Context `{ho: host}.
   
-
 Definition gather_m_f_type (tfs : list function_type) (m_f : module_func) : option function_type :=
   lookup_N tfs m_f.(modfunc_type).
 
@@ -306,7 +305,7 @@ Definition interp_instantiate_wrapper (m : module) : option (host_state * store_
   | None => None
   end.
 
-Definition lookup_exported_function (n : name) (s: store_record) (f: frame)
+Definition invoke_exported_function_args (n : name) (s: store_record) (f: frame) (args: list value)
     : option (list administrative_instruction) :=
   List.fold_left
     (fun acc e =>
@@ -317,8 +316,11 @@ Definition lookup_exported_function (n : name) (s: store_record) (f: frame)
           match e.(exportinst_val) with
           | EV_func fi =>
             match lookup_N s.(s_funcs) fi with
-            | None => None
-            | Some fc => Some ([::AI_invoke fi])
+            | Some (FC_func_native (Tf ts1 ts2) _ _) =>
+                if (those (map (typeof_value s) args) == Some ts1) then
+                  Some (v_to_e_list args ++ [::AI_invoke fi])
+                else None
+            | _ => None
             end
           | _ => None
           end

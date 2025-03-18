@@ -130,11 +130,11 @@ let repl verbosity sies (name : string) =
     |> (fun cb -> user_input "> " cb cfg0)
 *)
 
-let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
+let invocation_interpret verbosity error_code_on_crash hsfesargs (name: string) =
   let print_step_header gen =
     debug_info verbosity intermediate ~style:bold
       (fun () -> Printf.sprintf "step %d:\n" gen) in
-  let (((hs, s), f_invocation), es_invocation) = hsfes in
+  let ((((hs, s), f_instantiation), es_instantiation), args) = hsfesargs in
   
   let rec eval_cfg gen hs cfg =
       (let cfg_res = run_step_compat hs cfg in
@@ -170,9 +170,9 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
     Printf.sprintf "\nPost-instantiation stage for table and memory initialisers...\n");
   
   (* In Wasm 2.0, module instantiation results in a series of table and memory initialiser instructions followed by an invocation of the start function *)  
-  match run_v_init_with_frame s f_invocation es_invocation with
-  | cfg_invocation -> 
-    let* res = eval_cfg 1 hs cfg_invocation in
+  match run_v_init_with_frame s f_instantiation es_instantiation with
+  | cfg_instantiation -> 
+    let* res = eval_cfg 1 hs cfg_instantiation in
     begin match res with
     | Some (hs', s', _) ->
       debug_info verbosity intermediate (fun _ ->
@@ -180,10 +180,13 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
       let* es_init =
         TopHost.from_out (
           ovpending verbosity stage "interpreting" (fun _ ->
-            match lookup_exported_function name s f_invocation with
-            | None -> Error ("unknown function `" ^ name ^ "`")
+            if (String.equal name "") then
+              Error ("no function name specified")
+            else
+            match invoke_exported_function_args name s f_instantiation args with
+            | None -> Error ("unknown function `" ^ name ^ "`, or unexpected argument types")
             | Some es_init -> OK es_init)
-            ) in
+          ) in
       begin match run_v_init_with_frame s' Extract.empty_frame es_init with
       | cfg_init -> 
         print_step_header 0 ;
@@ -207,13 +210,13 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
   
 
 (* TODO: update the interactive interpreter. The interactive flag is currently disabled. *)
-let instantiate_interpret verbosity error_code_on_crash m name =
-  let* hs_s_f_es =
+let instantiate_interpret verbosity error_code_on_crash m args name =
+  let* hs_s_f_es_args =
     TopHost.from_out (
       ovpending verbosity stage "instantiation" (fun _ ->
         match interp_instantiate_wrapper m with
         | None -> Error "instantiation error"
-        | Some hs_s_f_es -> OK hs_s_f_es)) in
+        | Some hs_s_f_es -> OK (hs_s_f_es, args))) in
   (*if interactive then repl verbosity store_inst_exps name
   else if no_ctx_optimise then interpret verbosity error_code_on_crash store_inst_exps name
-  else*) invocation_interpret verbosity error_code_on_crash hs_s_f_es name
+  else*) invocation_interpret verbosity error_code_on_crash hs_s_f_es_args name

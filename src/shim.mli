@@ -59,8 +59,8 @@ module type InterpreterType = sig
     store_record -> frame -> administrative_instruction list-> config_tuple
 
   (** Look-up a specific extracted function of the instantiation. *)
-  val lookup_exported_function :
-    string -> store_record -> frame -> (administrative_instruction list) option
+  val invoke_exported_function_args :
+    string -> store_record -> frame -> Extract.value0 list -> (administrative_instruction list) option
 
   (** Perform the instantiation of a module. *)
   val interp_instantiate_wrapper :
@@ -69,6 +69,8 @@ module type InterpreterType = sig
   (** Parsing. *)
 
   val run_parse_module : string -> Extract.module0 option
+
+  val run_parse_arg : string -> Extract.value0 option
 
   (** Pretty-printing. *)
 
