@@ -159,25 +159,27 @@ Definition qpow (b: T) (e: Z) (one: T) : T :=
 
 Definition fp10 (e: Z) : T := qpow float_10 e float_1.
 
-Definition z2f z := Wasm_float.float_convert_ui64 mx (Wasm_int.int_of_Z i64m z).
+Definition z2f (z: Z): T := Wasm_float.float_convert_ui64 mx (Wasm_int.int_of_Z i64m z).
 
 Definition parse_digit_frac {n}: byte_parser T n :=
   (fun d => z2f d) <$> parse_digit.
 
+(* Needs to use iterater instead, as the Wasm spec essentially require
+   reading from the right *)
 Definition parse_frac_aux {n} : byte_parser (T -> T) n :=
   (fun d p => (fadd d (fdiv10 p))) <$>
   ((fun res =>
      match res with
-     | (_, d) => d
+     | (d, _) => d
      end
   ) <$>
-  (parse_underscore_forget <?&> parse_digit_frac)).
+  (parse_digit_frac <&?> parse_underscore_forget)).
 
-Definition parse_frac_after {n} (f: byte_parser T n) : byte_parser T n :=
-  @iteratel _ _ _ _ _ _ _ _ _ _ n f parse_frac_aux.
+Definition parse_frac_before {n} (f: byte_parser T n) : byte_parser T n :=
+  @iterater _ _ _ _ _ _ _ _ _ _ n parse_frac_aux f.
 
 Definition parse_frac {n} : byte_parser T n :=
-  parse_frac_after parse_digit_frac.
+  parse_frac_before parse_digit_frac.
 
 Definition parse_float1 {n}: byte_parser T n :=
   (fun p => z2f p) <$> (parse_num <& exact_byte ".").
@@ -185,7 +187,7 @@ Definition parse_float1 {n}: byte_parser T n :=
 Definition parse_float2 {n}: byte_parser T n :=
   (fun res =>
      match res with
-     | (p, _, q) => fadd (z2f p) q
+     | (p, _, q) => fadd (z2f p) (fdiv10 q)
      end
   ) <$>
     (parse_num <&> exact_byte "." <&> parse_frac).
@@ -201,7 +203,7 @@ Definition parse_float3 {n} : byte_parser T n :=
 Definition parse_float4 {n} : byte_parser T n :=
   (fun res =>
      match res with
-     | (z, _, f, _, sgn_e) => fmul (fadd (z2f z) f) (fp10 (get_signed_z sgn_e))
+     | (z, _, f, _, sgn_e) => fmul (fadd (z2f z) (fdiv10 f)) (fp10 (get_signed_z sgn_e))
      end
   )
     <$> (parse_num <&> exact_byte "." <&> parse_frac <&> (exact_byte "E" <|> exact_byte "e") <&> (parse_opt_sign_before parse_num)).
