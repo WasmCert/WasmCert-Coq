@@ -10,7 +10,7 @@ This test features an addition function for floats taking arguments from the CLI
 ```
 
 ```sh
-$ wasm_coq_interpreter floatadd.wasm -r main -a "f32.const 12.3" -a "f32.const -1.6_4"
-i32.const 42
+$ wasm_coq_interpreter floatadd.wasm -r main -a "f32.const 12.30" -a "f32.const -1.6_4"
+f32.const 412a8f5c
 
 ```
