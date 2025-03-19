@@ -140,6 +140,10 @@ Definition fdiv a b := Wasm_float.float_div mx a b.
 Definition fdiv10 f := fdiv f float_10.
 Definition fdiv16 f := fdiv f float_16.
 
+Definition float_p2 := fdiv (z2f 1) (z2f 2).
+Definition float_p10 := fdiv (z2f 1) (z2f 10).
+Definition float_p16 := fdiv (z2f 1) (z2f 16).
+
 (* Never had I thought I'd be writing this in an ITP, but Pos.iter is O(n) *)
 Fixpoint qpow_aux (b: T) (e: positive) : T :=
   match e with
@@ -152,16 +156,16 @@ Fixpoint qpow_aux (b: T) (e: positive) : T :=
       fmul (fmul ret ret) b
   end.
 
-Definition qpow (b: T) (e: Z) (one: T) : T :=
+Definition qpow (bpos bneg: T) (e: Z) (one: T) : T :=
   match e with
   | Z0 => one
-  | Zpos p => qpow_aux b p
-  | Zneg p => fdiv one (qpow_aux b p)
+  | Zpos p => qpow_aux bpos p
+  | Zneg p => qpow_aux bneg p (* Not using reciprocal to avoid overflow *)
   end.
 
-Definition fp10 (e: Z) : T := qpow float_10 e float_1.
+Definition fp10 (e: Z) : T := qpow float_10 float_p10 e float_1.
 
-Definition fp2 (e: Z) : T := qpow float_2 e float_1.
+Definition fp2 (e: Z) : T := qpow float_2 float_p2 e float_1.
 
 Definition parse_digit_frac {n}: byte_parser T n :=
   (fun d => z2f d) <$> parse_digit.
