@@ -1,7 +1,7 @@
 # wasm_coq
 A WebAssembly (aka Wasm) formalisation in Coq, based on the [official specification](https://webassembly.github.io/spec/core/).
 
-(C) M. Bodin, P. Gardner, J. Pichon, C. Watt, X. Rao 2019-2024 - see LICENSE.txt
+(C) M. Bodin, P. Gardner, J. Pichon, C. Watt, X. Rao 2019-2025 - see LICENSE.txt
 
 The quotes from the WebAssembly standard (starting with `std-doc`) are (C) their respective authors.
 
@@ -16,21 +16,23 @@ The current master branch formalises Wasm version 2.0, plus additional subtyping
 - [x] Type safety results for Wasm typing system.
 - [x] Soundness and completeness results for the type checker with respect to the typing system.
 - [x] Implementing Wasm numerics (via CompCert numerics).
-
-## Merged
 - [x] Soundness results for module instantiation.
 - [x] Proof carrying interpreter deriving progress.
 - [x] Interpreter with optimised context representations.
+
+## Merged
 - [x] Updates for Wasm 2.0 (except SIMD and new numerics ops) + subtyping systems.
 
-## Unmerged/Future Work
+## Ongoing
 - [ ] Validate WasmRef-Coq (conformance tests).
-- [ ] Updates for further extension proposals.
 
 # Program Logic
 
-This repository contains a mechanised Wasm program logic using the Iris framework: [iris branch](https://github.com/WasmCert/WasmCert-Coq/tree/iris-wasm-opam). 
+This repository contains a mechanised Wasm program logic using the Iris framework: [iris branch](https://github.com/WasmCert/WasmCert-Coq/tree/iris-wasm-opam).
+
 This is migrated from an older build for the [artefact](https://zenodo.org/records/7808708) submitted along with the Iris-Wasm publication at [PLDI'23](https://dl.acm.org/doi/10.1145/3591265).
+
+A new version working with `opam` can be found [here](https://github.com/logsem/iriswasm).
 
 # Binary Parser (experimental)
 This repository contains some experimental work on a parser for the binary format which is currently unverified.
@@ -63,7 +65,17 @@ For instance, to interpret the function `main` defined in [tests/add.wasm](tests
 ```bash
 dune exec -- wasm_coq_interpreter tests/add.wasm -r main
 ```
-The interpreter can display intermediate states of the operational semantics:
+
+The project has experimental support on passing arguments to function calls in the CLI via the `-a` flag. For example:
+```bash
+dune exec -- wasm_coq_interpreter tests/add2.wasm -r main -a "i32.const 6" -a "i32.const 36"
+```
+would produce
+```bash
+i32.const 42
+```
+
+The interpreter can also display intermediate states of the operational semantics:
 ```bash
 dune exec -- wasm_coq_interpreter tests/add.wasm -r main --vi
 ```
