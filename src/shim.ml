@@ -58,15 +58,16 @@ module type InterpreterType = sig
   val run_v_init_with_frame : 
     store_record -> frame -> administrative_instruction list -> config_tuple
 
-  (** Look-up a specific extracted function of the instantiation. *)
-  val lookup_exported_function :
-    string -> store_record -> frame -> (administrative_instruction list) option
+  (** Look-up a specific extracted function of the instantiation and invoke with the provided arguments. *)
+  val invoke_exported_function_args :
+    string -> store_record -> frame -> Extract.value0 list -> (administrative_instruction list) option
 
   (** Perform the instantiation of a module. *)
   val interp_instantiate_wrapper :
     Extract.module0 -> (((Obj.t * store_record) * frame) * administrative_instruction list) option
 
   val run_parse_module : string -> Extract.module0 option
+  val run_parse_arg : string -> Extract.value0 option
 
   val pp_values : Extract.value0 list -> string
   val pp_store : int -> Dune__exe__Extract.DummyHost.store_record -> string
@@ -124,8 +125,8 @@ functor (EH : Host) -> struct
 
   let run_v_init_with_frame = Interpreter.run_v_init_with_frame
 
-  let lookup_exported_function name =
-    Instantiation.lookup_exported_function (Utils.explode name)
+  let invoke_exported_function_args name =
+    Instantiation.invoke_exported_function_args (Utils.explode name)
 
   let interp_instantiate_wrapper m =
     Instantiation.interp_instantiate_wrapper m
@@ -133,6 +134,8 @@ functor (EH : Host) -> struct
   let show_host_function_char_list h = Utils.explode (show_host_function h)
 *)
   let run_parse_module m = Extract.run_parse_module (Utils.explode m)
+
+  let run_parse_arg a = Extract.run_parse_arg (Utils.explode a)
 
   let pp_values l =
     Utils.implode (PP.pp_values l)

@@ -1,9 +1,7 @@
 (** Main file for the Wasm interpreter **)
 
-(*open Convert*)
-
 (** Main function *)
-let process_args_and_run verbosity text no_exec error_code_on_crash (srcs: string list) func_name =
+let process_args_and_run verbosity text no_exec error_code_on_crash (srcs: string list) func_name arg_strings =
   let open Execute.Host in
   let open Execute.Interpreter in
   try
@@ -18,7 +16,7 @@ let process_args_and_run verbosity text no_exec error_code_on_crash (srcs: strin
           close_in in_channel;
           s) srcs in
     (** Parsing. *)
-    let* m =
+    let* (m, args) =
       from_out (
         let open Output in
         ovpending verbosity stage "parsing" (fun _ ->
@@ -26,8 +24,20 @@ let process_args_and_run verbosity text no_exec error_code_on_crash (srcs: strin
             Error "Text mode not yet implemented."
           else
             match Execute.Interpreter.run_parse_module (String.concat "" files) with
-            | None -> Error "syntax error"
-            | Some m -> (OK m)
+            | None -> Error "error in parsing module"
+            | Some m -> 
+              let rec parse_args args acc = 
+                (match args with
+                | [] -> Some acc
+                | a :: args' -> 
+                  (match Execute.Interpreter.run_parse_arg a with
+                  | Some a' -> parse_args args' (acc @ [a'])
+                  | None -> None
+                  )
+                ) in
+                match parse_args arg_strings [] with
+                | Some args -> (OK (m, args))
+                | None -> Error "error in parsing arguments"
             )
             ) in
     (** Running. *)
@@ -37,12 +47,12 @@ let process_args_and_run verbosity text no_exec error_code_on_crash (srcs: strin
           "skipping interpretation because of --no-exec.\n") ;
         Execute.Interpreter.pure ()
       )
-    else Execute.instantiate_interpret verbosity error_code_on_crash m func_name
+    else Execute.instantiate_interpret verbosity error_code_on_crash m args func_name
   with Invalid_argument msg -> error msg
 
 (** Similar to [process_args_and_run], but differs in the output type. *)
-let process_args_and_run_out verbosity text no_exec error_code_on_crash srcs func_name =
-  process_args_and_run verbosity text no_exec error_code_on_crash srcs func_name
+let process_args_and_run_out verbosity text no_exec error_code_on_crash srcs func_name args =
+  process_args_and_run verbosity text no_exec error_code_on_crash srcs func_name args
   |> Execute.Host.to_out |> Output.Out.convert
 
 (** Command line interface *)
@@ -85,8 +95,11 @@ let error_code_on_crash =
 
 let func_name =
   let doc = "Name of the Wasm function to run." in
-  Arg.(value & opt string "start" & info ["r"; "run"] ~docv:"NAME" ~doc)
-  
+  Arg.(value & opt string "" & info ["r"; "run"] ~docv:"NAME" ~doc)
+
+let args = 
+  let doc = "Arguments to passed in to the function" in
+  Arg.(value & opt_all string [] & info ["a"; "arg"] ~docv:"ARG" ~doc)
 
 let srcs =
   let doc = "Source file(s) to interpret." in
@@ -105,7 +118,7 @@ let cmd =
   in
   Cmd.v 
      (Cmd.info "wasm_interpreter" ~version:"c9b010d-dirty" ~doc ~exits ~man ~man_xrefs)
-     Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec (* $ interactive *) $ error_code_on_crash $ srcs $ func_name ))
+     Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec (* $ interactive *) $ error_code_on_crash $ srcs $ func_name $ args ))
 
   
 let () = Stdlib.exit @@ 

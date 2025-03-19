@@ -1076,6 +1076,9 @@ Module Wasm_float.
 
 Record mixin_of (float_t : Type) := Mixin {
   float_zero : float_t;
+  float_inf : float_t;
+  float_canon_nan : float_t;
+  float_nan: BinPos.positive -> option float_t;
   (** Unuary operators **)
   float_neg : float_t -> float_t ;
   float_abs : float_t -> float_t ;
@@ -1815,8 +1818,17 @@ Definition convert_si32 (i : i32) := BofZ (Wasm_int.Z_of_sint i32m i).
 Definition convert_ui64 (i : i64) := BofZ (Wasm_int.Z_of_uint i64m i).
 Definition convert_si64 (i : i64) := BofZ (Wasm_int.Z_of_sint i64m i).
 
+Definition float_nan_pl (s: bool) (pl: positive) : option T.
+  destruct (Binary.nan_pl prec pl) eqn:Hplwf.
+  - exact (Some (Binary.B754_nan _ _ s pl Hplwf)).
+  - exact None.
+Defined.
+
 Definition Tmixin : mixin_of T := {|
     float_zero := pos_zero ;
+    float_inf := pos_infinity ;
+    float_canon_nan := canonical_nan true;
+    float_nan := float_nan_pl true;
     (** Unuary operators **)
     float_neg := fneg ;
     float_abs := fabs ;
