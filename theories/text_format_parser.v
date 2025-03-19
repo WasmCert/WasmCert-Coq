@@ -238,7 +238,7 @@ Definition parse_hexfrac_before {n} (f: byte_parser T n) : byte_parser T n :=
   @iterater _ _ _ _ _ _ _ _ _ _ n parse_hexfrac_aux f.
 
 Definition parse_hexfrac {n} : byte_parser T n :=
-  fdiv16 <$> parse_hexfrac_before parse_digit_frac.
+  fdiv16 <$> parse_hexfrac_before parse_hexdigit_frac.
 
 Definition parse_hexfloat1 {n}: byte_parser T n :=
   (fun p => z2f p) <$> (parse_hexnum <&? exact_byte ".").
