@@ -124,38 +124,8 @@ Definition pp_i32 i :=
 Definition pp_i64 i :=
   pp_Z (Wasm_int.Int64.signed i).
 
-(* TODO: all this printing of floats business is highly dubious,
-   and completely untested *)
-Fixpoint bool_list_of_pos (acc : list bool) (p : BinNums.positive) :=
-  match p with
-  | BinNums.xI p' => bool_list_of_pos (true :: acc) p'
-  | BinNums.xO p' => bool_list_of_pos (false :: acc) p'
-  | BinNums.xH => true :: acc
-  end.
 
-Fixpoint pp_bools (acc : list Byte.byte) (bools : list bool) : list Byte.byte :=
-  (* TODO: I am ashamed I wrote this *)
-  match bools with
-  | nil => acc
-  | b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 :: b8 :: bools' =>
-    pp_bools (Byte.of_bits (b1, (b2, (b3, (b4, (b5, (b6, (b7, b8))))))) :: acc) bools'
-  | b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 ::  nil =>
-    Byte.of_bits (b1, (b2, (b3, (b4, (b5, (b6, (b7, false))))))) :: acc
-  | b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: nil =>
-    Byte.of_bits (b1, (b2, (b3, (b4, (b5, (b6, (false, false))))))) :: acc
-  | b1 :: b2 :: b3 :: b4 :: b5 :: nil =>
-    Byte.of_bits (b1, (b2, (b3, (b4, (b5, (false, (false, false))))))) :: acc
-  | b1 :: b2 :: b3 :: b4 :: nil =>
-    Byte.of_bits (b1, (b2, (b3, (b4, (false, (false, (false, false))))))) :: acc
-  | b1 :: b2 :: b3 :: nil =>
-    Byte.of_bits (b1, (b2, (b3, (false, (false, (false, (false, false))))))) :: acc
-  | b1 :: b2 :: nil =>
-    Byte.of_bits (b1, (b2, (false, (false, (false, (false, (false, false))))))) :: acc
-  | b1 :: nil =>
-    Byte.of_bits (b1, (false, (false, (false, (false, (false, (false, false))))))) :: acc
-  end.
-
-
+(** Floating Point Printing **)
 
 Fixpoint N_of_bits_aux (bs: list bool) (acc: N) : N :=
   match bs with
@@ -270,6 +240,13 @@ Fixpoint pp_subnormal_mantissa (bs: list bool) (exp: N) : string :=
   | true :: bs' => pp_mantissa bs' ++ "p-" ++ pp_N exp
   end.
 
+Fixpoint bool_list_of_pos (acc : list bool) (p : BinNums.positive) :=
+  match p with
+  | BinNums.xI p' => bool_list_of_pos (true :: acc) p'
+  | BinNums.xO p' => bool_list_of_pos (false :: acc) p'
+  | BinNums.xH => true :: acc
+  end.
+
 
 Section f32_Printer.
 
@@ -348,6 +325,7 @@ Definition pp_f64 (f: float) : string :=
 .
 
 End f64_Printer.
+
 
 Definition pp_value_num (v : value_num) : string :=
   match v with
