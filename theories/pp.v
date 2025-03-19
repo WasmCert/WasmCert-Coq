@@ -155,6 +155,8 @@ Fixpoint pp_bools (acc : list Byte.byte) (bools : list bool) : list Byte.byte :=
     Byte.of_bits (b1, (false, (false, (false, (false, (false, (false, false))))))) :: acc
   end.
 
+
+
 Fixpoint N_of_bits_aux (bs: list bool) (acc: N) : N :=
   match bs with
   | nil => acc
@@ -167,7 +169,6 @@ Definition N_of_bits (bs: list bool) : N :=
 
 Definition subarray {T: Type} (l: list T) (n: nat) (m: nat) : list T :=
   List.firstn m (List.skipn n l).
-
 
 (* Typeclass for IEEE 754 floating point lengths *)
 Class IEEE_754_lengths :=
@@ -270,7 +271,7 @@ Fixpoint pp_subnormal_mantissa (bs: list bool) (exp: N) : string :=
   end.
 
 
-Section Print_f32.
+Section f32_Printer.
 
 #[local]
 Instance binary32_spec : IEEE_754_lengths := Fspec 8 23.
@@ -307,9 +308,9 @@ Definition pp_f32 (f: float32) : string :=
                      (pp_exponent32 (get_exponent bits_f)))))
 .
 
-End Print_f32.
+End f32_Printer.
 
-Section Print_f64.
+Section f64_Printer.
 
 #[local]
 Instance binary64_spec : IEEE_754_lengths := Fspec 11 52.
@@ -346,7 +347,7 @@ Definition pp_f64 (f: float) : string :=
                      (pp_exponent64 (get_exponent bits_f)))))
 .
 
-End Print_f64.
+End f64_Printer.
 
 Definition pp_value_num (v : value_num) : string :=
   match v with
