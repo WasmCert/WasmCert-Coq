@@ -1,6 +1,6 @@
 This test contains a floating point multiplication.
 
-Note: 0x46fe500f = 32552.029; 208.333 * 156.25 = 32552.0312.
+Note: 0x1.fca01ep+14 = 32552.029; 208.333 * 156.25 = 32552.0312.
 
 ```wasm
 (f32.mul
@@ -10,6 +10,6 @@ Note: 0x46fe500f = 32552.029; 208.333 * 156.25 = 32552.0312.
 
 ```sh
 $ wasm_coq_interpreter floatmul.wasm -r main
-f32.const 46fe500f
+f32.const +0x1.fca01ep+14
 
 ```

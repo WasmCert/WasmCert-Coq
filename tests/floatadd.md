@@ -11,6 +11,6 @@ This test features an addition function for floats taking arguments from the CLI
 
 ```sh
 $ wasm_coq_interpreter floatadd.wasm -r main -a "f32.const 12.30" -a "f32.const -1.6_4"
-f32.const 412a8f5c
+f32.const +0x1.551eb8p+3
 
 ```
