@@ -248,6 +248,19 @@ Definition pp_mantissa (bs: list bool) : string :=
 (*  if (List.forallb (fun b => negb b) bs) then "" 
   else "." ++ *) pp_mantissa_aux bs "".
 
+(* nan payload treat the mantissa as an int, therefore printing cannot be
+   implemented by grouping every 4 bits from the start. *)
+Fixpoint pp_nanpl_aux (bs: list bool) (acc: string): string :=
+  match bs with
+  | nil => acc
+  | b0 :: b1 :: b2 :: b3 :: bs' =>
+      pp_nanpl_aux bs' (pp_4bits ([::b3; b2; b1; b0]) ++ acc)
+  | _ => pp_4bits (List.repeat false (4 - List.length bs) ++ List.rev bs)%list ++ acc
+  end.
+
+Definition pp_nanpl (bs: list bool) : string :=
+  pp_nanpl_aux (List.rev bs) "".
+
 Fixpoint pp_subnormal_mantissa (bs: list bool) (exp: N) : string :=
   match bs with
   | nil => "error"
@@ -281,6 +294,8 @@ Definition bits_of_f32 (f: float32) : list bool :=
 Definition pp_exponent32 (bs: list bool) : string :=
   pp_Z_signed (BinInt.Z.sub (BinInt.Z.of_N (N_of_bits bs)) 127).
 
+(* TODO: wast format and wasm text format disagree on the representation of
+  nan. *)
 Definition pp_f32 (f: float32) : string :=
   let bits_f := bits_of_f32 f in
 (*  (* nan has no sign in the wast format. *)
@@ -288,17 +303,19 @@ Definition pp_f32 (f: float32) : string :=
   else
     if is_nan_arith bits_f then "nan:arithmetic"*)
   (pp_sign (get_sign bits_f)) ++
-    if is_nan bits_f then "nan:0x" ++ pp_mantissa (get_mantissa bits_f)
+    if is_nan_canon bits_f then "nan"
     else
-      (if is_inf bits_f then "inf"
-       else
-         "0x" ++
-           (if is_zero bits_f then "0" else
-              (if is_subnormal bits_f then
-                 "1." ++ pp_subnormal_mantissa (get_mantissa bits_f) 127
-               else
-                 ("1." ++ pp_mantissa (get_mantissa bits_f)) ++ "p" ++
-                   (pp_exponent32 (get_exponent bits_f)))))
+      if is_nan bits_f then "nan:0x" ++ pp_nanpl (get_mantissa bits_f)
+      else
+        (if is_inf bits_f then "inf"
+         else
+           "0x" ++
+             (if is_zero bits_f then "0" else
+                (if is_subnormal bits_f then
+                   "1." ++ pp_subnormal_mantissa (get_mantissa bits_f) 127
+                 else
+                   ("1." ++ pp_mantissa (get_mantissa bits_f)) ++ "p" ++
+                     (pp_exponent32 (get_exponent bits_f)))))
 .
 
 End f32_Printer.
@@ -323,12 +340,16 @@ Definition pp_exponent64 (bs: list bool) : string :=
 
 Definition pp_f64 (f: float) : string :=
   let bits_f := bits_of_f64 f in
-  (* nan has no sign. *)
+  (pp_sign (get_sign bits_f)) ++
+                              (*
   if is_nan_canon bits_f then "nan:canonical"
   else
     if is_nan_arith bits_f then "nan:arithmetic"
+    else*)
+    if is_nan_canon bits_f then "nan"
     else
-      (pp_sign (get_sign bits_f)) ++
+      if is_nan bits_f then "nan:0x" ++ pp_nanpl (get_mantissa bits_f)
+      else
         (if is_inf bits_f then "inf"
          else
            "0x" ++
