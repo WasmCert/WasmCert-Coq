@@ -1346,7 +1346,7 @@ Qed.
 
 (** There are exactly two canonical [NaN]s: a positive one, and a negative one. **)
 Definition canonical_nan s : T :=
-  Binary.B754_nan _ _ s canonical_pl  (pl_arithmetic_is_nan canonical_pl_is_arithmetic).
+  Binary.B754_nan _ _ s canonical_pl (pl_arithmetic_is_nan canonical_pl_is_arithmetic).
 
 Lemma is_canonical_nan_disj : forall z,
   is_canonical z ->

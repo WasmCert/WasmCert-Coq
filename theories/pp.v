@@ -3,9 +3,10 @@
 Require Import Coq.Strings.String.
 From compcert Require Import Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+From Wasm Require Export bytes_pp.
+From Wasm Require Import datatypes interpreter_ctx.
 Require Import Coq.Init.Decimal.
-Require Export bytes_pp datatypes interpreter_ctx.
-Require Import BinNat.
+Require Import BinNat ZArith.
 Require Import ansi list_extra.
 
 Open Scope string_scope.
@@ -25,7 +26,7 @@ Definition indentation := nat.
 
 Fixpoint indent (i : indentation) (s : string) : string :=
   match i with
-  | 0 => s
+  | 0%nat => s
   | S i' => "  " ++ indent i' s
   end.
 
@@ -99,6 +100,13 @@ Definition pp_Z (z: Z) : string :=
   | Zneg p => "-" ++ pp_positive p
   end.
 
+Definition pp_Z_signed (z: Z) : string :=
+  match z with
+  | Z0 => "0"
+  | Zpos p => "+" ++ pp_positive p
+  | Zneg p => "-" ++ pp_positive p
+  end.
+
 Definition pp_id := pp_N.
 
 Definition pp_addr := pp_N.
@@ -116,8 +124,150 @@ Definition pp_i32 i :=
 Definition pp_i64 i :=
   pp_Z (Wasm_int.Int64.signed i).
 
-(* TODO: all this printing of floats business is highly dubious,
-   and completely untested *)
+
+(** Floating Point Printing **)
+
+Fixpoint N_of_bits_aux (bs: list bool) (acc: N) : N :=
+  match bs with
+  | nil => acc
+  | true :: bs' => N_of_bits_aux bs' (acc*2+1)
+  | false :: bs' => N_of_bits_aux bs' (acc*2)
+  end.
+
+Definition N_of_bits (bs: list bool) : N :=
+  N_of_bits_aux bs 0.
+
+Definition subarray {T: Type} (l: list T) (n: nat) (m: nat) : list T :=
+  List.firstn m (List.skipn n l).
+
+(* Typeclass for IEEE 754 floating point lengths *)
+Class IEEE_754_lengths :=
+  Fspec {
+      exponent_bits: nat;
+      mantissa_bits: nat;
+    }.
+
+Section Parse_IEEE_754.
+  Context `{fspec: IEEE_754_lengths}.
+  
+  Definition get_mantissa (bs: list bool) : list bool :=
+    subarray bs (exponent_bits + 1) mantissa_bits.
+  
+  Definition get_exponent (bs: list bool) : list bool :=
+    subarray bs 1 exponent_bits.
+
+  Definition is_number (bs: list bool) : bool :=
+    negb (List.forallb (fun b => b) (get_exponent bs)).
+
+  Definition is_mantissa_all0 (bs: list bool) : bool :=
+    List.forallb (fun b => negb b) (get_mantissa bs).
+  
+  Definition is_mantissa_all1 (bs: list bool) : bool :=
+    List.forallb (fun b => b) (get_mantissa bs).
+
+  Definition is_mantissa_canon (bs: list bool) : bool :=
+    let mbs := get_mantissa bs in
+    match mbs with
+    | true :: mbs' => List.forallb (fun b => negb b) mbs'
+    | _ => false
+    end.
+  
+  Definition is_mantissa_arith (bs: list bool) : bool :=
+    let mbs := get_mantissa bs in
+    match mbs with
+    | true :: mbs' => true
+    | _ => false
+    end.
+  
+  Definition is_inf (bs: list bool) : bool :=
+    (negb (is_number bs)) && (is_mantissa_all0 bs).
+  
+  Definition is_nan_canon (bs: list bool) : bool :=
+    (negb (is_number bs)) && (is_mantissa_canon bs).
+
+  Definition is_nan_arith (bs: list bool) : bool :=
+    (negb (is_number bs)) && (is_mantissa_arith bs).
+  
+  Definition is_nan (bs: list bool) : bool :=
+    (negb (is_number bs)).
+  
+  Definition is_subnormal (bs: list bool) : bool :=
+    (List.forallb (fun b => negb b) (get_exponent bs)).
+  
+  Definition is_zero (bs: list bool) : bool :=
+    is_subnormal bs &&
+      is_mantissa_all0 bs.
+  
+  
+End Parse_IEEE_754.
+
+Definition bits_fill (bs: list bool) (n: nat) (b: bool) : list bool :=
+  if (List.length bs >= n)%nat then bs
+  else ((List.repeat b (n - List.length bs)) ++ bs)%list.
+
+Definition get_sign (bs: list bool) : bool :=
+  match bs with
+  | nil => true
+  | b :: _ => b
+  end.
+
+Definition pp_sign (b: bool) : string :=
+  if b then "-" else "+".
+
+(* a bit stupid *)
+Definition pp_4bits (bs: list bool) : string :=
+  match bs with
+  | [::false; false; false; false] => "0"
+  | [::false; false; false; true] => "1"
+  | [::false; false; true; false] => "2"
+  | [::false; false; true; true] => "3"
+  | [::false; true; false; false] => "4"
+  | [::false; true; false; true] => "5"
+  | [::false; true; true; false] => "6"
+  | [::false; true; true; true] => "7"
+  | [::true; false; false; false] => "8"
+  | [::true; false; false; true] => "9"
+  | [::true; false; true; false] => "a"
+  | [::true; false; true; true] => "b"
+  | [::true; true; false; false] => "c"
+  | [::true; true; false; true] => "d"
+  | [::true; true; true; false] => "e"
+  | [::true; true; true; true] => "f"
+  | _ => "?"
+  end.
+
+Fixpoint pp_mantissa_aux (bs: list bool) (acc: string) : string :=
+  match bs with
+  | nil => acc
+  | b0 :: b1 :: b2 :: b3 :: bs' =>
+      pp_mantissa_aux bs' (acc ++ pp_4bits ([::b0; b1; b2; b3]))
+  | _ => acc ++ pp_4bits (bs ++ (List.repeat false (4 - List.length bs)))%list
+  end.
+
+Definition pp_mantissa (bs: list bool) : string :=
+(*  if (List.forallb (fun b => negb b) bs) then "" 
+  else "." ++ *) pp_mantissa_aux bs "".
+
+(* nan payload treat the mantissa as an int, therefore printing cannot be
+   implemented by grouping every 4 bits from the start. *)
+Fixpoint pp_nanpl_aux (bs: list bool) (acc: string): string :=
+  match bs with
+  | nil => acc
+  | b0 :: b1 :: b2 :: b3 :: bs' =>
+      pp_nanpl_aux bs' (pp_4bits ([::b3; b2; b1; b0]) ++ acc)
+  | _ => pp_4bits (List.repeat false (4 - List.length bs) ++ List.rev bs)%list ++ acc
+  end.
+
+Definition pp_nanpl (bs: list bool) : string :=
+  pp_nanpl_aux (List.rev bs) "".
+
+Fixpoint pp_subnormal_mantissa (bs: list bool) (exp: N) : string :=
+  match bs with
+  | nil => "error"
+  | false :: bs' => pp_subnormal_mantissa bs' (exp+1)
+  | true :: bs' => pp_mantissa bs' ++ "p-" ++ pp_N exp
+  end.
+
 Fixpoint bool_list_of_pos (acc : list bool) (p : BinNums.positive) :=
   match p with
   | BinNums.xI p' => bool_list_of_pos (true :: acc) p'
@@ -125,43 +275,98 @@ Fixpoint bool_list_of_pos (acc : list bool) (p : BinNums.positive) :=
   | BinNums.xH => true :: acc
   end.
 
-Open Scope list.
 
-Fixpoint pp_bools (acc : list Byte.byte) (bools : list bool) : list Byte.byte :=
-  (* TODO: I am ashamed I wrote this *)
-  match bools with
-  | nil => acc
-  | b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 :: b8 :: bools' =>
-    pp_bools (Byte.of_bits (b1, (b2, (b3, (b4, (b5, (b6, (b7, b8))))))) :: acc) bools'
-  | b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 ::  nil =>
-    Byte.of_bits (b1, (b2, (b3, (b4, (b5, (b6, (b7, false))))))) :: acc
-  | b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: nil =>
-    Byte.of_bits (b1, (b2, (b3, (b4, (b5, (b6, (false, false))))))) :: acc
-  | b1 :: b2 :: b3 :: b4 :: b5 :: nil =>
-    Byte.of_bits (b1, (b2, (b3, (b4, (b5, (false, (false, false))))))) :: acc
-  | b1 :: b2 :: b3 :: b4 :: nil =>
-    Byte.of_bits (b1, (b2, (b3, (b4, (false, (false, (false, false))))))) :: acc
-  | b1 :: b2 :: b3 :: nil =>
-    Byte.of_bits (b1, (b2, (b3, (false, (false, (false, (false, false))))))) :: acc
-  | b1 :: b2 :: nil =>
-    Byte.of_bits (b1, (b2, (false, (false, (false, (false, (false, false))))))) :: acc
-  | b1 :: nil =>
-    Byte.of_bits (b1, (false, (false, (false, (false, (false, (false, false))))))) :: acc
-  end.
+Section f32_Printer.
 
-Definition pp_f32 (f : float32) : string :=
+#[local]
+Instance binary32_spec : IEEE_754_lengths := Fspec 8 23.
+
+Definition bits_of_f32_aux (f: float32) : list bool :=
   match BinIntDef.Z.to_N ((Float32.to_bits f).(Integers.Int.intval)) with
-  | BinNums.N0 => "0"
+  | BinNums.N0 => nil
   | BinNums.Npos p =>
-    bytes_pp.hex_small_no_prefix_of_bytes_compact (pp_bools nil (List.rev (bool_list_of_pos nil p)))
+      bool_list_of_pos nil p
   end.
 
-Definition pp_f64 (f : float) : string :=
+Definition bits_of_f32 (f: float32) : list bool :=
+  bits_fill (bits_of_f32_aux f) 32 false.
+
+Definition pp_exponent32 (bs: list bool) : string :=
+  pp_Z_signed (BinInt.Z.sub (BinInt.Z.of_N (N_of_bits bs)) 127).
+
+(* TODO: wast format and wasm text format disagree on the representation of
+  nan. Find a sensible representation here *)
+Definition pp_f32 (f: float32) : string :=
+  let bits_f := bits_of_f32 f in
+(*  (* nan has no sign in the wast format. *)
+  if is_nan_canon bits_f then "nan:canonical"
+  else
+    if is_nan_arith bits_f then "nan:arithmetic"*)
+  (pp_sign (get_sign bits_f)) ++
+    if is_nan_canon bits_f then "nan"
+    else
+      (* As nans chooses its payload and sign non-det, it is difficult to
+         use mdx to test this bit. Also, since the current implementation
+         in numerics.v always returns the canonical nan (made opaque),
+         this clause will never be entered *)
+      if is_nan bits_f then "nan:0x" ++ pp_nanpl (get_mantissa bits_f)
+      else
+        (if is_inf bits_f then "inf"
+         else
+           "0x" ++
+             (if is_zero bits_f then "0" else
+                (if is_subnormal bits_f then
+                   "1." ++ pp_subnormal_mantissa (get_mantissa bits_f) 127
+                 else
+                   ("1." ++ pp_mantissa (get_mantissa bits_f)) ++ "p" ++
+                     (pp_exponent32 (get_exponent bits_f)))))
+.
+
+End f32_Printer.
+
+Section f64_Printer.
+
+#[local]
+Instance binary64_spec : IEEE_754_lengths := Fspec 11 52.
+
+Definition bits_of_f64_aux (f: float) : list bool :=
   match BinIntDef.Z.to_N ((Float.to_bits f).(Integers.Int64.intval)) with
-  | BinNums.N0 => "0"
+  | BinNums.N0 => nil
   | BinNums.Npos p =>
-    bytes_pp.hex_small_no_prefix_of_bytes_compact (pp_bools nil (List.rev (bool_list_of_pos nil p)))
+      bool_list_of_pos nil p
   end.
+
+Definition bits_of_f64 (f: float) : list bool :=
+  bits_fill (bits_of_f64_aux f) 64 false.
+
+Definition pp_exponent64 (bs: list bool) : string :=
+  pp_Z_signed (BinInt.Z.sub (BinInt.Z.of_N (N_of_bits bs)) 1023).
+
+Definition pp_f64 (f: float) : string :=
+  let bits_f := bits_of_f64 f in
+  (pp_sign (get_sign bits_f)) ++
+                              (*
+  if is_nan_canon bits_f then "nan:canonical"
+  else
+    if is_nan_arith bits_f then "nan:arithmetic"
+    else*)
+    if is_nan_canon bits_f then "nan"
+    else
+      if is_nan bits_f then "nan:0x" ++ pp_nanpl (get_mantissa bits_f)
+      else
+        (if is_inf bits_f then "inf"
+         else
+           "0x" ++
+             (if is_zero bits_f then "0" else
+                (if is_subnormal bits_f then
+                   "1." ++ pp_subnormal_mantissa (get_mantissa bits_f) 1023
+                 else
+                   ("1." ++ pp_mantissa (get_mantissa bits_f)) ++ "p" ++
+                     (pp_exponent64 (get_exponent bits_f)))))
+.
+
+End f64_Printer.
+
 
 Definition pp_value_num (v : value_num) : string :=
   match v with
