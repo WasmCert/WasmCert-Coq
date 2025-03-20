@@ -295,7 +295,7 @@ Definition pp_exponent32 (bs: list bool) : string :=
   pp_Z_signed (BinInt.Z.sub (BinInt.Z.of_N (N_of_bits bs)) 127).
 
 (* TODO: wast format and wasm text format disagree on the representation of
-  nan. *)
+  nan. Find a sensible representation here *)
 Definition pp_f32 (f: float32) : string :=
   let bits_f := bits_of_f32 f in
 (*  (* nan has no sign in the wast format. *)
@@ -305,6 +305,10 @@ Definition pp_f32 (f: float32) : string :=
   (pp_sign (get_sign bits_f)) ++
     if is_nan_canon bits_f then "nan"
     else
+      (* As nans chooses its payload and sign non-det, it is difficult to
+         use mdx to test this bit. Also, since the current implementation
+         in numerics.v always returns the canonical nan (made opaque),
+         this clause will never be entered *)
       if is_nan bits_f then "nan:0x" ++ pp_nanpl (get_mantissa bits_f)
       else
         (if is_inf bits_f then "inf"
