@@ -43,6 +43,10 @@ module type InterpreterType = sig
   type basic_instruction = Extract.basic_instruction
   type administrative_instruction = Extract.administrative_instruction
   type moduleinst = Extract.moduleinst
+  type value = Extract.value0
+  type externval = Extract.extern_value
+
+  val empty_store_record : store_record
 
   (** Run one step of the interpreter. *)
   val run_step_compat :
@@ -60,11 +64,11 @@ module type InterpreterType = sig
 
   (** Look-up a specific extracted function of the instantiation. *)
   val invoke_exported_function_args :
-    string -> store_record -> frame -> Extract.value0 list -> (administrative_instruction list) option
+    string -> store_record -> frame -> value list -> (administrative_instruction list) option
 
   (** Perform the instantiation of a module. *)
   val interp_instantiate_wrapper :
-    Extract.module0 -> (((Obj.t * store_record) * frame) * administrative_instruction list) option
+    store_record -> Extract.module0 -> externval list  -> (((Obj.t * store_record) * frame) * administrative_instruction list) option
 
   (** Parsing. *)
 

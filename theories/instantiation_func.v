@@ -280,6 +280,14 @@ Definition interp_instantiate (hs: host_state) (s : store_record) (m : module) (
       end
   end.
 
+End Instantiation_func.
+
+(** Extraction **)
+
+Module Instantiation_func_extract.
+
+Import Interpreter_ctx_extract.
+
 Definition empty_store_record : store_record := {|
     s_funcs := nil;
     s_tables := nil;
@@ -289,19 +297,11 @@ Definition empty_store_record : store_record := {|
     s_datas := nil;
   |}.
 
-End Instantiation_func.
-
-(** Extraction **)
-
-Module Instantiation_func_extract.
-
-Import Interpreter_ctx_extract.
-  
 (* Add an empty host and provide an initial empty store, and convert the 
    starting expression to administrative *)
-Definition interp_instantiate_wrapper (m : module) : option (host_state * store_record * frame * list administrative_instruction) :=
-  match interp_instantiate tt empty_store_record m nil with
-  | Some (hs, s, i, bes) => Some (hs, s, i, to_e_list bes)
+Definition interp_instantiate_wrapper (s: store_record) (m : module) (v_imps: list extern_value) : option (host_state * store_record * frame * list administrative_instruction) :=
+  match interp_instantiate tt s m v_imps with
+  | Some (hs, s', i, bes) => Some (hs, s', i, to_e_list bes)
   | None => None
   end.
 

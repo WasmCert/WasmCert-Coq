@@ -169,12 +169,13 @@ let invocation_interpret verbosity error_code_on_crash hsfesargs (name: string) 
   debug_info verbosity intermediate (fun _ ->
     Printf.sprintf "\nPost-instantiation stage for table and memory initialisers...\n");
   
-  (* In Wasm 2.0, module instantiation results in a series of table and memory initialiser instructions followed by an invocation of the start function *)  
+  (* In Wasm 2.0, module instantiation results in a series of table and memory initialiser instructions followed by an invocation of the start function *)
   match run_v_init_with_frame s f_instantiation es_instantiation with
   | cfg_instantiation -> 
     let* res = eval_cfg 1 hs cfg_instantiation in
     begin match res with
     | Some (hs', s', _) ->
+      (* Instantiation done; now invoking the specified function *)
       debug_info verbosity intermediate (fun _ ->
       Printf.sprintf "\nInstantiation success\n");
       let* es_init =
@@ -214,7 +215,7 @@ let instantiate_interpret verbosity error_code_on_crash m args name =
   let* hs_s_f_es_args =
     TopHost.from_out (
       ovpending verbosity stage "instantiation" (fun _ ->
-        match interp_instantiate_wrapper m with
+        match interp_instantiate_wrapper empty_store_record m [] with
         | None -> Error "instantiation error"
         | Some hs_s_f_es -> OK (hs_s_f_es, args))) in
   (*if interactive then repl verbosity store_inst_exps name
