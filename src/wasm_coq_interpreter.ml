@@ -51,8 +51,16 @@ let process_args_and_run verbosity text no_exec error_code_on_crash (srcs: strin
   with Invalid_argument msg -> error msg
 
 (** Similar to [process_args_and_run], but differs in the output type. *)
-let process_args_and_run_out verbosity text no_exec error_code_on_crash srcs func_name args =
-  process_args_and_run verbosity text no_exec error_code_on_crash srcs func_name args
+let process_args_and_run_out verbosity text no_exec wast_mode error_code_on_crash srcs func_name args =
+  (if wast_mode then 
+    (*Output.(
+        debug_info verbosity stage (fun _ ->
+          "Wast mode not yet implemented .\n") ;
+        Execute.Interpreter.pure ()
+      )*)
+      Execute.Host.error "Wast mode not yet implemented"
+else
+  process_args_and_run verbosity text no_exec error_code_on_crash srcs func_name args)
   |> Execute.Host.to_out |> Output.Out.convert
 
 (** Command line interface *)
@@ -101,6 +109,10 @@ let args =
   let doc = "Arguments to passed in to the function" in
   Arg.(value & opt_all string [] & info ["a"; "arg"] ~docv:"ARG" ~doc)
 
+let wast = 
+  let doc = "Running a .wast test suite" in
+  Arg.(value & flag & info ["wast"] ~docv:"ARG" ~doc)
+
 let srcs =
   let doc = "Source file(s) to interpret." in
   let docinfo = 
@@ -118,7 +130,7 @@ let cmd =
   in
   Cmd.v 
      (Cmd.info "wasm_interpreter" ~version:"c9b010d-dirty" ~doc ~exits ~man ~man_xrefs)
-     Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec (* $ interactive *) $ error_code_on_crash $ srcs $ func_name $ args ))
+     Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ wast (* $ interactive *) $ error_code_on_crash $ srcs $ func_name $ args ))
 
   
 let () = Stdlib.exit @@ 

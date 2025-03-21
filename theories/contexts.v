@@ -633,9 +633,9 @@ Qed.
 
 Lemma ctx_update_valid_ccs: forall sctx ccs oe,
     valid_ccs ccs ->
-    exists ccs' sctx' oe',
+    { ccs' & {sctx' & { oe' |
       ctx_update ccs sctx oe = Some (ccs', sctx', oe') /\
-      valid_ccs ccs'.
+      valid_ccs ccs'}}}.
 Proof.
   move => [vs es] ccs oe Hvalid.
   destruct (ctx_update ccs (vs, es) oe) as [cfg' | ] eqn:Hupdate; last by apply ctx_update_none_impl in Hupdate; unfold valid_ccs in Hvalid; subst.
@@ -1155,6 +1155,41 @@ Proof.
   intros ???????????? Heqval Heqpost Heqarity Hred => /=.
   apply reduce_focus => //.
   by apply (list_label_ctx_eval.(ctx_reduce)) with (hs := hs) => //.
+Qed.
+
+Lemma v_to_e_split_eq: forall vs1 vs2 e1 e2 es1 es2,
+    ~ is_const e1 ->
+    ~ is_const e2 ->
+    v_to_e_list vs1 ++ e1 :: es1 = v_to_e_list vs2 ++ e2 :: es2 ->
+    vs1 = vs2 /\ e1 = e2 /\ es1 = es2.
+Proof.
+  induction vs1; destruct vs2; intros ???? Hnc1 Hnc2 Heq => //=; simpl in *; try inversion Heq; subst => //.
+  - unfold is_const in Hnc1; by rewrite v2e2v in Hnc1.
+  - unfold is_const in Hnc2; by rewrite v2e2v in Hnc2.
+  - apply ve_inj in H0; subst.
+    apply IHvs1 in H1 as [? [??]] => //.
+    by subst.
+Qed.
+
+(* Fill implication *)
+Lemma ctx_fill_impl: forall s ccs1 sctx1 oe1 ccs2 sctx2 oe2,
+    ccs1 != nil -> ccs2 != nil ->
+    ccs1 ⦃ sctx1 ⦃ olist oe1 ⦄ ⦄ = ccs2 ⦃ sctx2 ⦃ olist oe2 ⦄ ⦄ ->
+    ctx_to_cfg (s, ccs1, sctx1, oe1) = ctx_to_cfg (s, ccs2, sctx2, oe2).
+Proof.
+  intros ??????? Hn1 Hn2 Heq => //.
+  unfold ctx_to_cfg.
+  destruct ccs1 as [| [fc1 lcs1] ccs1'] eqn:Hccs1 using List.rev_ind => //=.
+  destruct ccs2 as [| [fc2 lcs2] ccs2'] eqn:Hccs2 using List.rev_ind => //=.
+  repeat rewrite rev_cat => //=.
+  destruct fc1, fc2 => /=.
+  subst.
+  simpl in *.
+  repeat rewrite foldl_cat in Heq.
+  simpl in Heq.
+  apply v_to_e_split_eq in Heq as [Heq1 [Heq2 Heq3]] => //.
+  repeat rewrite revK.
+  do 3 f_equal; by inversion Heq2.
 Qed.
 
 End Reduction.

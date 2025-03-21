@@ -49,12 +49,8 @@ module type InterpreterType = sig
   val empty_store_record : store_record
 
   (** Run one step of the interpreter. *)
-  val run_step_compat :
+  val run_one_step :
     Obj.t -> config_tuple -> res_tuple
-
-  (* Reform the one step result back to a cfg tuple, if possible *)
-  val run_step_cfg_ctx_reform:
-    config_tuple -> config_tuple option
 
   val run_v_init : 
     store_record -> administrative_instruction list -> config_tuple option
@@ -122,11 +118,8 @@ functor (EH : Host) -> struct
   let empty_store_record = Instantiation.empty_store_record
 
   (** Run one step of the interpreter. *)
-  let run_step_compat = 
-    Interpreter.run_one_step_ctx
-
-  (* Reform the one step result back to a cfg tuple, if possible *)
-  let run_step_cfg_ctx_reform = Interpreter.run_step_cfg_ctx_reform
+  let run_one_step = 
+    Interpreter.run_one_step
 
   let run_v_init = Interpreter.run_v_init
 

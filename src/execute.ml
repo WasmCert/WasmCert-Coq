@@ -137,20 +137,13 @@ let invocation_interpret verbosity error_code_on_crash hsfesargs (name: string) 
   let ((((hs, s), f_instantiation), es_instantiation), args) = hsfesargs in
   
   let rec eval_cfg gen hs cfg =
-      (let cfg_res = run_step_compat hs cfg in
+      (let cfg_res = run_one_step hs cfg in
       print_step_header gen ;
       debug_info verbosity intermediate
         (fun _ -> pp_res_cfg_except_store hs cfg cfg_res);
       match cfg_res with
       | RSC_normal (hs', cfg') ->
-        (* reforming the resulting interpreter cfg to the normal form *)
-        begin match run_step_cfg_ctx_reform cfg' with
-        | Some cfg_next -> 
-            eval_cfg (gen+1) hs' cfg_next
-        | None ->
-          debug_info verbosity stage ~style:red (fun _ -> "Configuration reformation failure; this should not happen for valid Wasm modules. Please file a bug report at GitHub/WasmCert-Coq.\n");
-          pure None
-        end
+        eval_cfg (gen+1) hs' cfg'
       | RSC_value (s, _f, vs) ->
         debug_info verbosity stage ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n");
         pure (Some (hs, s, vs))

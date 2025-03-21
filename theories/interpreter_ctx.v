@@ -1702,15 +1702,17 @@ Definition run_step_cfg_ctx_reform (cfg: cfg_tuple_ctx) : option cfg_tuple_ctx :
 
 Lemma run_step_reform_valid s ccs sc oe :
   valid_ccs ccs ->
-  exists cfg, run_step_cfg_ctx_reform (s, ccs, sc, oe) = Some cfg /\
-         valid_cfg_ctx cfg.
+  {cfg | run_step_cfg_ctx_reform (s, ccs, sc, oe) = Some cfg /\
+         ctx_to_cfg (s, ccs, sc, oe) = ctx_to_cfg cfg /\
+         valid_cfg_ctx cfg}.
 Proof.
   move => Hvalid.
   unfold run_step_cfg_ctx_reform.
-  eapply ctx_update_valid_ccs with (sctx := sc) (oe := oe) in Hvalid as [ccs' [sctx' [oe' [Hupdate Hvalid]]]].
+  specialize (ctx_update_valid_ccs sc oe Hvalid) as [ccs' [sctx' [oe' [Hupdate Hvalid']]]].
   rewrite Hupdate.
-  eexists; do 2 split => //.
-  by apply ctx_update_valid in Hupdate.
+  eexists; do 2 split => //; last by apply ctx_update_valid in Hupdate.
+  apply ctx_update_fill in Hupdate.
+  by apply ctx_fill_impl.
 Qed.
 
 Definition run_v_init (s: store_record) (es: list administrative_instruction) : option cfg_tuple_ctx :=
@@ -1753,16 +1755,30 @@ Proof.
     destruct (ctx_decompose_aux _) as [[[??]?]|] eqn:Hdecomp => //; by apply ctx_decompose_acc_some in Hdecomp.
 Defined.
 
+(* One-step interpreter with cfg reformation. *)
+Definition run_one_step (hs: host_state) (cfg: cfg_tuple_ctx) : run_step_ctx_result hs cfg.
+Proof.
+  destruct (run_one_step_ctx hs cfg) as [hs' cfg' Hreduce Hvalid | | | |].
+  - destruct cfg' as [[[s ccs] sc] oe].
+    assert (valid_ccs ccs) as Hvalid'; first by destruct ccs.
+    apply (run_step_reform_valid s sc oe) in Hvalid' as [cfg' [Hreform [Heq Hvalid']]].
+    apply (@RSC_normal hs cfg hs' cfg').
+    + unfold reduce_ctx in *.
+      destruct (ctx_to_cfg cfg) as [[s0 [f0 es0]] | ] eqn:Hcfg => //.
+      by rewrite Heq in Hreduce.
+    + destruct cfg' as [[[??]?]?]; destruct Hvalid' as [??].
+      unfold valid_ccs_cfg.
+      by destruct l.
+  all: by econstructor; eauto.
+Defined.
+
 Fixpoint run_multi_step_ctx (fuel: nat) (hs: host_state) (cfg: cfg_tuple_ctx) : (option unit) + (list value) :=
   match fuel with
   | 0 => inl None
   | S n =>
-      match run_one_step_ctx hs cfg with
+      match run_one_step hs cfg with
       | RSC_normal hs' cfg' Hvalid HReduce =>
-          match run_step_cfg_ctx_reform cfg' with
-          | Some cfg'' => run_multi_step_ctx n hs' cfg''
-          | None => inl None
-          end
+         run_multi_step_ctx n hs' cfg'
       | RSC_value _ _ vs _ => inr vs
       | _ => inl None
       end
@@ -1810,9 +1826,7 @@ Definition cfg_tuple_ctx : Type := cfg_tuple_ctx.
 
 Definition run_step_ctx_result : host_state -> cfg_tuple_ctx -> Type := run_step_ctx_result.
 
-Definition run_one_step_ctx (hs: host_state) (cfg: cfg_tuple_ctx) : run_step_ctx_result hs cfg := run_one_step_ctx host_application_impl_correct hs cfg.
-
-Definition run_step_cfg_ctx_reform : cfg_tuple_ctx -> option cfg_tuple_ctx := run_step_cfg_ctx_reform.
+Definition run_one_step (hs: host_state) (cfg: cfg_tuple_ctx) : run_step_ctx_result hs cfg := run_one_step host_application_impl_correct hs cfg.
 
 Definition run_v_init : store_record -> list administrative_instruction -> option cfg_tuple_ctx := run_v_init.
 
