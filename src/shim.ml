@@ -130,9 +130,7 @@ functor (EH : Host) -> struct
 
   let interp_instantiate_wrapper =
     Instantiation.interp_instantiate_wrapper
-(*
-  let show_host_function_char_list h = Utils.explode (show_host_function h)
-*)
+
   let run_parse_module m = Extract.run_parse_module (Utils.explode m)
 
   let run_parse_arg a = Extract.run_parse_arg (Utils.explode a)
