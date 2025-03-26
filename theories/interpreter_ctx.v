@@ -100,7 +100,14 @@ Inductive run_step_ctx_result (hs: host_state) (cfg: cfg_tuple_ctx): Type :=
   run_step_ctx_result hs cfg
 .
 
-(** The usual start of a crash certification **)
+(** The usual start of a crash certification.
+  Given a goal of a ctx interpreter result, apply the RSC_error constructor
+  which requires proving that the input config is cannot be ctx_cfg-typed.
+  Apply the ctx_config typing inversion lemma and other typing inversion 
+  lemmas (the usual tactic for inverting e_typing premises) to extract and
+  simplify information from the typing premise, in the hope of reaching
+  a contradiction.
+**)
 Ltac resolve_invalid_typing :=
   apply RSC_error;
   let ts := fresh "ts" in
@@ -132,7 +139,8 @@ Ltac get_cc ccs :=
   let ccs' := fresh "ccs'" in 
   destruct ccs as [ | [fc lcs] ccs']; first by apply RSC_invalid => /=; unfold valid_ccs; move => [??].
 
-(* Note that this destroys the original premises, so should only be used as a terminal most of time. *)
+(* Trying to resolve the goal by finding a contradiction by list sizes from the premises in the context. 
+  Note that this destroys the original premises, so should only be used as a terminal most of time. *)
 Ltac discriminate_size :=
   repeat match goal with
   | H: is_true (values_typing _ _ _) |- _ =>
