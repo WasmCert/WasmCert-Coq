@@ -587,6 +587,7 @@ Definition import_subtyping (t1 t2: extern_type) : bool :=
   | _, _ => false
   end.
 
+(* In Wasm 2.0, the module exports are now a part of the module instance. *)
 Definition instantiate (s : store_record) (m : module) (v_imps : list extern_value)
                        (z : (store_record * frame * list basic_instruction)) : Prop :=
   let '(s_end, f, bes) := z in
@@ -602,30 +603,5 @@ Definition instantiate (s : store_record) (m : module) (v_imps : list extern_val
     instantiate_elems f_init hs' s_end m r_inits /\
     f = Build_frame nil inst /\
       bes = get_init_expr_elems m.(mod_elems) ++ get_init_expr_datas m.(mod_datas) ++ get_init_expr_start m.(mod_start).
-
-Definition interp_alloc_module (s : store_record) (m : module) (imps : list extern_value) (gvs : list value) (rvs: list (list value_ref)) : (store_record * moduleinst) :=
-  let i_fs := iota_N (length s.(s_funcs)) (length m.(mod_funcs)) in
-  let i_ts := iota_N (length s.(s_tables)) (length m.(mod_tables)) in
-  let i_ms := iota_N (length s.(s_mems)) (length m.(mod_mems)) in
-  let i_gs := iota_N (length s.(s_globals)) (length m.(mod_globals)) in
-  let i_es := iota_N (length s.(s_elems)) (length m.(mod_elems)) in
-  let i_ds := iota_N (length s.(s_datas)) (length m.(mod_datas)) in
-  let inst := {|
-    inst_types := m.(mod_types);
-    inst_funcs := (ext_funcs imps ++ i_fs);
-    inst_tables := (ext_tables imps ++ i_ts);
-    inst_mems := (ext_mems imps ++ i_ms);
-    inst_globals := (ext_globals imps ++ i_gs);
-    inst_elems := (i_es);
-    inst_datas := (i_ds);
-    inst_exports := (map (get_exportinst (Build_moduleinst nil i_fs i_ts i_ms i_gs nil nil nil)) m.(mod_exports))
-  |} in
-  let '(s1, _) := alloc_funcs s m.(mod_funcs) inst in
-  let '(s2, _) := alloc_tabs s1 (map modtab_type m.(mod_tables)) in
-  let '(s3, _) := alloc_mems s2 (map modmem_type m.(mod_mems)) in
-  let '(s4, i_gs) := alloc_globs s3 m.(mod_globals) gvs in
-  let '(s5, i_es) := alloc_elems s4 m.(mod_elems) rvs in
-  let '(s', i_ds) := alloc_datas s5 m.(mod_datas) in
-  (s', inst).
 
 End Instantiation_spec.

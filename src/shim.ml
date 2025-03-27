@@ -38,7 +38,8 @@ module type InterpreterType = sig
 
   type store_record = Extract.DummyHost.store_record
   type frame = Extract.frame
-  type config_tuple = Extract.Interpreter_ctx_extract.cfg_tuple_ctx
+  type wasm_config_tuple = Extract.config_tuple
+  type interp_config_tuple = Extract.Interpreter_ctx_extract.cfg_tuple_ctx
   type res_tuple = Extract.Interpreter_ctx_extract.run_step_ctx_result
   type basic_instruction = Extract.basic_instruction
   type administrative_instruction = Extract.administrative_instruction
@@ -50,13 +51,13 @@ module type InterpreterType = sig
 
   (** Run one step of the interpreter. *)
   val run_one_step :
-    Obj.t -> config_tuple -> res_tuple
+    interp_config_tuple -> res_tuple
 
   val run_v_init : 
-    store_record -> administrative_instruction list -> config_tuple option
+    store_record -> administrative_instruction list -> interp_config_tuple option
 
-  val run_v_init_with_frame : 
-    store_record -> frame -> administrative_instruction list -> config_tuple
+  val interp_cfg_of_wasm : 
+    wasm_config_tuple -> interp_config_tuple
 
   (** Look-up a specific extracted function of the instantiation and invoke with the provided arguments. *)
   val invoke_exported_function_args :
@@ -64,7 +65,7 @@ module type InterpreterType = sig
 
   (** Perform the instantiation of a module. *)
   val interp_instantiate_wrapper :
-    store_record -> Extract.module0 -> externval list  -> (((Obj.t * store_record) * frame) * administrative_instruction list) option
+    store_record -> Extract.module0 -> externval list  -> wasm_config_tuple option
 
   val run_parse_module : string -> Extract.module0 option
   val run_parse_arg : string -> value option
@@ -72,10 +73,10 @@ module type InterpreterType = sig
   val pp_values : value list -> string
   val pp_store : int -> Dune__exe__Extract.DummyHost.store_record -> string
   val pp_cfg_tuple_ctx_except_store :
-    config_tuple -> string
+    interp_config_tuple -> string
     
   val pp_res_cfg_except_store :
-    Obj.t -> config_tuple -> res_tuple -> string
+    interp_config_tuple -> res_tuple -> string
   val pp_es : Extract.administrative_instruction list -> string
 
 end
@@ -107,7 +108,8 @@ functor (EH : Host) -> struct
 
   type store_record = Extract.DummyHost.store_record
   type frame = Extract.frame
-  type config_tuple = Extract.Interpreter_ctx_extract.cfg_tuple_ctx
+  type wasm_config_tuple = Extract.config_tuple
+  type interp_config_tuple = Extract.Interpreter_ctx_extract.cfg_tuple_ctx
   type res_tuple = Extract.Interpreter_ctx_extract.run_step_ctx_result
   type basic_instruction = Extract.basic_instruction
   type administrative_instruction = Extract.administrative_instruction
@@ -123,7 +125,7 @@ functor (EH : Host) -> struct
 
   let run_v_init = Interpreter.run_v_init
 
-  let run_v_init_with_frame = Interpreter.run_v_init_with_frame
+  let interp_cfg_of_wasm = Interpreter.interp_cfg_of_wasm
 
   let invoke_exported_function_args name =
     Instantiation.invoke_exported_function_args (Utils.explode name)
@@ -144,8 +146,8 @@ functor (EH : Host) -> struct
   let pp_cfg_tuple_ctx_except_store r =
     Utils.implode (PP.pp_cfg_tuple_ctx_except_store r)  
     
-  let pp_res_cfg_except_store hs cfg res =
-    Utils.implode (PP.pp_res_cfg_except_store hs cfg res)
+  let pp_res_cfg_except_store cfg res =
+    Utils.implode (PP.pp_res_cfg_except_store cfg res)
 
   let pp_es es =
     Utils.implode (PP.pp_administrative_instructions O es)

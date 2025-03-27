@@ -11,7 +11,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Section Host.
-
+  
 Context `{ho: host}.
 
 (* This assumption on host function applications is required to establish the interpreter correctness result in the corresponding case *)
@@ -1729,9 +1729,13 @@ Definition run_v_init (s: store_record) (es: list administrative_instruction) : 
   | None => None
   end.
 
-(* run_v_init with a frame always returns a valid cfg tuple. *)
-Definition run_v_init_with_frame (s: store_record) (f: frame) (es: list administrative_instruction) : { cfg : cfg_tuple_ctx | ctx_to_cfg cfg = Some (s, (f, es)) /\ valid_cfg_ctx cfg }.
+(* run_v_init with a frame always returns a valid cfg tuple.
+   This function provides a conversion from a Wasm config tuple to an
+   interpreter config tuple.
+ *)
+Definition interp_cfg_of_wasm (wasm_cfg: config_tuple) : { cfg : cfg_tuple_ctx | ctx_to_cfg cfg = Some wasm_cfg /\ valid_cfg_ctx cfg }.
 Proof.
+  destruct wasm_cfg as [s [f es]].
   (* Arity of outermost frame doesn't matter as it gets removed later *)
   destruct (run_v_init s [::AI_frame 0 f es]) as [ cfg | ] eqn:Hinit.
   - exists cfg.
@@ -1797,7 +1801,7 @@ Fixpoint run_multi_step_ctx (fuel: nat) (hs: host_state) (cfg: cfg_tuple_ctx) : 
  **)
 
 Definition run_multi_step_raw (hs: host_state) (fuel: nat) (s: store_record) (f: frame) (es: list administrative_instruction): (option unit) + (list value) :=
-  match run_v_init_with_frame s f es with
+  match interp_cfg_of_wasm (s, (f, es)) with
   | exist cfg _ => run_multi_step_ctx fuel hs cfg
   end.
 
@@ -1834,10 +1838,10 @@ Definition cfg_tuple_ctx : Type := cfg_tuple_ctx.
 
 Definition run_step_ctx_result : host_state -> cfg_tuple_ctx -> Type := run_step_ctx_result.
 
-Definition run_one_step (hs: host_state) (cfg: cfg_tuple_ctx) : run_step_ctx_result hs cfg := run_one_step host_application_impl_correct hs cfg.
+Definition run_one_step (cfg: cfg_tuple_ctx) : run_step_ctx_result tt cfg := run_one_step host_application_impl_correct tt cfg.
 
 Definition run_v_init : store_record -> list administrative_instruction -> option cfg_tuple_ctx := run_v_init.
 
-Definition run_v_init_with_frame := run_v_init_with_frame.
+Definition interp_cfg_of_wasm := interp_cfg_of_wasm.
 
 End Interpreter_ctx_extract.
