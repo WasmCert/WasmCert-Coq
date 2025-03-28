@@ -53,7 +53,7 @@ This test is the same as the `table_elem_start` test removing the start function
 
 ```sh
 $ wasm_coq_interpreter table_elem_nostart.wasm -r main
-Execution returned a trap or an error; run the interpreter in detailed mode (--vi) for more information
+Execution returned a trap; run the interpreter in detailed mode (--vi) for more information
 
 ```
 

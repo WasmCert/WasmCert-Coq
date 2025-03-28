@@ -817,7 +817,7 @@ Definition pp_store := pp_store.
 
 Definition pp_cfg_tuple_ctx_except_store := pp_cfg_tuple_ctx_except_store.
 
-Definition pp_res_cfg_except_store {hs: host_state} {cfg: cfg_tuple_ctx} (res: run_step_ctx_result hs cfg) := pp_res_cfg_except_store res.
+Definition pp_res_cfg_except_store {cfg: cfg_tuple_ctx} (res: run_step_ctx_result tt cfg) := pp_res_cfg_except_store res.
 
 Definition pp_administrative_instructions := pp_administrative_instructions.
 

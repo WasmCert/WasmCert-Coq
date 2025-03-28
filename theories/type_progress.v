@@ -23,7 +23,7 @@ Definition t_progress_interp_ctx: forall (hs: host_state) (s: store_record) (f: 
 Proof.
   move => hs s f es ts Htype.
   (* initialise an interpreter cfg tuple *)
-  destruct (run_v_init_with_frame s f es) as [[[[s0 ccs] sc] oe] [Hfill Hvalid]].
+  destruct (interp_cfg_of_wasm (s, (f, es))) as [[[[s0 ccs] sc] oe] [Hfill Hvalid]].
   (* run the interpreter *)
   remember (@run_one_step_ctx _ _ host_application_impl host_application_impl_correct hs (s0, ccs, sc, oe)) as res.
   destruct res as [hs' [[[s' ccs'] sc'] oe'] Hred Hvalid' | s' f' vs Hvalfill | s' f' Htrapfill | Hcontra | Hcontra]; clear Heqres.

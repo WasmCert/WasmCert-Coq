@@ -38,33 +38,34 @@ module type InterpreterType = sig
 
   type store_record = Extract.DummyHost.store_record
   type frame = Extract.frame
-  type config_tuple = Extract.Interpreter_ctx_extract.cfg_tuple_ctx
+  type wasm_config_tuple = Extract.config_tuple
+  type interp_config_tuple = Extract.Interpreter_ctx_extract.cfg_tuple_ctx
   type res_tuple = Extract.Interpreter_ctx_extract.run_step_ctx_result
   type basic_instruction = Extract.basic_instruction
   type administrative_instruction = Extract.administrative_instruction
   type moduleinst = Extract.moduleinst
+  type value = Extract.value0
+  type externval = Extract.extern_value
+
+  val empty_store_record : store_record
 
   (** Run one step of the interpreter. *)
-  val run_step_compat :
-    Obj.t -> config_tuple -> res_tuple
-
-  (* Reform the one step result back to a cfg tuple, if possible *)
-  val run_step_cfg_ctx_reform:
-    config_tuple -> config_tuple option
+  val run_one_step :
+    interp_config_tuple -> res_tuple
 
   val run_v_init : 
-    store_record -> administrative_instruction list -> config_tuple option
+    store_record -> administrative_instruction list -> interp_config_tuple option
 
-  val run_v_init_with_frame : 
-    store_record -> frame -> administrative_instruction list-> config_tuple
+  val interp_cfg_of_wasm : 
+    wasm_config_tuple -> interp_config_tuple
 
   (** Look-up a specific extracted function of the instantiation. *)
   val invoke_exported_function_args :
-    string -> store_record -> frame -> Extract.value0 list -> (administrative_instruction list) option
+    string -> store_record -> frame -> value list -> (administrative_instruction list) option
 
   (** Perform the instantiation of a module. *)
   val interp_instantiate_wrapper :
-    Extract.module0 -> (((Obj.t * store_record) * frame) * administrative_instruction list) option
+    store_record -> Extract.module0 -> externval list  -> wasm_config_tuple option
 
   (** Parsing. *)
 
@@ -78,10 +79,10 @@ module type InterpreterType = sig
   val pp_store : int (** The indentation level *) -> store_record -> string
 
   val pp_cfg_tuple_ctx_except_store :
-    config_tuple -> string
+    interp_config_tuple -> string
     
   val pp_res_cfg_except_store :
-    Obj.t -> config_tuple -> res_tuple -> string
+    interp_config_tuple -> res_tuple -> string
 
   val pp_es : Extract.administrative_instruction list -> string
 

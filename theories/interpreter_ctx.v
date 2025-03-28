@@ -11,7 +11,7 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Section Host.
-
+  
 Context `{ho: host}.
 
 (* This assumption on host function applications is required to establish the interpreter correctness result in the corresponding case *)
@@ -100,7 +100,14 @@ Inductive run_step_ctx_result (hs: host_state) (cfg: cfg_tuple_ctx): Type :=
   run_step_ctx_result hs cfg
 .
 
-(** The usual start of a crash certification **)
+(** The usual start of a crash certification.
+  Given a goal of a ctx interpreter result, apply the RSC_error constructor
+  which requires proving that the input config is cannot be ctx_cfg-typed.
+  Apply the ctx_config typing inversion lemma and other typing inversion 
+  lemmas (the usual tactic for inverting e_typing premises) to extract and
+  simplify information from the typing premise, in the hope of reaching
+  a contradiction.
+**)
 Ltac resolve_invalid_typing :=
   apply RSC_error;
   let ts := fresh "ts" in
@@ -132,7 +139,8 @@ Ltac get_cc ccs :=
   let ccs' := fresh "ccs'" in 
   destruct ccs as [ | [fc lcs] ccs']; first by apply RSC_invalid => /=; unfold valid_ccs; move => [??].
 
-(* Note that this destroys the original premises, so should only be used as a terminal most of time. *)
+(* Trying to resolve the goal by finding a contradiction by list sizes from the premises in the context. 
+  Note that this destroys the original premises, so should only be used as a terminal most of time. *)
 Ltac discriminate_size :=
   repeat match goal with
   | H: is_true (values_typing _ _ _) |- _ =>
@@ -1702,15 +1710,17 @@ Definition run_step_cfg_ctx_reform (cfg: cfg_tuple_ctx) : option cfg_tuple_ctx :
 
 Lemma run_step_reform_valid s ccs sc oe :
   valid_ccs ccs ->
-  exists cfg, run_step_cfg_ctx_reform (s, ccs, sc, oe) = Some cfg /\
-         valid_cfg_ctx cfg.
+  {cfg | run_step_cfg_ctx_reform (s, ccs, sc, oe) = Some cfg /\
+         ctx_to_cfg (s, ccs, sc, oe) = ctx_to_cfg cfg /\
+         valid_cfg_ctx cfg}.
 Proof.
   move => Hvalid.
   unfold run_step_cfg_ctx_reform.
-  eapply ctx_update_valid_ccs with (sctx := sc) (oe := oe) in Hvalid as [ccs' [sctx' [oe' [Hupdate Hvalid]]]].
+  specialize (ctx_update_valid_ccs sc oe Hvalid) as [ccs' [sctx' [oe' [Hupdate Hvalid']]]].
   rewrite Hupdate.
-  eexists; do 2 split => //.
-  by apply ctx_update_valid in Hupdate.
+  eexists; do 2 split => //; last by apply ctx_update_valid in Hupdate.
+  apply ctx_update_fill in Hupdate.
+  by apply ctx_fill_impl.
 Qed.
 
 Definition run_v_init (s: store_record) (es: list administrative_instruction) : option cfg_tuple_ctx :=
@@ -1719,9 +1729,13 @@ Definition run_v_init (s: store_record) (es: list administrative_instruction) : 
   | None => None
   end.
 
-(* run_v_init with a frame always returns a valid cfg tuple. *)
-Definition run_v_init_with_frame (s: store_record) (f: frame) (es: list administrative_instruction) : { cfg : cfg_tuple_ctx | ctx_to_cfg cfg = Some (s, (f, es)) /\ valid_cfg_ctx cfg }.
+(* run_v_init with a frame always returns a valid cfg tuple.
+   This function provides a conversion from a Wasm config tuple to an
+   interpreter config tuple.
+ *)
+Definition interp_cfg_of_wasm (wasm_cfg: config_tuple) : { cfg : cfg_tuple_ctx | ctx_to_cfg cfg = Some wasm_cfg /\ valid_cfg_ctx cfg }.
 Proof.
+  destruct wasm_cfg as [s [f es]].
   (* Arity of outermost frame doesn't matter as it gets removed later *)
   destruct (run_v_init s [::AI_frame 0 f es]) as [ cfg | ] eqn:Hinit.
   - exists cfg.
@@ -1753,16 +1767,30 @@ Proof.
     destruct (ctx_decompose_aux _) as [[[??]?]|] eqn:Hdecomp => //; by apply ctx_decompose_acc_some in Hdecomp.
 Defined.
 
+(* One-step interpreter with cfg reformation. *)
+Definition run_one_step (hs: host_state) (cfg: cfg_tuple_ctx) : run_step_ctx_result hs cfg.
+Proof.
+  destruct (run_one_step_ctx hs cfg) as [hs' cfg' Hreduce Hvalid | | | |].
+  - destruct cfg' as [[[s ccs] sc] oe].
+    assert (valid_ccs ccs) as Hvalid'; first by destruct ccs.
+    apply (run_step_reform_valid s sc oe) in Hvalid' as [cfg' [Hreform [Heq Hvalid']]].
+    apply (@RSC_normal hs cfg hs' cfg').
+    + unfold reduce_ctx in *.
+      destruct (ctx_to_cfg cfg) as [[s0 [f0 es0]] | ] eqn:Hcfg => //.
+      by rewrite Heq in Hreduce.
+    + destruct cfg' as [[[??]?]?]; destruct Hvalid' as [??].
+      unfold valid_ccs_cfg.
+      by destruct l.
+  all: by econstructor; eauto.
+Defined.
+
 Fixpoint run_multi_step_ctx (fuel: nat) (hs: host_state) (cfg: cfg_tuple_ctx) : (option unit) + (list value) :=
   match fuel with
   | 0 => inl None
   | S n =>
-      match run_one_step_ctx hs cfg with
+      match run_one_step hs cfg with
       | RSC_normal hs' cfg' Hvalid HReduce =>
-          match run_step_cfg_ctx_reform cfg' with
-          | Some cfg'' => run_multi_step_ctx n hs' cfg''
-          | None => inl None
-          end
+         run_multi_step_ctx n hs' cfg'
       | RSC_value _ _ vs _ => inr vs
       | _ => inl None
       end
@@ -1773,7 +1801,7 @@ Fixpoint run_multi_step_ctx (fuel: nat) (hs: host_state) (cfg: cfg_tuple_ctx) : 
  **)
 
 Definition run_multi_step_raw (hs: host_state) (fuel: nat) (s: store_record) (f: frame) (es: list administrative_instruction): (option unit) + (list value) :=
-  match run_v_init_with_frame s f es with
+  match interp_cfg_of_wasm (s, (f, es)) with
   | exist cfg _ => run_multi_step_ctx fuel hs cfg
   end.
 
@@ -1810,12 +1838,10 @@ Definition cfg_tuple_ctx : Type := cfg_tuple_ctx.
 
 Definition run_step_ctx_result : host_state -> cfg_tuple_ctx -> Type := run_step_ctx_result.
 
-Definition run_one_step_ctx (hs: host_state) (cfg: cfg_tuple_ctx) : run_step_ctx_result hs cfg := run_one_step_ctx host_application_impl_correct hs cfg.
-
-Definition run_step_cfg_ctx_reform : cfg_tuple_ctx -> option cfg_tuple_ctx := run_step_cfg_ctx_reform.
+Definition run_one_step (cfg: cfg_tuple_ctx) : run_step_ctx_result tt cfg := run_one_step host_application_impl_correct tt cfg.
 
 Definition run_v_init : store_record -> list administrative_instruction -> option cfg_tuple_ctx := run_v_init.
 
-Definition run_v_init_with_frame := run_v_init_with_frame.
+Definition interp_cfg_of_wasm := interp_cfg_of_wasm.
 
 End Interpreter_ctx_extract.

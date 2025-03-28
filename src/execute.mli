@@ -20,14 +20,25 @@ module Host : sig
   end
 
 module Interpreter : Shim.InterpreterType with type 'a host_event = 'a Host.host_event
-(*
-(** Read-eval-print-loop. *)
-val repl : Output.verbosity -> ((Extract.Equality.sort * Interpreter.store_record) * Extract.frame) * Extract.module_export list -> string -> unit Host.host_event
-*)
+
+type eval_cfg_result =
+  | Cfg_res of Interpreter.store_record * Extract.frame * Extract.value0 list
+  | Cfg_trap of Interpreter.store_record * Extract.frame
+  | Cfg_err
+
+(* Evaluating an interpreter configuration fully. *)
+val eval_interp_cfg: Output.verbosity -> int -> Interpreter.interp_config_tuple -> eval_cfg_result
+
+(* Evaluate a Wasm configuration using the interpreter configuration. *)
+val eval_wasm_cfg: Output.verbosity -> Interpreter.wasm_config_tuple -> eval_cfg_result
+
+(* Given a starting state and a list of imports (store references), instantiating a module.
+   Return the interpreter result after running the instantiation instructions. *)
+val instantiate: Output.verbosity -> Interpreter.store_record -> Extract.module0 -> (Interpreter.externval list) -> eval_cfg_result Host.host_event
 
 (** Given a verbosity level, a boolean stating whether the program should crash if the interpreted
    code does, a configuration tuple, a function name, interpret the Wasm function. *)
-val invocation_interpret : Output.verbosity -> bool -> (((Extract.Equality.sort * Interpreter.store_record) * Extract.frame) * Extract.administrative_instruction list) * Extract.value0 list -> string -> unit Host.host_event
+val invocation_interpret : Output.verbosity -> bool -> (Interpreter.store_record * Extract.frame) -> Extract.value0 list -> string -> unit Host.host_event
 
 (** Given a verbosity level, a boolean stating whether interactive mode is enable, another boolan
    stating whether the program should crash if the interpreted code does, a module, a function name,

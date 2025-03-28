@@ -49,174 +49,81 @@ module TopHost = Host
 (*open Host*)
 open Interpreter
 
-(* artifact for interactive interpreter *)
-(*let rec user_input prompt cb st =
-  match LNoise.linenoise prompt with
-  | None -> pure ()
-  | Some v ->
-    let* st' = cb v st in
-    user_input prompt cb st'
+type eval_cfg_result =
+  | Cfg_res of store_record * frame * value list
+  | Cfg_trap of store_record * frame
+  | Cfg_err
 
-let string_of_crash_reason = function
-  | () -> "error"
-*)
-(*
-let take_step verbosity _i cfg =
-  let res = run_step_compat cfg in
-  (*
-  let store_status = if s = s' then "unchanged" else "changed" in
-  debug_info result verbosity (fun _ ->
-    Printf.sprintf "%sand store %s\n%!" (pp_res_tuple_except_store (tuple_drop_hs res)) store_status) ;
-  *)
-  match res with
-  | ((_, _), Extract.RS_crash _) ->
-    debug_info result verbosity ~style:red (fun _ -> "crash:") ;
-    debug_info result verbosity (fun _ -> " " ^ string_of_crash_reason ()) ;
-    pure cfg
-  | ((_, _), Extract.RS_break _) ->
-    debug_info result verbosity ~style:red (fun _ -> "break") ;
-    pure cfg
-  | ((_, _), Extract.RS_return vs) ->
-    debug_info result verbosity ~style:green (fun _ -> "return:") ;
-    debug_info result verbosity (fun _ -> " " ^ pp_values vs) ;
-    pure cfg
-  | ((s', vs'), Extract.RS_normal es) ->
-    pure ((s', vs'), es)
-
-let repl verbosity sies (name : string) =
-  error ("unimplemented")
-  LNoise.set_hints_callback (fun line ->
-      (* FIXME: Documentation is needed here. I don’t know what these lines do. *)
-      if line <> "git remote add " then None
-      else Some (" <this is the remote name> <this is the remote URL>",
-                 LNoise.Yellow,
-                 true)
-    );
-  LNoise.history_load ~filename:"history.txt" |> ignore;
-  LNoise.history_set ~max_length:100 |> ignore;
-  LNoise.set_completion_callback begin fun line_so_far ln_completions ->
-    (if line_so_far = "" then
-      ["store"]
-    else if line_so_far <> "" && line_so_far.[0] = 's' then
-      ["store"]
-    else [])
-      |> List.iter (LNoise.add_completion ln_completions);
-  end;
-  ["interactive Wasm interpreter";
-   "get tab completion with <TAB>";
-   "type quit to exit gracefully"]
-  |> List.iter print_endline;
-  let (((_, s), i), _) = sies in
-  match lookup_exported_function name sies with
-  | None -> error ("unknown function `" ^ name ^ "`")
-  | Some cfg0 ->
-    debug_info result verbosity (fun _ ->
-      Printf.sprintf "\n%sand store\n%s\n%!"
-        (pp_config_tuple_except_store (tuple_drop_hs cfg0))
-        (pp_store 1 s)) ;
-    (fun from_user cfg ->
-      if from_user = "quit" then exit 0;
-      LNoise.history_add from_user |> ignore;
-      LNoise.history_save ~filename:"history.txt" |> ignore;
-      if from_user = "" || from_user = "step" then take_step verbosity i cfg
-      else if from_user = "s" || from_user = "store" then
-        (let (((_, s), _), _) = cfg in
-         Printf.sprintf "%s%!" (pp_store 0 s) |> print_endline;
-         pure cfg)
-      else if from_user = "help" then
-        (Printf.sprintf "commands:\nstep: take a step\nstore: display the store\nquit: quit\nhelp: this help message" |> print_endline;
-         pure cfg)
-      else (Printf.sprintf "unknown command" |> print_endline; pure cfg))
-    |> (fun cb -> user_input "> " cb cfg0)
-*)
-
-let invocation_interpret verbosity error_code_on_crash hsfesargs (name: string) =
+let rec eval_interp_cfg verbosity gen cfg =
   let print_step_header gen =
     debug_info verbosity intermediate ~style:bold
       (fun () -> Printf.sprintf "step %d:\n" gen) in
-  let ((((hs, s), f_instantiation), es_instantiation), args) = hsfesargs in
+  let cfg_res = run_one_step cfg in
+  print_step_header gen;
+  debug_info verbosity intermediate
+    (fun _ -> pp_res_cfg_except_store cfg cfg_res);
+  match cfg_res with
+  | RSC_normal (_hs', cfg') ->
+    eval_interp_cfg verbosity (gen+1) cfg'
+  | RSC_value (s, f, vs) ->
+    debug_info verbosity stage ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n");
+    (Cfg_res (s, f, vs))
+  | RSC_trap (s, f) ->
+    debug_info verbosity stage ~style:red (fun _ -> "trap after " ^ string_of_int gen ^ " steps\n");
+    Cfg_trap (s, f)
+  | RSC_invalid ->
+    debug_info verbosity stage ~style:red (fun _ -> "Invalid cfg\n");
+    Cfg_err
+  | RSC_error ->
+    debug_info verbosity stage ~style:red (fun _ -> "Ill-typed input\n");
+    Cfg_err
   
-  let rec eval_cfg gen hs cfg =
-      (let cfg_res = run_step_compat hs cfg in
-      print_step_header gen ;
-      debug_info verbosity intermediate
-        (fun _ -> pp_res_cfg_except_store hs cfg cfg_res);
-      match cfg_res with
-      | RSC_normal (hs', cfg') ->
-        (* reforming the resulting interpreter cfg to the normal form *)
-        begin match run_step_cfg_ctx_reform cfg' with
-        | Some cfg_next -> 
-            eval_cfg (gen+1) hs' cfg_next
-        | None ->
-          debug_info verbosity stage ~style:red (fun _ -> "Configuration reformation failure; this should not happen for valid Wasm modules. Please file a bug report at GitHub/WasmCert-Coq.\n");
-          pure None
-        end
-      | RSC_value (s, _f, vs) ->
-        debug_info verbosity stage ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n");
-        pure (Some (hs, s, vs))
-      | RSC_trap (_s, _f) ->
-        debug_info verbosity stage ~style:red (fun _ -> "trap after " ^ string_of_int gen ^ " steps\n");
-        pure None
-      | RSC_invalid ->
-        debug_info verbosity stage ~style:red (fun _ -> "Invalid cfg\n");
-        pure None
-      | RSC_error ->
-        debug_info verbosity stage ~style:red (fun _ -> "Ill-typed input\n");
-        pure None
-      )
-    in
-
+let eval_wasm_cfg verbosity cfg =
+  let interp_cfg_inst = interp_cfg_of_wasm cfg in
   debug_info verbosity intermediate (fun _ ->
-    Printf.sprintf "\nPost-instantiation stage for table and memory initialisers...\n");
-  
-  (* In Wasm 2.0, module instantiation results in a series of table and memory initialiser instructions followed by an invocation of the start function *)  
-  match run_v_init_with_frame s f_instantiation es_instantiation with
-  | cfg_instantiation -> 
-    let* res = eval_cfg 1 hs cfg_instantiation in
-    begin match res with
-    | Some (hs', s', _) ->
-      debug_info verbosity intermediate (fun _ ->
-      Printf.sprintf "\nInstantiation success\n");
-      let* es_init =
-        TopHost.from_out (
-          ovpending verbosity stage "interpreting" (fun _ ->
-            if (String.equal name "") then
-              Error ("no function name specified")
-            else
-            match invoke_exported_function_args name s f_instantiation args with
-            | None -> Error ("unknown function `" ^ name ^ "`, or unexpected argument types")
-            | Some es_init -> OK es_init)
-          ) in
-      begin match run_v_init_with_frame s' Extract.empty_frame es_init with
-      | cfg_init -> 
-        print_step_header 0 ;
-        debug_info verbosity intermediate (fun _ ->
-          Printf.sprintf "\nExecuting configuration:\n%s\n" (pp_cfg_tuple_ctx_except_store cfg_init));
-        let* res = eval_cfg 1 hs' cfg_init in
-        debug_info_span verbosity result stage (fun _ ->
-          match res with
-          | Some (_, _, vs) -> pp_values vs
-          | None -> "Execution returned a trap or an error; run the interpreter in detailed mode (--vi) for more information\n");
-        if error_code_on_crash && (match res with None -> true | Some _ -> false) then exit 1
-        else pure ()
-      end
-    | None -> Printf.printf "Invocation failed"; pure ()
-    end
+    Printf.sprintf "\nExecuting configuration:\n%s\n" (pp_cfg_tuple_ctx_except_store interp_cfg_inst));
+  eval_interp_cfg verbosity 1 interp_cfg_inst
 
+let invocation_interpret verbosity error_code_on_crash sf args (name: string) =
+  let (s, f) = sf in
+  let* es_init =
+    TopHost.from_out (
+      ovpending verbosity stage "interpreting" (fun _ ->
+        if (String.equal name "") then
+          Error ("no function name specified")
+        else
+        match invoke_exported_function_args name s f args with
+        | None -> Error ("unknown function `" ^ name ^ "`, or unexpected argument types")
+        | Some es_init -> OK es_init)
+      ) in
+    let cfg_init = (s, (f, es_init)) in
+    let res = eval_wasm_cfg verbosity cfg_init in
+    debug_info_span verbosity result stage (fun _ ->
+      match res with
+      | Cfg_res (_, _, vs) -> pp_values vs
+      | Cfg_trap _ -> "Execution returned a trap; run the interpreter in detailed mode (--vi) for more information\n"
+      | Cfg_err -> "Execution returned an error; run the interpreter in detailed mode (--vi) for more information\n");
+    if error_code_on_crash && (match res with Cfg_res _ -> false | _ -> true) then exit 1
+    else pure ()
 
-
-
-
-  
-
-(* TODO: update the interactive interpreter. The interactive flag is currently disabled. *)
-let instantiate_interpret verbosity error_code_on_crash m args name =
-  let* hs_s_f_es_args =
+let instantiate verbosity s m imps =
+  let* wasm_cfg =
     TopHost.from_out (
       ovpending verbosity stage "instantiation" (fun _ ->
-        match interp_instantiate_wrapper m with
+        match interp_instantiate_wrapper s m imps with
         | None -> Error "instantiation error"
-        | Some hs_s_f_es -> OK (hs_s_f_es, args))) in
-  (*if interactive then repl verbosity store_inst_exps name
-  else if no_ctx_optimise then interpret verbosity error_code_on_crash store_inst_exps name
-  else*) invocation_interpret verbosity error_code_on_crash hs_s_f_es_args name
+        | Some cfg -> OK cfg)) in
+  pure (eval_wasm_cfg verbosity wasm_cfg)
+
+let instantiate_interpret verbosity error_code_on_crash m args name =
+  let* sf =
+    let* inst_result = instantiate verbosity empty_store_record m [] in
+    TopHost.from_out (
+      ovpending verbosity stage "instantiation" (fun _ ->
+        match inst_result with
+        | Cfg_err -> Error "instantiation error"
+        | Cfg_trap _ -> Error "instantiation error: initialisers resulted in a trap"
+        | Cfg_res (s, f, _vs) -> OK (s, f))
+  ) in
+    debug_info verbosity intermediate (fun _ -> Printf.sprintf "\nInstantiation success\n");
+    invocation_interpret verbosity error_code_on_crash sf args name
