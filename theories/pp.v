@@ -14,7 +14,7 @@ Open Scope string_scope.
 Section Host.
 
 Context `{ho: host}.
-  
+
 Variable show_host_function : host_function -> string.
 
 Definition newline_char : Ascii.ascii := Ascii.ascii_of_byte Byte.x0a.

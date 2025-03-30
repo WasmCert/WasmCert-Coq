@@ -60,12 +60,18 @@ module type InterpreterType = sig
     wasm_config_tuple -> interp_config_tuple
 
   (** Look-up a specific extracted function of the instantiation. *)
-  val invoke_exported_function_args :
-    string -> store_record -> frame -> value list -> (administrative_instruction list) option
+  val invoke_extern:
+    store_record -> externval -> value list -> (administrative_instruction list) option
 
   (** Perform the instantiation of a module. *)
   val interp_instantiate_wrapper :
     store_record -> Extract.module0 -> externval list  -> wasm_config_tuple option
+
+  (** Extracting the import path from the parsed module. *)
+  val get_import_path: Extract.module0 -> (string * string) list
+
+  (** Extracting the exports from the resulting frame. *)
+  val get_exports : frame -> (string * externval) list
 
   (** Parsing. *)
 

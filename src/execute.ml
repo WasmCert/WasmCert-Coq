@@ -46,7 +46,6 @@ module Interpreter = Shim.Interpreter (Host)
 (** An alias of [Host] to be able to retrieve it later. *)
 module TopHost = Host
 
-(*open Host*)
 open Interpreter
 
 type eval_cfg_result =
@@ -84,7 +83,12 @@ let eval_wasm_cfg verbosity cfg =
     Printf.sprintf "\nExecuting configuration:\n%s\n" (pp_cfg_tuple_ctx_except_store interp_cfg_inst));
   eval_interp_cfg verbosity 1 interp_cfg_inst
 
-let invocation_interpret verbosity error_code_on_crash sf args (name: string) =
+
+module StringMap = Map.Make(String);;
+
+type host_extern_store = (Interpreter.externval StringMap.t) StringMap.t
+
+let invoke_func verbosity exts sf args modname name =
   let (s, f) = sf in
   let* es_init =
     TopHost.from_out (
@@ -92,21 +96,33 @@ let invocation_interpret verbosity error_code_on_crash sf args (name: string) =
         if (String.equal name "") then
           Error ("no function name specified")
         else
-        match invoke_exported_function_args name s f args with
-        | None -> Error ("unknown function `" ^ name ^ "`, or unexpected argument types")
-        | Some es_init -> OK es_init)
-      ) in
+          begin match StringMap.find_opt modname exts with
+          | Some mmap ->
+            begin match StringMap.find_opt name mmap with
+            | Some extval ->
+              begin match invoke_extern s extval args with
+              | None -> Error ("unknown function `" ^ name ^ "`, or unexpected argument types")
+              | Some es_init -> OK es_init
+              end
+            | None -> Error "specified function does not exist"
+            end
+          | None -> Error "specified module does not exist"
+          end
+      )) in
     let cfg_init = (s, (f, es_init)) in
     let res = eval_wasm_cfg verbosity cfg_init in
     debug_info_span verbosity result stage (fun _ ->
       match res with
       | Cfg_res (_, _, vs) -> pp_values vs
-      | Cfg_trap _ -> "Execution returned a trap; run the interpreter in detailed mode (--vi) for more information\n"
-      | Cfg_err -> "Execution returned an error; run the interpreter in detailed mode (--vi) for more information\n");
-    if error_code_on_crash && (match res with Cfg_res _ -> false | _ -> true) then exit 1
-    else pure ()
+      | Cfg_trap (_, _) -> "Execution returned a trap; run the interpreter in detailed mode (--vi) for more information\n"
+      | Cfg_err -> "Execution returned an error; run the interpreter in detailed mode (--vi) for more information\n"
+    );
+    match res with
+    | Cfg_res (s, _, _) -> pure s
+    | Cfg_trap (s, _) -> pure s
+    | Cfg_err -> TopHost.error ""
 
-let instantiate verbosity s m imps =
+let instantiate_imps verbosity s m imps =
   let* wasm_cfg =
     TopHost.from_out (
       ovpending verbosity stage "instantiation" (fun _ ->
@@ -115,7 +131,42 @@ let instantiate verbosity s m imps =
         | Some cfg -> OK cfg)) in
   pure (eval_wasm_cfg verbosity wasm_cfg)
 
-let instantiate_interpret verbosity error_code_on_crash m args name =
+let get_ext_import exts path = 
+  let (m, imp_name) = path in
+  match StringMap.find_opt m exts with
+  | Some imps_map ->
+    StringMap.find_opt imp_name imps_map
+  | None -> None
+
+let instantiate verbosity exts s m = 
+  let import_paths = get_import_path m in
+  let oext_vals = List.map (get_ext_import exts) import_paths in
+  let ext_vals = List.filter_map (fun x -> x) oext_vals in
+  if List.length oext_vals = List.length ext_vals then
+    let* inst_res = instantiate_imps verbosity s m ext_vals in
+    pure inst_res
+  else
+    TopHost.error "invalid module imports"
+
+let instantiate_host verbosity exts s module_name m = 
+  let* inst_res = instantiate verbosity exts s m in
+  (* Add the exported instances to the host store. *)
+  match inst_res with
+  | Cfg_res (s', f, _vs) -> 
+    let exps = get_exports f in
+    let exps_map = StringMap.of_seq (List.to_seq exps) in
+    let exts'' = StringMap.add module_name exps_map exts in
+    pure (exts'', s')
+  (* Trap won't be counted as an irrecoverable error in the host *)
+  | Cfg_trap (s', f) -> 
+    let exps = get_exports f in
+    let exps_map = StringMap.of_seq (List.to_seq exps) in
+    let exts'' = StringMap.add module_name exps_map exts in
+    pure (exts'', s')
+  | Cfg_err -> TopHost.error "invalid module instantiation"
+
+(*
+let instantiate_interpret verbosity error_code_on_crash exts s m args name =
   let* sf =
     let* inst_result = instantiate verbosity empty_store_record m [] in
     TopHost.from_out (
@@ -127,3 +178,4 @@ let instantiate_interpret verbosity error_code_on_crash m args name =
   ) in
     debug_info verbosity intermediate (fun _ -> Printf.sprintf "\nInstantiation success\n");
     invocation_interpret verbosity error_code_on_crash sf args name
+*)
