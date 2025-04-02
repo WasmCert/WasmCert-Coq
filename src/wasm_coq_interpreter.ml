@@ -4,7 +4,7 @@ open Execute.Interpreter
 (** Trying to guess the module name by the file name provided for the module. *)
 let extract_module_name src =
   let name = Filename.basename src in
-  if (String.length name >= 5 && String.sub name (String.length name - 5) 5 == ".wasm") then
+  if (String.length name >= 5 && String.sub name (String.length name - 5) 5 = ".wasm") then
       String.sub name 0 (String.length name - 5)
   else name
 
@@ -58,7 +58,7 @@ let rec instantiate_modules verbosity exts s names modules =
   | _ -> Execute.Host.from_out (Error ("Invalid module name parsing results"))
 
 (** Main function *)
-let process_args_and_run verbosity text no_exec (srcs: string list) func_name arg_strings =
+let process_args_and_run verbosity text no_exec (srcs: string list) func_name src_module_name arg_strings =
   let open Execute.Host in
   let open Execute.Interpreter in
   try
@@ -87,13 +87,16 @@ let process_args_and_run verbosity text no_exec (srcs: string list) func_name ar
         Execute.Interpreter.pure ()
       )
     else 
-      let running_module_name = List.hd (List.rev mnames) in
+      let running_module_name = 
+        (if src_module_name = "" then 
+          List.hd (List.rev mnames) 
+        else src_module_name) in
       let* _ = Execute.invoke_func verbosity exts (s, Extract.empty_frame) args running_module_name func_name in 
     pure ()
   with Invalid_argument msg -> error msg
 
 (** Similar to [process_args_and_run], but differs in the output type. *)
-let process_args_and_run_out verbosity text no_exec wast_mode srcs func_name args =
+let process_args_and_run_out verbosity text no_exec wast_mode srcs func_name src_module_name args =
   (if wast_mode then 
     (*Output.(
         debug_info verbosity stage (fun _ ->
@@ -102,7 +105,7 @@ let process_args_and_run_out verbosity text no_exec wast_mode srcs func_name arg
       )*)
       Execute.Host.error "Wast mode not yet implemented"
 else
-  process_args_and_run verbosity text no_exec srcs func_name args)
+  process_args_and_run verbosity text no_exec srcs func_name src_module_name args)
   |> Execute.Host.to_out |> Output.Out.convert
 
 (** Command line interface *)
@@ -144,6 +147,10 @@ let func_name =
   let doc = "Name of the Wasm function to run." in
   Arg.(value & opt string "" & info ["r"; "run"] ~docv:"NAME" ~doc)
 
+let module_name = 
+  let doc = "Name of the source Wasm module to locate the function. Defaults to the last module. " in
+  Arg.(value & opt string "" & info ["m"; "module"] ~docv:"MODULE" ~doc)
+
 let args = 
   let doc = "Arguments to passed in to the function" in
   Arg.(value & opt_all string [] & info ["a"; "arg"] ~docv:"ARG" ~doc)
@@ -169,12 +176,10 @@ let cmd =
   in
   Cmd.v 
      (Cmd.info "wasm_interpreter" ~version:"c9b010d-dirty" ~doc ~exits ~man ~man_xrefs)
-     Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ wast (* $ interactive *) $ srcs $ func_name $ args ))
+     Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ wast $ srcs $ func_name $ module_name $ args ))
 
   
 let () = Stdlib.exit @@ 
    match Cmd.eval_value cmd with
    | Ok _ -> Cmd.Exit.ok
    | Error _ -> Cmd.Exit.some_error
-   
-

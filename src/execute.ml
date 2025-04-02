@@ -101,12 +101,12 @@ let invoke_func verbosity exts sf args modname name =
             begin match StringMap.find_opt name mmap with
             | Some extval ->
               begin match invoke_extern s extval args with
-              | None -> Error ("unknown function `" ^ name ^ "`, or unexpected argument types")
+              | None -> Error ("Unknown function `" ^ name ^ "`, or invalid argument types")
               | Some es_init -> OK es_init
               end
-            | None -> Error "specified function does not exist"
+            | None -> Error "The specified function does not exist"
             end
-          | None -> Error "specified module does not exist"
+          | None -> Error "The specified module does not exist"
           end
       )) in
     let cfg_init = (s, (f, es_init)) in

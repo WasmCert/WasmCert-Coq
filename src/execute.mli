@@ -45,6 +45,5 @@ val instantiate: Output.verbosity -> host_extern_store -> Interpreter.store_reco
 (* A host wrapper for the instantiation function that updates the host export store. *)
 val instantiate_host: Output.verbosity -> host_extern_store -> Interpreter.store_record -> string -> Extract.module0 -> (host_extern_store * Interpreter.store_record) Host.host_event
 
-(** Given a verbosity level, a boolean stating whether the program should crash if the interpreted
-   code does, a configuration tuple, a list of arguments, and a function name, interpret the Wasm function. *)
+(** Given a verbosity level, a host and Wasm state, a list of arguments, and a module and function name, invoke the Wasm function. *)
 val invoke_func : Output.verbosity -> host_extern_store -> (Interpreter.store_record * Extract.frame) -> Extract.value0 list -> string -> string -> Interpreter.store_record Host.host_event
