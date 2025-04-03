@@ -176,7 +176,8 @@ Definition alloc_datas (s : store_record) (m_d: list module_data) : store_record
   alloc_Xs alloc_data s m_d.
 
 Definition export_get_v_ext (inst : moduleinst) (exp : module_export_desc) : extern_value :=
-  (* we circumvent partiality by providing 0 as a default *)
+  (* we circumvent partiality by providing 0 as a default. This is fine as the module_typing
+     relation will validate of the export indices *)
   match exp with
   | MED_func i => EV_func ( (List.nth i inst.(inst_funcs) N0))
   | MED_table i => EV_table ( (List.nth i inst.(inst_tables) N0))
@@ -269,9 +270,7 @@ Definition alloc_module (s : store_record) (m : module) (imps : list extern_valu
   (inst.(inst_globals) == ((ext_globals imps) ++ i_gs)) &&
   (inst.(inst_elems) == i_es) &&
   (inst.(inst_datas) == i_ds) &&
-  (inst.(inst_exports) == (map (get_exportinst
-                                    (Build_moduleinst nil i_fs i_ts i_ms i_gs nil nil nil))
-                               m.(mod_exports))).
+  (inst.(inst_exports) == (map (get_exportinst inst) m.(mod_exports))).
 
 Definition dummy_table : tableinst := {| tableinst_elem := nil; tableinst_type := Build_table_type (Build_limits N0 None) T_funcref |}.
 

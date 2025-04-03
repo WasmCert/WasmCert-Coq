@@ -1,5 +1,6 @@
 (** Main file for the Wasm interpreter **)
 open Execute.Interpreter
+open Output
 
 (** Trying to guess the module name by the file name provided for the module. *)
 let extract_module_name src =
@@ -53,6 +54,7 @@ let rec instantiate_modules verbosity exts s names modules =
   match (names, modules) with
   | ([], _) -> pure (exts, s)
   | (name :: names', m :: modules') -> 
+    debug_info verbosity stage (fun () -> "Processing module: " ^ name ^ "\n");
     let* (exts', s') = Execute.instantiate_host verbosity exts s name m in
       instantiate_modules verbosity exts' s' names' modules'
   | _ -> Execute.Host.from_out (Error ("Invalid module name parsing results"))

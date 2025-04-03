@@ -92,6 +92,7 @@ module type InterpreterType = sig
 
   val pp_es : Extract.administrative_instruction list -> string
 
+  val pp_externval: externval -> string
 
 end
 

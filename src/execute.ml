@@ -154,8 +154,13 @@ let instantiate_host verbosity exts s module_name m =
   match inst_res with
   | Cfg_res (s', f, _vs) -> 
     let exps = get_exports f in
+    let exps_str = List.map 
+      (fun exp -> 
+        match exp with
+        | (exp_name, exp_val) -> exp_name ^ " at " ^ pp_externval exp_val ^ ";") exps in
     let exps_map = StringMap.of_seq (List.to_seq exps) in
     let exts'' = StringMap.add module_name exps_map exts in
+    debug_info verbosity stage (fun _ -> "Adding the following exports to module " ^ module_name ^ " : " ^ (String.concat "" exps_str) ^ "\n");
     pure (exts'', s')
   (* Trap won't be counted as an irrecoverable error in the host *)
   | Cfg_trap (s', f) -> 

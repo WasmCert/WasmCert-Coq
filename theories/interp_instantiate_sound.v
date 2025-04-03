@@ -238,12 +238,12 @@ Proof.
   simpl in *.
   by eexists; eauto.
 Qed.
-  
-Lemma interp_instantiate_imp_instantiate : forall hs hs' s m v_imps s_end inst exps,
-  interp_instantiate hs s m v_imps = Some (hs', s_end, inst, exps) ->
-  instantiate s m v_imps (s_end, inst, exps).
+
+Lemma interp_instantiate_imp_instantiate : forall hs hs' s m v_imps s_end f bes,
+  interp_instantiate hs s m v_imps = Some (hs', s_end, f, bes) ->
+  instantiate s m v_imps (s_end, f, bes).
 Proof.
-  move => hs hs' s m v_imps s_end inst exps.
+  move => hs hs' s m v_imps s_end f bes.
   unfold interp_instantiate, instantiate.
   move => Hinterp.
   destruct (module_type_checker m) as [[t_imps_mod t_exps] |] eqn:Hmodcheck => //.

@@ -82,6 +82,8 @@ module type InterpreterType = sig
     interp_config_tuple -> res_tuple -> string
   val pp_es : Extract.administrative_instruction list -> string
 
+  val pp_externval: externval -> string
+
 end
 
 module Interpreter =
@@ -165,4 +167,6 @@ functor (EH : Host) -> struct
   let pp_es es =
     Utils.implode (PP.pp_administrative_instructions O es)
 
+  let pp_externval extval = 
+    Utils.implode (PP.pp_extern_value extval)
 end
