@@ -60,12 +60,15 @@ module type InterpreterType = sig
     wasm_config_tuple -> interp_config_tuple
 
   (** Look-up a specific extracted function of the instantiation and invoke with the provided arguments. *)
-  val invoke_exported_function_args :
-    string -> store_record -> frame -> value list -> (administrative_instruction list) option
+  val invoke_extern :
+    store_record -> externval -> value list -> (administrative_instruction list) option
 
   (** Perform the instantiation of a module. *)
   val interp_instantiate_wrapper :
     store_record -> Extract.module0 -> externval list  -> wasm_config_tuple option
+
+  val get_import_path: Extract.module0 -> (string * string) list
+  val get_exports : frame -> (string * externval) list
 
   val run_parse_module : string -> Extract.module0 option
   val run_parse_arg : string -> value option
@@ -78,6 +81,8 @@ module type InterpreterType = sig
   val pp_res_cfg_except_store :
     interp_config_tuple -> res_tuple -> string
   val pp_es : Extract.administrative_instruction list -> string
+
+  val pp_externval: externval -> string
 
 end
 
@@ -127,11 +132,21 @@ functor (EH : Host) -> struct
 
   let interp_cfg_of_wasm = Interpreter.interp_cfg_of_wasm
 
-  let invoke_exported_function_args name =
-    Instantiation.invoke_exported_function_args (Utils.explode name)
+  let invoke_extern =
+    Instantiation.invoke_extern
 
   let interp_instantiate_wrapper =
     Instantiation.interp_instantiate_wrapper
+
+  let get_import_path m = 
+    let implode_pair p =
+      let (m, imp) = p in
+      (Utils.implode m, Utils.implode imp) in
+    List.map implode_pair (Instantiation.get_import_path m)
+
+  let get_exports f = 
+    let exps = Instantiation.get_exports f in
+    List.map (fun exp -> let (n, v) = exp in (Utils.implode n, v)) exps
 
   let run_parse_module m = Extract.run_parse_module (Utils.explode m)
 
@@ -152,4 +167,6 @@ functor (EH : Host) -> struct
   let pp_es es =
     Utils.implode (PP.pp_administrative_instructions O es)
 
+  let pp_externval extval = 
+    Utils.implode (PP.pp_extern_value extval)
 end

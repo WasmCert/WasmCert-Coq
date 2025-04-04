@@ -14,7 +14,7 @@ Open Scope string_scope.
 Section Host.
 
 Context `{ho: host}.
-  
+
 Variable show_host_function : host_function -> string.
 
 Definition newline_char : Ascii.ascii := Ascii.ascii_of_byte Byte.x0a.
@@ -367,6 +367,13 @@ Definition pp_f64 (f: float) : string :=
 
 End f64_Printer.
 
+Definition pp_extern_value (extv: extern_value) : string :=
+  match extv with
+  | EV_func a => "func " ++ pp_addr a
+  | EV_table a => "table " ++ pp_addr a
+  | EV_mem a => "mem " ++ pp_addr a
+  | EV_global a => "global " ++ pp_addr a
+  end.
 
 Definition pp_value_num (v : value_num) : string :=
   match v with
@@ -820,6 +827,8 @@ Definition pp_cfg_tuple_ctx_except_store := pp_cfg_tuple_ctx_except_store.
 Definition pp_res_cfg_except_store {cfg: cfg_tuple_ctx} (res: run_step_ctx_result tt cfg) := pp_res_cfg_except_store res.
 
 Definition pp_administrative_instructions := pp_administrative_instructions.
+
+Definition pp_extern_value := pp_extern_value.
 
 End Show.
 
