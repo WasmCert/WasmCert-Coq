@@ -5,6 +5,7 @@
 (version 2.0.2)
 
 (generate_opam_files true)
+(using menhir 2.1)
 (license MIT)
 (source (github WasmCert/WasmCert-Coq))
 
@@ -21,6 +22,8 @@
     (cmdliner (>= 1.1.0))
     (linenoise (>= 1.4.0))
     (mdx (>= 1.9.0))
+    (wasm (>= 2.0.1))
+    (menhir (>= 20220210))
   )
   (maintainers
     "Xiaojia Rao"

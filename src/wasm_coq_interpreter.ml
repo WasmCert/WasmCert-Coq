@@ -7,7 +7,24 @@ let extract_module_name src =
   let name = Filename.basename src in
   if (String.length name >= 5 && String.sub name (String.length name - 5) 5 = ".wasm") then
       String.sub name 0 (String.length name - 5)
-  else name
+  else 
+    if (String.length name >= 4 && String.sub name (String.length name - 4) 4 = ".wat") then
+      String.sub name 0 (String.length name - 4)
+    else
+      name
+
+let binary_of_text textstr = 
+  let wast_def = Wasm.Parse.string_to_module textstr in
+  match wast_def.it with
+  | Wasm.Script.Textual wast_module -> 
+      let bin_module = Wasm.Encode.encode wast_module in
+      Some bin_module
+  | _ -> None
+
+let parse_binary_module bin_module = 
+  match Execute.Interpreter.run_parse_module bin_module with
+  | None -> Error "error in parsing module"
+  | Some m -> OK m
 
 (** Parse a module given the module string. The text flag specifies whether the argument is in binary format or text format. *)
 let parse_module verbosity text mstr =
@@ -16,11 +33,11 @@ let parse_module verbosity text mstr =
     let open Output in
     ovpending verbosity stage "parsing" (fun _ ->
       if text then
-        Error "Text mode not yet implemented."
-      else
-        match Execute.Interpreter.run_parse_module mstr with
-        | None -> Error "error in parsing module"
-        | Some m -> OK m
+        match binary_of_text mstr with
+        | Some bin_module -> parse_binary_module bin_module
+        | None -> Error "error in parsing the text module"
+        else
+          parse_binary_module mstr
     ))
 
 (* Parse a list of modules. *)
@@ -60,7 +77,7 @@ let rec instantiate_modules verbosity exts s names modules =
   | _ -> Execute.Host.from_out (Error ("Invalid module name parsing results"))
 
 (** Main function *)
-let process_args_and_run verbosity text no_exec (srcs: string list) func_name src_module_name arg_strings =
+let process_args_and_run verbosity text no_exec srcs func_name src_module_name arg_strings =
   let open Execute.Host in
   let open Execute.Interpreter in
   try
