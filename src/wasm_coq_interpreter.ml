@@ -1,85 +1,10 @@
 (** Main file for the Wasm interpreter **)
-open Execute.Interpreter
-open Output
-
-(** Trying to guess the module name by the file name provided for the module. *)
-let extract_module_name src =
-  let name = Filename.basename src in
-  if (String.length name >= 5 && String.sub name (String.length name - 5) 5 = ".wasm") then
-      String.sub name 0 (String.length name - 5)
-  else 
-    if (String.length name >= 4 && String.sub name (String.length name - 4) 4 = ".wat") then
-      String.sub name 0 (String.length name - 4)
-    else
-      name
-
-let binary_of_text textstr = 
-  let wast_def = Wasm.Parse.string_to_module textstr in
-  match wast_def.it with
-  | Wasm.Script.Textual wast_module -> 
-      let bin_module = Wasm.Encode.encode wast_module in
-      Some bin_module
-  | _ -> None
-
-let parse_binary_module bin_module = 
-  match Execute.Interpreter.run_parse_module bin_module with
-  | None -> Error "error in parsing module"
-  | Some m -> OK m
-
-(** Parse a module given the module string. The text flag specifies whether the argument is in binary format or text format. *)
-let parse_module verbosity text mstr =
-  (** Parsing. *)
-  Execute.Host.from_out (
-    let open Output in
-    ovpending verbosity stage "parsing" (fun _ ->
-      if text then
-        match binary_of_text mstr with
-        | Some bin_module -> parse_binary_module bin_module
-        | None -> Error "error in parsing the text module"
-        else
-          parse_binary_module mstr
-    ))
-
-(* Parse a list of modules. *)
-let rec parse_modules_acc verbosity text files acc =
-  match files with
-  | [] -> pure acc
-  | f :: files' ->
-    let* m = parse_module verbosity text f in
-    parse_modules_acc verbosity text files' (acc @ [m])
-
-let parse_modules verbosity text files =
-  parse_modules_acc verbosity text files []
-
-
-(* Parsing the arguments of a function call in text format. *)
-let rec parse_args_acc args acc = 
-  (match args with
-  | [] -> pure acc
-  | a :: args' -> 
-    (match Execute.Interpreter.run_parse_arg a with
-    | Some a' -> parse_args_acc args' (acc @ [a'])
-    | None -> Execute.Host.from_out (Error ("Invalid argument: " ^ a))
-    )
-  )
- 
-let parse_args args = 
-  parse_args_acc args []
-
-(* Instantiate a sequence of modules with names. *)
-let rec instantiate_modules verbosity exts s names modules =
-  match (names, modules) with
-  | ([], _) -> pure (exts, s)
-  | (name :: names', m :: modules') -> 
-    debug_info verbosity stage (fun () -> "Processing module: " ^ name ^ "\n");
-    let* (exts', s') = Execute.instantiate_host verbosity exts s name m in
-      instantiate_modules verbosity exts' s' names' modules'
-  | _ -> Execute.Host.from_out (Error ("Invalid module name parsing results"))
 
 (** Main function *)
 let process_args_and_run verbosity text no_exec srcs func_name src_module_name arg_strings =
   let open Execute.Host in
   let open Execute.Interpreter in
+  let open Parse in
   try
     (** Preparing the files. *)
     (** Each file should contain a single Wasm module binary. The modules will be instantiated by their order. *)
@@ -95,15 +20,15 @@ let process_args_and_run verbosity text no_exec srcs func_name src_module_name a
     let mnames = List.map extract_module_name srcs in
     let* modules = parse_modules verbosity text files in
     let starting_host_store = Execute.StringMap.empty in
-    let starting_store = Execute.Interpreter.empty_store_record in
-    let* (exts, s) = instantiate_modules verbosity starting_host_store starting_store mnames modules in
+    let starting_store = empty_store_record in
+    let* (exts, s) = Execute.instantiate_modules verbosity starting_host_store starting_store mnames modules in
     let* args = parse_args arg_strings in
     (** Running. *)
     if no_exec then
       Output.(
         debug_info verbosity stage (fun _ ->
           "skipping interpretation because of --no-exec.\n") ;
-        Execute.Interpreter.pure ()
+        pure ()
       )
     else 
       let running_module_name = 
@@ -117,12 +42,19 @@ let process_args_and_run verbosity text no_exec srcs func_name src_module_name a
 (** Similar to [process_args_and_run], but differs in the output type. *)
 let process_args_and_run_out verbosity text no_exec wast_mode srcs func_name src_module_name args =
   (if wast_mode then 
-    (*Output.(
-        debug_info verbosity stage (fun _ ->
-          "Wast mode not yet implemented .\n") ;
-        Execute.Interpreter.pure ()
-      )*)
-      Execute.Host.error "Wast mode not yet implemented"
+    let files =
+      List.map (fun dest ->
+        if not (Sys.file_exists dest) || Sys.is_directory dest then
+          invalid_arg (Printf.sprintf "No file %s found." dest)
+        else
+          let in_channel = open_in_bin dest in
+          let s = really_input_string in_channel (in_channel_length in_channel) in
+          close_in in_channel;
+          s) srcs in
+    match files with
+    | [] -> Execute.Host.error "No wast file provided"
+    | [scriptstr] -> Wast_execute.run_wast_string verbosity scriptstr
+    | _ -> Execute.Host.error "Wast mode does not support multiple files"
 else
   process_args_and_run verbosity text no_exec srcs func_name src_module_name args)
   |> Execute.Host.to_out |> Output.Out.convert

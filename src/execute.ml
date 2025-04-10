@@ -170,7 +170,16 @@ let instantiate_host verbosity exts s module_name m =
     pure (exts'', s')
   | Cfg_err -> TopHost.error "invalid module instantiation"
 
-(*
+let rec instantiate_modules verbosity exts s names modules =
+  match (names, modules) with
+  | ([], _) -> pure (exts, s)
+  | (name :: names', m :: modules') -> 
+    debug_info verbosity stage (fun () -> "Processing module: " ^ name ^ "\n");
+    let* (exts', s') = instantiate_host verbosity exts s name m in
+      instantiate_modules verbosity exts' s' names' modules'
+  | _ -> TopHost.error "Invalid module name parsing results"
+
+  (*
 let instantiate_interpret verbosity error_code_on_crash exts s m args name =
   let* sf =
     let* inst_result = instantiate verbosity empty_store_record m [] in
