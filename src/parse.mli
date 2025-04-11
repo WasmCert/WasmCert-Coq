@@ -13,6 +13,8 @@ val parse_module: Output.verbosity -> bool -> string -> Extract.module0 Execute.
 val parse_modules: Output.verbosity -> bool -> string list -> (Extract.module0 list) Execute.Host.host_event
 
 (* Parsing the arguments of a function call in text format. *)
+val parse_arg: string -> (Execute.Interpreter.value) option
+
 val parse_args: string list -> (Execute.Interpreter.value list) Execute.Host.host_event
 
 (* Parsing a wast script. *)

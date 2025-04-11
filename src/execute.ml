@@ -118,8 +118,8 @@ let invoke_func verbosity exts sf args modname name =
       | Cfg_err -> "Execution returned an error; run the interpreter in detailed mode (--vi) for more information\n"
     );
     match res with
-    | Cfg_res (s, _, _) -> pure s
-    | Cfg_trap (s, _) -> pure s
+    | Cfg_res (s, _, vs) -> pure (s, Some vs)
+    | Cfg_trap (s, _) -> pure (s, None)
     | Cfg_err -> TopHost.error ""
 
 let instantiate_imps verbosity s m imps =

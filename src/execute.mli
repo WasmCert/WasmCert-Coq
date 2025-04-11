@@ -49,5 +49,5 @@ val instantiate_host: Output.verbosity -> host_extern_store -> Interpreter.store
 val instantiate_modules: Output.verbosity -> host_extern_store -> Interpreter.store_record -> string list -> Extract.module0 list -> (host_extern_store * Interpreter.store_record) Host.host_event
 
 (** Given a verbosity level, a host and Wasm state, a list of arguments, and a module and function name, invoke the Wasm function. *)
-val invoke_func : Output.verbosity -> host_extern_store -> (Interpreter.store_record * Extract.frame) -> Extract.value0 list -> string -> string -> Interpreter.store_record Host.host_event
+val invoke_func : Output.verbosity -> host_extern_store -> (Interpreter.store_record * Extract.frame) -> Extract.value0 list -> string -> string -> (Interpreter.store_record * (Extract.value0 list) option) Host.host_event
 

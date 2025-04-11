@@ -51,13 +51,15 @@ let rec parse_modules_acc verbosity text files acc =
 let parse_modules verbosity text files =
   parse_modules_acc verbosity text files []
 
+let parse_arg arg = 
+  Execute.Interpreter.run_parse_arg arg
 
 (* Parsing the arguments of a function call in text format. *)
 let rec parse_args_acc args acc = 
   (match args with
   | [] -> pure acc
   | a :: args' -> 
-    (match Execute.Interpreter.run_parse_arg a with
+    (match parse_arg a with
     | Some a' -> parse_args_acc args' (acc @ [a'])
     | None -> Execute.Host.from_out (Error ("Invalid argument: " ^ a))
     )
