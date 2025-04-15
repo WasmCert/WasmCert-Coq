@@ -10,17 +10,42 @@ let ovar_to_name default ovar =
   | Some v -> v.it
   | None -> default
 
-(* Some stupid hacks here *)
-let wasm_val_to_coq wval = 
+let wasm_num_to_string num = 
+  let open Wasm.Source in
+  let val_sexpr = Wasm.Arrange.instr (Wasm.Ast.Const (num @@ no_region) @@ no_region) in
+    let val_string = Wasm.Sexpr.to_string 1000 val_sexpr in
+      String.sub val_string 1 (String.length val_string - 3)
+
+let wasm_val_to_string wval = 
   let open Wasm.Source in
   match wval.it with
-  | Wasm.Values.Num num ->
-    let val_sexpr = Wasm.Arrange.instr (Wasm.Ast.Const (num @@ no_region) @@ no_region) in
-    let val_string = Wasm.Sexpr.to_string 1000 val_sexpr in
-    let val_string_fixed = String.sub val_string 1 (String.length val_string - 3) in
-      (*Printf.printf "%s" val_string_fixed;*)
-      Parse.parse_arg val_string_fixed
+  | Wasm.Values.Num num -> Some (wasm_num_to_string num)
   | _ -> None
+
+let wasm_vals_to_string wvals = 
+  String.concat "" (List.filter_map (function | Some x -> Some x | _ -> None) (List.map wasm_val_to_string wvals))
+
+let wasm_numpat_to_string numpat =
+  let open Wasm.Script in
+  match numpat with
+  | NumPat num -> wasm_num_to_string num.it
+  | NanPat _nanop -> "Nan"
+
+let wasm_result_to_string ret = 
+  let open Wasm.Script in
+  let open Wasm.Source in
+  match ret.it with
+  | NumResult numpat -> wasm_numpat_to_string numpat
+  | _ -> "Unsupported result type: vec/ref"
+
+let wasm_results_to_string rets = 
+  String.concat "; " (List.map wasm_result_to_string rets)
+
+(* Some stupid hacks here -- does this lose precision for floats? *)
+let wasm_val_to_coq wval = 
+  match wasm_val_to_string wval with
+  | Some valstr -> Parse.parse_arg valstr
+  | None -> None
 
 let rec wasm_vals_to_coq_aux args acc = 
   (match args with
@@ -34,6 +59,18 @@ let rec wasm_vals_to_coq_aux args acc =
 
 let wasm_vals_to_coq args = 
   wasm_vals_to_coq_aux args []
+
+let wasm_assert_numpat ret numpat = 
+  match numpat with
+  | NumPat num -> 
+  | NumPat _nanop -> 
+
+let wasm_assert_ret ret ret_exp = 
+  let open Wasm.Script in
+  let open Wasm.Source in
+  match ret_exp with
+  | NumResult numpat -> wasm_assert_numpat ret numpat
+  | _ -> false
 
 let run_wast_command verbosity cmd hs s mod_counter default_module_name =
   let open Wasm.Script in
@@ -60,6 +97,7 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name =
         let* args = wasm_vals_to_coq val_args in
         let* (s', _vs) = Execute.invoke_func verbosity hs (s, Extract.empty_frame) args modname funcname in 
           debug_info verbosity result (fun _ -> "Successfully executed function " ^ funcname ^ " of module: " ^ modname ^ ".\n");
+          debug_info verbosity result (fun _ -> "Expected: " ^ wasm_results_to_string expect_rets ^ "\n");
           pure (hs, s', mod_counter, default_module_name)
       | Get (_ovar, _funcname) ->
         error "Unsupported wast action: Get"
