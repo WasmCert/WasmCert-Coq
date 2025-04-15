@@ -869,7 +869,7 @@ Definition limits_extension (l1 l2: limits) : bool :=
 Definition table_type_extension (t1 t2: table_type) : bool :=
   (t1.(tt_elem_type) == t2.(tt_elem_type)) &&
   (limits_extension t1.(tt_limits) t2.(tt_limits)).
-  
+
 (* Spec has an error here -- same for mem extension *)
 Definition table_extension (t1 t2 : tableinst) : bool :=
   (table_type_extension t1.(tableinst_type) t2.(tableinst_type)) &&
@@ -877,7 +877,7 @@ Definition table_extension (t1 t2 : tableinst) : bool :=
 
 Definition mem_extension (m1 m2 : meminst) : bool :=
   (limits_extension m1.(meminst_type) m2.(meminst_type)) &&
-  (mem_length m1 <= mem_length m2).
+  (N.leb (mem_length m1) (mem_length m2)).
 
 Definition global_extension (g1 g2: globalinst) : bool :=
   (g_type g1 == g_type g2) &&

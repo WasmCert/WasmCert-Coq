@@ -2,10 +2,9 @@
 (using coq 0.2)
 (using mdx 0.2)
 (name coq-wasm)
-(version 2.0.2)
+(version 2.0.3)
 
 (generate_opam_files true)
-(using menhir 2.1)
 (license MIT)
 (source (github WasmCert/WasmCert-Coq))
 
@@ -17,7 +16,7 @@
     (coq (and (>= 8.20) (< 8.21~)))
     (coq-compcert (>= 3.14))
     (coq-ext-lib (>= 0.11.8))
-    (coq-mathcomp-ssreflect (>= 2.0.0))
+    (coq-mathcomp-ssreflect (and (>= 2.4.0) (<= 2.5~)))
     (coq-parseque (>= 0.2.0))
     (cmdliner (>= 1.1.0))
     (linenoise (>= 1.4.0))
