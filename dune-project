@@ -23,7 +23,6 @@
     (linenoise (>= 1.4.0))
     (mdx (>= 1.9.0))
     (wasm (>= 2.0.1))
-    (menhir (>= 20220210))
   )
   (maintainers
     "Xiaojia Rao"
