@@ -1079,6 +1079,8 @@ Record mixin_of (float_t : Type) := Mixin {
   float_inf : float_t;
   float_canon_nan : float_t;
   float_nan: BinPos.positive -> option float_t;
+  float_is_canonical : float_t -> bool;
+  float_is_arithmetic : float_t -> bool;
   (** Unuary operators **)
   float_neg : float_t -> float_t ;
   float_abs : float_t -> float_t ;
@@ -1713,7 +1715,7 @@ Definition fdiv (z1 z2 : T) :=
   else if is_zero z1 && (sign z1 == sign z2) then pos_zero
   else if is_zero z1 && (sign z1 != sign z2) then neg_zero
   else if is_zero z2 && (sign z1 == sign z2) then pos_infinity
-  else if is_zero z2 && (sign z1 != sign z2) then pos_infinity
+  else if is_zero z2 && (sign z1 != sign z2) then neg_infinity
   else div z1 z2.
 
 Definition fmin (z1 z2 : T) :=
@@ -1751,9 +1753,10 @@ Definition fneg (z : T) :=
 
 Definition fsqrt (z : T) :=
   if is_nan z then nans [:: z]
-  else if sign z then nans [::]
+  else if z == neg_infinity then nans [::]
   else if z == pos_infinity then pos_infinity
   else if is_zero z then z
+  else if sign z then nans [::]
   else sqrt z.
 
 Definition fceil (z : T) :=
@@ -1782,8 +1785,8 @@ Definition fnearest (z : T) :=
   if is_nan z then nans [:: z]
   else if is_infinity z then z
   else if is_zero z then z
-  else if cmp Cgt z pos_zero && cmp Clt z (normalise 1 (-1)) then pos_zero
-  else if cmp Clt z neg_zero && cmp Cgt z (normalise (-1) (-1)) then neg_zero
+  else if cmp Cgt z pos_zero && cmp Cle z (normalise 1 (-1)) then pos_zero
+  else if cmp Clt z neg_zero && cmp Cge z (normalise (-1) (-1)) then neg_zero
   else nearest z.
 
 (** We also define the conversions to integers using the same operations. **)
@@ -1826,10 +1829,12 @@ Defined.
 
 Definition Tmixin : mixin_of T := {|
     float_zero := pos_zero ;
-    float_inf := pos_infinity ;
+    float_inf := pos_infinity;
     float_canon_nan := canonical_nan true;
     float_nan := float_nan_pl true;
-    (** Unuary operators **)
+    float_is_canonical := is_canonical;
+    float_is_arithmetic := is_arithmetic;
+    (** Unary operators **)
     float_neg := fneg ;
     float_abs := fabs ;
     float_sqrt := fsqrt ;

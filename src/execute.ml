@@ -110,17 +110,15 @@ let invoke_func verbosity exts sf args modname name =
           end
       )) in
     let cfg_init = (s, (f, es_init)) in
-    let res = eval_wasm_cfg verbosity cfg_init in
-    debug_info_span verbosity result stage (fun _ ->
-      match res with
-      | Cfg_res (_, _, vs) -> pp_values vs
-      | Cfg_trap (_, _) -> "Execution returned a trap; run the interpreter in detailed mode (--vi) for more information\n"
-      | Cfg_err -> "Execution returned an error; run the interpreter in detailed mode (--vi) for more information\n"
-    );
+    pure (eval_wasm_cfg verbosity cfg_init)
+
+let print_invoke_result verbosity res = 
+  debug_info verbosity result (fun _ ->
     match res with
-    | Cfg_res (s, _, vs) -> pure (s, Some vs)
-    | Cfg_trap (s, _) -> pure (s, None)
-    | Cfg_err -> TopHost.error ""
+    | Cfg_res (_, _, vs) -> pp_values vs
+    | Cfg_trap (_, _) -> "Execution returned a trap; run the interpreter in detailed mode (--vi) for more information\n"
+    | Cfg_err -> "Execution returned an error; run the interpreter in detailed mode (--vi) for more information\n"
+  )
 
 let instantiate_imps verbosity s m imps =
   let* wasm_cfg =

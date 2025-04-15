@@ -305,21 +305,21 @@ Definition pp_f32 (f: float32) : string :=
   (pp_sign (get_sign bits_f)) ++
     if is_nan_canon bits_f then "nan"
     else
+      if is_inf bits_f then "inf"
+       else
       (* As nans chooses its payload and sign non-det, it is difficult to
          use mdx to test this bit. Also, since the current implementation
          in numerics.v always returns the canonical nan (made opaque),
          this clause will never be entered *)
-      if is_nan bits_f then "nan:0x" ++ pp_nanpl (get_mantissa bits_f)
-      else
-        (if is_inf bits_f then "inf"
-         else
-           "0x" ++
-             (if is_zero bits_f then "0" else
-                (if is_subnormal bits_f then
-                   "1." ++ pp_subnormal_mantissa (get_mantissa bits_f) 127
-                 else
-                   ("1." ++ pp_mantissa (get_mantissa bits_f)) ++ "p" ++
-                     (pp_exponent32 (get_exponent bits_f)))))
+        if is_nan bits_f then "nan:0x" ++ pp_nanpl (get_mantissa bits_f)
+        else
+          "0x" ++
+            (if is_zero bits_f then "0" else
+               (if is_subnormal bits_f then
+                  "1." ++ pp_subnormal_mantissa (get_mantissa bits_f) 127
+                else
+                  ("1." ++ pp_mantissa (get_mantissa bits_f)) ++ "p" ++
+                    (pp_exponent32 (get_exponent bits_f))))
 .
 
 End f32_Printer.
@@ -352,17 +352,17 @@ Definition pp_f64 (f: float) : string :=
     else*)
     if is_nan_canon bits_f then "nan"
     else
-      if is_nan bits_f then "nan:0x" ++ pp_nanpl (get_mantissa bits_f)
+      if is_inf bits_f then "inf"
       else
-        (if is_inf bits_f then "inf"
-         else
-           "0x" ++
-             (if is_zero bits_f then "0" else
-                (if is_subnormal bits_f then
-                   "1." ++ pp_subnormal_mantissa (get_mantissa bits_f) 1023
-                 else
-                   ("1." ++ pp_mantissa (get_mantissa bits_f)) ++ "p" ++
-                     (pp_exponent64 (get_exponent bits_f)))))
+        if is_nan bits_f then "nan:0x" ++ pp_nanpl (get_mantissa bits_f)
+        else
+          "0x" ++
+            (if is_zero bits_f then "0" else
+               (if is_subnormal bits_f then
+                  "1." ++ pp_subnormal_mantissa (get_mantissa bits_f) 1023
+                else
+                  ("1." ++ pp_mantissa (get_mantissa bits_f)) ++ "p" ++
+                    (pp_exponent64 (get_exponent bits_f))))
 .
 
 End f64_Printer.

@@ -12,6 +12,7 @@ From Wasm Require Import
   type_checker
   pp
   host
+  wast
 .
 
 From Coq Require Import
@@ -25,6 +26,7 @@ Extraction "extract"
   run_parse_arg
   Instantiation_func_extract
   Interpreter_ctx_extract
+  Wast_interface
   PP
   DummyHost
   empty_frame

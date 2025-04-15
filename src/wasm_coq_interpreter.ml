@@ -35,8 +35,9 @@ let process_args_and_run verbosity text no_exec srcs func_name src_module_name a
         (if src_module_name = "" then 
           List.hd (List.rev mnames) 
         else src_module_name) in
-      let* _ = Execute.invoke_func verbosity exts (s, Extract.empty_frame) args running_module_name func_name in 
-    pure ()
+      let* ret = Execute.invoke_func verbosity exts (s, Extract.empty_frame) args running_module_name func_name in 
+        Execute.print_invoke_result verbosity ret;
+      pure ()
   with Invalid_argument msg -> error msg
 
 (** Similar to [process_args_and_run], but differs in the output type. *)
