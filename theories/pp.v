@@ -298,13 +298,9 @@ Definition pp_exponent32 (bs: list bool) : string :=
   nan. Find a sensible representation here *)
 Definition pp_f32 (f: float32) : string :=
   let bits_f := bits_of_f32 f in
-(*  (* nan has no sign in the wast format. *)
-  if is_nan_canon bits_f then "nan:canonical"
-  else
-    if is_nan_arith bits_f then "nan:arithmetic"*)
   (pp_sign (get_sign bits_f)) ++
-    if is_nan_canon bits_f then "nan"
-    else
+(*    if is_nan_canon bits_f then "nan"
+    else*)
       if is_inf bits_f then "inf"
        else
       (* As nans chooses its payload and sign non-det, it is difficult to
@@ -323,6 +319,8 @@ Definition pp_f32 (f: float32) : string :=
 .
 
 End f32_Printer.
+
+
 
 Section f64_Printer.
 
@@ -345,11 +343,6 @@ Definition pp_exponent64 (bs: list bool) : string :=
 Definition pp_f64 (f: float) : string :=
   let bits_f := bits_of_f64 f in
   (pp_sign (get_sign bits_f)) ++
-                              (*
-  if is_nan_canon bits_f then "nan:canonical"
-  else
-    if is_nan_arith bits_f then "nan:arithmetic"
-    else*)
     if is_nan_canon bits_f then "nan"
     else
       if is_inf bits_f then "inf"

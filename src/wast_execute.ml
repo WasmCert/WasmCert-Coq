@@ -18,6 +18,7 @@ let wasm_num_to_hexstring num =
   let open Wasm.Source in
   (* This somehow doesn't include the type signature. *)
   let val_string = Wasm.Values.hex_string_of_num num in
+  (*Printf.printf "%s\n" val_string;*)
     Wasm.Types.string_of_num_type (Wasm.Values.type_of_num num) ^ ".const " ^ val_string
 
 
@@ -71,8 +72,6 @@ let wasm_num_to_coq wnum =
     wasm_val_to_coq ((Num wnum) @@ no_region)
 
 let wasm_assert_nanpat ret nanop =
-  let open Wasm.Source in
-  let open Wasm.Values in
   match nanop.it with
   | F32 CanonicalNan -> Extract.Wast_interface.is_canonical_nan Extract.T_f32 ret
   | F64 CanonicalNan -> Extract.Wast_interface.is_canonical_nan Extract.T_f64 ret
@@ -81,14 +80,11 @@ let wasm_assert_nanpat ret nanop =
   | _ -> false
 
 let wasm_assert_numpat ret numpat = 
-  let open Wasm.Script in
   match numpat with
   | NumPat num -> (wasm_num_to_coq num.it = Some ret)
   | NanPat nanop -> wasm_assert_nanpat ret nanop
 
 let wasm_assert_ret ret ret_exp = 
-  let open Wasm.Script in
-  let open Wasm.Source in
   match ret_exp.it with
   | NumResult numpat -> wasm_assert_numpat ret numpat
   | _ -> false
@@ -124,6 +120,7 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name =
         let modname = ovar_to_name default_module_name ovar in
         let funcname = Wasm.Ast.string_of_name funcname_utf8 in 
         let* args = wasm_vals_to_coq val_args in
+        (*Printf.printf "%s" (Utils.implode (Extract.PP.pp_values args));*)
         let* res = invoke_func verbosity hs (s, Extract.empty_frame) args modname funcname in 
         begin match res with
         | Cfg_err -> error "Invocation error"

@@ -1439,14 +1439,21 @@ Proof. by refine (exist _ unspec_arithmetic_nan (eqxx true)). Qed.
 (** An unspecified [NaN]. **)
 Definition unspec_nan : T := sval unspec_nan_nan.
 
-(** Taking the opposite of a floating point number.
-  Its action on [NaN] is not specified. **)
-Definition opp : T -> T.
+(** Return the opposite nan if the input is a nan; otherwise return an unspecified nan. *)
+Definition wasm_opp_nan (x: T): { res | Binary.is_nan prec emax res = true}.
 Proof.
-  refine (Binary.Bopp _ _ (fun _ => exist _ unspec_nan _)).
-  by apply: (svalP unspec_nan_nan).
+  destruct x.
+  1,2,4: by apply unspec_nan_nan.
+  by exists (Binary.B754_nan prec emax (negb s) pl e).
 Defined.
 
+(** Taking the opposite of a floating point number.
+    Compcert Binary.opp defines an unspecified behaviour for nan.
+    However, Wasm defines it concretely.
+    Very inconveniently, Binary.opp doesn't link the input to the opp_nan
+    parameter.
+ **)
+Definition opp : T -> T := Binary.Bopp _ _ wasm_opp_nan.
 
 (** Given a mantissa and an exponent (in radix two), produce a representation for a float.
   The sign is not specified if given 0 as a mantissa. **)
@@ -1830,8 +1837,8 @@ Defined.
 Definition Tmixin : mixin_of T := {|
     float_zero := pos_zero ;
     float_inf := pos_infinity;
-    float_canon_nan := canonical_nan true;
-    float_nan := float_nan_pl true;
+    float_canon_nan := canonical_nan false;
+    float_nan := float_nan_pl false;
     float_is_canonical := is_canonical;
     float_is_arithmetic := is_arithmetic;
     (** Unary operators **)
@@ -1920,7 +1927,6 @@ Proof. reflexivity. Qed.
 
 Lemma nearest_unit_test_4_ok : Float64.nearest_unit_test_4.
 Proof. reflexivity. Qed.
-
 
 End Wasm_float.
 

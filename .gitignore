@@ -27,6 +27,8 @@
 .saves
 .DS_Store
 
+/tests/wast/
+
 /wasm_interpreter
 /wasm_coq_interpreter.exe
 /history.txt
