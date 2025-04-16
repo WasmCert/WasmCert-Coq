@@ -386,23 +386,3 @@ End Run.
 
 Definition run_parse_arg (bs : list byte) : option datatypes.value :=
   run bs (fun n => parse_arg).
-
-Definition negnan := (run_parse_arg ("f" :: "3" :: "2" :: "." :: "c" :: "o" :: "n" :: "s" :: "t" :: " " :: "-" :: "n" :: "a" :: "n" :: ":" :: "0" :: "x" :: "4" :: "0" :: "0" :: "0" :: "0" :: "0" :: nil)%list).
-
-Compute negnan.
-
-Require Import pp.
-
-Print Wasm_float.Float32.
-
-Definition nnan := match negnan with
-                   | Some x => x
-                   | None => VAL_num (VAL_float32 Wasm_float.Float32.pos_zero)
-                   end.
-
-
-From Coq Require Import String.
-
-Definition str : string := (pp_value nnan).
-
-Compute str.

@@ -1,4 +1,4 @@
-(lang dune 3.0)
+(lang dune 3.11)
 (using coq 0.2)
 (using mdx 0.2)
 (name coq-wasm)
@@ -7,6 +7,8 @@
 (generate_opam_files true)
 (license MIT)
 (source (github WasmCert/WasmCert-Coq))
+
+(warnings (deprecated_coq_lang_lt_08 disabled))
 
 (package
   (name coq-wasm)

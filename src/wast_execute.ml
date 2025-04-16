@@ -181,7 +181,6 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name =
 let rec run_wast_commands verbosity cmds hs s mod_counter default_module_name assert_ok assert_total =
   match cmds with
   | [] -> 
-    debug_info verbosity result (fun _ -> "\nExecution finished.\n"); 
     pure (assert_ok, assert_total)
   | cmd :: cmds' ->
     let* (hs', s', mod_counter', default_module_name', verdict) = run_wast_command verbosity cmd hs s mod_counter default_module_name in
@@ -197,7 +196,8 @@ let run_wast_script verbosity script =
   let* ret = run_wast_commands verbosity script starting_host_store starting_store 0 "" 0 0 in
   match ret with
     | (assert_ok, assert_total) -> 
-      debug_info verbosity result (fun _ -> Printf.sprintf "Result: %d/%d (%.2f%%)\n" assert_ok assert_total (float_of_int assert_ok *. 100.0 /. float_of_int assert_total));
+      debug_info verbosity result (fun _ -> "\n");
+      (*debug_info verbosity result (fun _ -> Printf.sprintf "Result: %d/%d (%.2f%%)\n" assert_ok assert_total (float_of_int assert_ok *. 100.0 /. float_of_int assert_total));*)
       pure ()
     
 
