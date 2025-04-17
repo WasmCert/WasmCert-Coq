@@ -256,22 +256,22 @@ Definition parse_table_set {n} : byte_parser basic_instruction n :=
 
 (* Order of the arguments is reversed in the binary format *)
 Definition parse_table_init {n} : byte_parser basic_instruction n :=
-  exact_byte xfc &> exact_byte x0c &> (((fun y x => BI_table_init x y) <$> parse_elemidx) <*> parse_tableidx).
+  exact_byte xfc &> assert_u32 12%N &> (((fun y x => BI_table_init x y) <$> parse_elemidx) <*> parse_tableidx).
 
 Definition parse_elem_drop {n} : byte_parser basic_instruction n :=
-  exact_byte xfc &> exact_byte x0d &> (BI_elem_drop <$> parse_elemidx).
+  exact_byte xfc &> assert_u32 13%N &> (BI_elem_drop <$> parse_elemidx).
 
 Definition parse_table_copy {n} : byte_parser basic_instruction n :=
-  exact_byte xfc &> exact_byte x0e &> ((BI_table_copy <$> parse_tableidx) <*> parse_tableidx).
+  exact_byte xfc &> assert_u32 14%N &> ((BI_table_copy <$> parse_tableidx) <*> parse_tableidx).
 
 Definition parse_table_grow {n} : byte_parser basic_instruction n :=
-  exact_byte xfc &> exact_byte x0f &> (BI_table_grow <$> parse_tableidx).
+  exact_byte xfc &> assert_u32 15%N &> (BI_table_grow <$> parse_tableidx).
 
 Definition parse_table_size {n} : byte_parser basic_instruction n :=
-  exact_byte xfc &> exact_byte x10 &> (BI_table_size <$> parse_tableidx).
+  exact_byte xfc &> assert_u32 16%N &> (BI_table_size <$> parse_tableidx).
 
 Definition parse_table_fill {n} : byte_parser basic_instruction n :=
-  exact_byte xfc &> exact_byte x11 &> (BI_table_fill <$> parse_tableidx).
+  exact_byte xfc &> assert_u32 17%N &> (BI_table_fill <$> parse_tableidx).
 
 Definition parse_table_instruction {n}: byte_parser basic_instruction n :=
   parse_table_get <|>
@@ -372,17 +372,17 @@ Definition parse_memory_grow {n} : byte_parser basic_instruction n :=
   exact_byte x40 &> (exact_byte x00 $> BI_memory_grow).
 
 Definition parse_memory_init {n} : byte_parser basic_instruction n :=
-  exact_byte xfc &> exact_byte x08 &> (((fun x _ => BI_memory_init x) <$> parse_dataidx) <*> exact_byte x00).
+  exact_byte xfc &> assert_u32 8%N &> (((fun x _ => BI_memory_init x) <$> parse_dataidx) <*> exact_byte x00).
 
 Definition parse_data_drop {n} : byte_parser basic_instruction n :=
-  exact_byte xfc &> exact_byte x09 &> ((fun x => BI_data_drop x) <$> parse_dataidx).
+  exact_byte xfc &> assert_u32 9%N &> ((fun x => BI_data_drop x) <$> parse_dataidx).
 
 (* Defined in this way so that it's easier to add multimemory in the future *)
 Definition parse_memory_copy {n} : byte_parser basic_instruction n :=
-  exact_byte xfc &> exact_byte x0a &> (((fun _ _ => BI_memory_copy) <$> exact_byte x00) <*> exact_byte x00).
+  exact_byte xfc &> assert_u32 10%N &> (((fun _ _ => BI_memory_copy) <$> exact_byte x00) <*> exact_byte x00).
 
 Definition parse_memory_fill {n} : byte_parser basic_instruction n :=
-  exact_byte xfc &> exact_byte x0a &> ((fun _ => BI_memory_fill) <$> exact_byte x00).
+  exact_byte xfc &> assert_u32 11%N &> ((fun _ => BI_memory_fill) <$> exact_byte x00).
 
 Definition parse_memory_instruction {n} : byte_parser basic_instruction n :=
   parse_i32_load <|>
@@ -572,14 +572,14 @@ Definition parse_numeric_instruction {n} : be_parser n :=
   exact_byte xc4 $> BI_unop T_i64 (Unop_extend 32%N) <|>     (* i64.extend32_s *)
 
   (* inn.trunc_sat_fmm_sx *)
-  (exact_byte xfc &> exact_byte x00 $> (BI_cvtop T_i32 CVO_trunc_sat T_f32 (Some SX_S))) <|>
-  (exact_byte xfc &> exact_byte x01 $> (BI_cvtop T_i32 CVO_trunc_sat T_f32 (Some SX_U))) <|>
-  (exact_byte xfc &> exact_byte x02 $> (BI_cvtop T_i32 CVO_trunc_sat T_f64 (Some SX_S))) <|>
-  (exact_byte xfc &> exact_byte x03 $> (BI_cvtop T_i32 CVO_trunc_sat T_f64 (Some SX_U))) <|>
-  (exact_byte xfc &> exact_byte x04 $> (BI_cvtop T_i64 CVO_trunc_sat T_f32 (Some SX_S))) <|>
-  (exact_byte xfc &> exact_byte x05 $> (BI_cvtop T_i64 CVO_trunc_sat T_f32 (Some SX_U))) <|>
-  (exact_byte xfc &> exact_byte x06 $> (BI_cvtop T_i64 CVO_trunc_sat T_f64 (Some SX_S))) <|>
-  (exact_byte xfc &> exact_byte x07 $> (BI_cvtop T_i64 CVO_trunc_sat T_f64 (Some SX_U))).
+  (exact_byte xfc &> assert_u32 0%N $> (BI_cvtop T_i32 CVO_trunc_sat T_f32 (Some SX_S))) <|>
+  (exact_byte xfc &> assert_u32 1%N $> (BI_cvtop T_i32 CVO_trunc_sat T_f32 (Some SX_U))) <|>
+  (exact_byte xfc &> assert_u32 2%N $> (BI_cvtop T_i32 CVO_trunc_sat T_f64 (Some SX_S))) <|>
+  (exact_byte xfc &> assert_u32 3%N $> (BI_cvtop T_i32 CVO_trunc_sat T_f64 (Some SX_U))) <|>
+  (exact_byte xfc &> assert_u32 4%N $> (BI_cvtop T_i64 CVO_trunc_sat T_f32 (Some SX_S))) <|>
+  (exact_byte xfc &> assert_u32 5%N $> (BI_cvtop T_i64 CVO_trunc_sat T_f32 (Some SX_U))) <|>
+  (exact_byte xfc &> assert_u32 6%N $> (BI_cvtop T_i64 CVO_trunc_sat T_f64 (Some SX_S))) <|>
+  (exact_byte xfc &> assert_u32 7%N $> (BI_cvtop T_i64 CVO_trunc_sat T_f64 (Some SX_U))).
 
 Record Language (n : nat) : Type := MkLanguage {
   _be : byte_parser basic_instruction n;
