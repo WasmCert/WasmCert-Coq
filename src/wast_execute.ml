@@ -101,7 +101,13 @@ let load_wast_module verbosity hs s ovar moddef mod_counter =
     let* (hs', s') = Execute.instantiate_modules verbosity hs s [modname] [m] in
       debug_info verbosity stage (fun _ -> "Successfully instantiated module " ^ modname ^ ".\n");
       pure (hs', s', mod_counter+1, modname)
-  | _ -> error "Unsupported module encoding"
+  | Encoded (modnamestr, bin_module) -> 
+    let* m = Parse.parse_module verbosity false bin_module in
+    let modname = if modnamestr = "" then ("default_module_" ^ (string_of_int mod_counter)) else modnamestr in
+    let* (hs', s') = Execute.instantiate_modules verbosity hs s [modname] [m] in
+      debug_info verbosity stage (fun _ -> "Successfully instantiated module " ^ modname ^ ".\n");
+      pure (hs', s', mod_counter+1, modname)
+  | Quoted _ -> error "Unsupported module encoding: Quoted"
 
 
 
