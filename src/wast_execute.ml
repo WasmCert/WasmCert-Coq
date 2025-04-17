@@ -119,10 +119,11 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name test_cou
   (fun _ -> 
     "\n\n----------\nTest " ^ string_of_int test_counter ^ "\n----------\n" ^ print_wast_command cmd ^ "\n"
     );
-  match cmd.it with
+  begin try
+  begin match cmd.it with
   | Module (ovar, moddef) -> 
     let* (hs', s', modc, defname) = load_wast_module verbosity hs s ovar moddef mod_counter in
-    pure (hs', s', modc, defname, true)
+    pure (hs', s', modc, defname)
   | Assertion asrt -> 
     begin match asrt.it with 
     | AssertReturn (act, expect_rets) ->
@@ -144,16 +145,13 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name test_cou
           let assert_result = wasm_assert_rets vs expect_rets in
             if assert_result then
               (debug_info verbosity stage (fun _ -> "Test passed: result matches asserted value\n");
-              pure (hs, s', mod_counter, default_module_name, true))
+              pure (hs, s', mod_counter, default_module_name))
             else 
-              (debug_info verbosity result (fun _ -> "\nTest failed: result mismatches\nTest detail: \n" ^ print_wast_command cmd ^ "\n");
-              pure (hs, s', mod_counter, default_module_name, false))
-        | Cfg_trap (s', _) -> 
-          debug_info verbosity result (fun _ -> "\nTest failed: unexpected trap\nTest detail: \n" ^ print_wast_command cmd ^ "\n");
-          pure (hs, s', mod_counter, default_module_name, false)
+              error "result mismatches"
+        | Cfg_trap _ -> 
+              error "unexpected trap"
         end
       | Get (_ovar, _funcname) ->
-        debug_info verbosity result (fun _ -> "Unsupported wast action: Get");
         error "Unsupported wast action: Get"
       end
     | AssertTrap (act, _) ->
@@ -167,50 +165,41 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name test_cou
         let* res = invoke_func verbosity hs (s, Extract.empty_frame) args modname funcname in 
         begin match res with
         | Cfg_err -> error "Invocation error"
-        | Cfg_res (s', _, _) ->
-          debug_info verbosity result (fun _ -> "\nTest failed: execution is supposed to trap but succeeded\nTest detail: \n" ^ print_wast_command cmd ^ "\n");
-          pure (hs, s', mod_counter, default_module_name, false)
+        | Cfg_res _ ->
+          error "Unexpected successful execution when trap is expected"
         | Cfg_trap (s', _) -> 
           debug_info verbosity stage (fun _ -> "Test passed: execution trapped as expected\n");
-          pure (hs, s', mod_counter, default_module_name, true)
+          pure (hs, s', mod_counter, default_module_name)
         end
       | Get (_ovar, _funcname) ->
-        debug_info verbosity result (fun _ -> "Unsupported wast action: Get");
         error "Unsupported wast action: Get"
       end
     | AssertInvalid (moddef, _str) ->
       (* very ugly... *)
-      let exception Exn in
       let res = (load_wast_module verbosity hs s None moddef mod_counter) in
-        begin try (pmatch (fun r -> 
-          match r with
-          | (hs, s, mod_counter, default_module_name) -> 
-            debug_info verbosity result (fun _ -> "\nTest failed: an invalid module was successfully instantiated\nTest detail: \n" ^ print_wast_command cmd ^ "\n");
-            (* module counter doesn't increase *)
-            (hs, s, mod_counter, default_module_name, false)
-          ) 
-        (fun _ -> raise Exn) res)
-        with Exn -> 
-          debug_info verbosity stage (fun _ -> "Test passed: correctly rejected an invalid module\n");
-          pure (hs, s, mod_counter, default_module_name, true)
-        end
+      begin match to_out res with
+      | OK _ -> 
+        error "Unexpected successful instantiation of an invalid module"
+      | Error _ -> 
+        debug_info verbosity stage (fun _ -> "Test passed: correctly rejected an invalid module\n");
+        pure (hs, s, mod_counter, default_module_name)
+      end
     | AssertMalformed (moddef, _str) ->
-      let exception Exn in
       let res = (load_wast_module verbosity hs s None moddef mod_counter) in
-        begin try (pmatch (fun r -> 
-          match r with
-          | (hs, s, mod_counter, default_module_name) -> 
-            debug_info verbosity result (fun _ -> "\nTest failed: a malformed module was successfully instantiated\nTest detail: \n" ^ print_wast_command cmd ^ "\n");
-            (hs, s, mod_counter, default_module_name, false)
-          ) 
-        (fun _ -> raise Exn) res)
-        with Exn -> 
-          debug_info verbosity stage (fun _ -> "Test passed: correctly rejected an invalid module\n");
-          pure (hs, s, mod_counter, default_module_name, true)
-        end
+      begin match to_out res with
+      | OK _ -> 
+        error "Unexpected successful instantiation of an malformed module"
+      | Error _ -> 
+        debug_info verbosity stage (fun _ -> "Test passed: correctly rejected an malformed module\n");
+        pure (hs, s, mod_counter, default_module_name)
+      end
     | _ -> error "Unsupported wast assertion"
     end
   | _ -> error "Unsupported wast command"
+  end
+  with 
+  | _ -> error "Unknown exception"
+end
     
 
 let rec run_wast_commands verbosity cmds hs s mod_counter default_module_name assert_ok assert_total =
@@ -218,12 +207,24 @@ let rec run_wast_commands verbosity cmds hs s mod_counter default_module_name as
   | [] -> 
     pure (assert_ok, assert_total)
   | cmd :: cmds' ->
-    let* (hs', s', mod_counter', default_module_name', verdict) = run_wast_command verbosity cmd hs s mod_counter default_module_name (assert_total+1) in
-    let new_ok = assert_ok + if verdict then 1 else 0 in 
-    let new_total = assert_total + 1 in
-    Printf.printf "\rTests passed: %d/%d (%.2f%%)" new_ok new_total (float_of_int new_ok *. 100.0 /. float_of_int new_total);
-    flush stdout;
-    run_wast_commands verbosity cmds' hs' s' mod_counter' default_module_name' new_ok new_total
+    let verdict = run_wast_command verbosity cmd hs s mod_counter default_module_name (assert_total+1) in
+    begin match to_out verdict with
+    | OK eve -> 
+      let* (hs', s', mod_counter', default_module_name') = eve in
+      let new_ok = assert_ok + 1 in
+      let new_total = assert_total + 1 in
+        Printf.printf "\rTests passed: %d/%d (%.2f%%) " new_ok new_total (float_of_int new_ok *. 100.0 /. float_of_int new_total);
+        flush stdout;
+        run_wast_commands verbosity cmds' hs' s' mod_counter' default_module_name' new_ok new_total
+    | Error msg ->
+        debug_info verbosity stage (fun _ -> "Test failed: " ^ msg ^ "\n");
+        let new_ok = assert_ok in
+        let new_total = assert_total + 1 in
+        Printf.printf "\rTests passed: %d/%d (%.2f%%) " new_ok new_total (float_of_int new_ok *. 100.0 /. float_of_int new_total);
+        flush stdout;
+        run_wast_commands verbosity cmds' hs s mod_counter default_module_name new_ok new_total
+      end
+
 
 let spectest_host_str = 
   "(module
@@ -260,7 +261,8 @@ let run_wast_script verbosity script =
   match ret with
     | (assert_ok, assert_total) -> 
       debug_info verbosity result (fun _ -> "\n");
-      debug_info verbosity result (fun _ -> Printf.sprintf "Result: %d/%d (%.2f%%)\n" assert_ok assert_total (float_of_int assert_ok *. 100.0 /. float_of_int assert_total));
+      let color = if (assert_ok = assert_total) then Output.green else Output.red in
+        debug_info verbosity result ~style:color (fun _ -> Printf.sprintf "Result: %d/%d (%.2f%%)\n" assert_ok assert_total (float_of_int assert_ok *. 100.0 /. float_of_int assert_total));
       pure ()
     
 
