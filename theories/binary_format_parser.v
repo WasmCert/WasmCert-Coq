@@ -65,18 +65,25 @@ Definition parse_f32 {n} : byte_parser Wasm_float.FloatSize32.T n :=
 Definition parse_f64 {n} : byte_parser Wasm_float.FloatSize64.T n :=
   (fun bs => Floats.Float.of_bits (Integers.Int64.repr (common.Memdata.decode_int (List.map compcert_byte_of_byte bs)))) <$> (k_plus_one_anyTok 7).
 
-Definition parse_u32_as_nat {n} : byte_parser nat n :=
-  (fun x => (N.to_nat x)) <$> parse_u32_as_N.
+Definition parse_vec_length {n} : byte_parser N n :=
+  parse_u32_as_N.
 
-Definition parse_vec_length {n} : byte_parser nat n :=
-  parse_u32_as_nat.
+(* Safe vector parsing, without going through nat.
+   Also avoids hanging when the parameter is too large.
+ *)
+Fixpoint parse_vec_aux_positive {B} {n} (f: byte_parser B n) (p: positive) :
+  byte_parser (list B) n :=
+  match p with
+  | xH => (fun x => cons x nil) <$> f
+  | xO p' => (fun '(l1, l2) => List.app l1 l2) <$> (parse_vec_aux_positive f p' &>>= (fun _ => parse_vec_aux_positive f p'))
+  | xI p' => (((fun '(h, (l1, l2)) => cons h (List.app l1 l2))) <$> (f &>>= (fun _ => (parse_vec_aux_positive f p' &>>= (fun _ => parse_vec_aux_positive f p')))))
+  end.
 
-Fixpoint parse_vec_aux {B} {n} (f : byte_parser B n) (k : nat)
-  : byte_parser (list B) n :=  
+Definition parse_vec_aux {B} {n} (f : byte_parser B n) (k : N)
+  : byte_parser (list B) n:=  
   match k with
-  | 0 => fail (* nil *)
-  | S 0 => (fun x => cons x nil) <$> f
-  | S k' => (cons <$> f) <*> parse_vec_aux f k'
+  | 0%N => fail (* nil *)
+  | Npos p => parse_vec_aux_positive f p
   end.
 
 (* parsing a length-indexed list *)
@@ -720,11 +727,11 @@ Definition parse_module_element {n}: byte_parser module_element n :=
   assert_u32 6%N &> parse_module_element_6 <|>
   assert_u32 7%N &> parse_module_element_7.
 
-Definition parse_nat_value_type {n} : byte_parser (list value_type) n :=
-  ((fun k t => List.repeat t k) <$> parse_u32_as_nat) <*> parse_value_type.
+Definition parse_N_value_type {n} : byte_parser (list value_type) n :=
+  ((fun k t => List.repeat t (N.to_nat k)) <$> parse_u32_as_N) <*> parse_value_type.
 
 Definition parse_locals {n} : byte_parser (list value_type) n :=
-  (fun tss => tss) <$> parse_nat_value_type.
+  (fun tss => tss) <$> parse_N_value_type.
 
 (* Spec defines code and functypes separately *)
 Definition module_func_without_type : Type := (list value_type) * expr.
@@ -740,7 +747,7 @@ Definition parse_code {n} : byte_parser module_func_without_type n :=
       (* There's no obvious function in Parseque that returns the number of tokens conumed *)
       | (s, f) => (* if Nat.eqb s (func_size f) then *) Some f (* else None *)
       end)
-    (parse_u32_as_nat <&> parse_code_func).
+    (parse_u32_as_N <&> parse_code_func).
 
 Definition parse_module_table {n} : byte_parser module_table n :=
   (fun tty => {| modtab_type := tty |}) <$> parse_table_type.
@@ -880,12 +887,6 @@ Definition option_to_list {T: Type} (ol: option (list T)) : list T :=
   match ol with
   | Some l => l
   | None => nil 
-  end.
-
-Definition option_to_nat (on: option nat) : nat :=
-  match on with
-  | Some n => n
-  | None => 0
   end.
 
 Definition datacount_agree (len: N) (ocount: option N) : bool :=
