@@ -36,6 +36,11 @@ Definition exact_byte (b : byte) {n} : byte_parser byte n :=
 Definition parse_u32_as_N {n} : byte_parser N n :=
   extract parse_unsigned n.
 
+Definition assert_u32 {n} (k: N) : byte_parser N n :=
+  guardM
+    (fun parsed_n => if N.eqb parsed_n k then Some k else None)
+    parse_u32_as_N.
+
 Definition parse_u32_as_int32 {n} : byte_parser Wasm_int.Int32.int n :=
   (* TODO: limit size *)
   (fun x => Wasm_int.Int32.repr (BinIntDef.Z.of_N x)) <$> (extract parse_unsigned n).
@@ -706,14 +711,14 @@ Definition parse_module_element_7 {n} : byte_parser module_element n :=
   ((fun t els => {| modelem_type := t; modelem_init := els; modelem_mode := ME_declarative; |}) <$> parse_reference_type) <*> parse_vec parse_expr.
 
 Definition parse_module_element {n}: byte_parser module_element n :=
-  exact_byte x00 &> parse_module_element_0 <|>
-  exact_byte x01 &> parse_module_element_1 <|>
-  exact_byte x02 &> parse_module_element_2 <|>
-  exact_byte x03 &> parse_module_element_3 <|>
-  exact_byte x04 &> parse_module_element_4 <|>
-  exact_byte x05 &> parse_module_element_5 <|>
-  exact_byte x06 &> parse_module_element_6 <|>
-  exact_byte x07 &> parse_module_element_7.
+  assert_u32 0%N &> parse_module_element_0 <|>
+  assert_u32 1%N &> parse_module_element_1 <|>
+  assert_u32 2%N &> parse_module_element_2 <|>
+  assert_u32 3%N &> parse_module_element_3 <|>
+  assert_u32 4%N &> parse_module_element_4 <|>
+  assert_u32 5%N &> parse_module_element_5 <|>
+  assert_u32 6%N &> parse_module_element_6 <|>
+  assert_u32 7%N &> parse_module_element_7.
 
 Definition parse_nat_value_type {n} : byte_parser (list value_type) n :=
   ((fun k t => List.repeat t k) <$> parse_u32_as_nat) <*> parse_value_type.
@@ -759,9 +764,9 @@ Definition parse_module_data_2 {n} : byte_parser module_data n :=
       <$> parse_memidx) <*> parse_expr) <*> parse_vec anyTok.
 
 Definition parse_module_data {n}: byte_parser module_data n :=
-  exact_byte x00 &> parse_module_data_0 <|>
-  exact_byte x01 &> parse_module_data_1 <|>
-  exact_byte x02 &> parse_module_data_2.
+  assert_u32 0%N &> parse_module_data_0 <|>
+  assert_u32 1%N &> parse_module_data_1 <|>
+  assert_u32 2%N &> parse_module_data_2.
 
 Definition parse_customsec {n} : byte_parser (list byte) n :=
   exact_byte x00 &> parse_vec anyTok.
