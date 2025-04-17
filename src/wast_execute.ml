@@ -149,6 +149,28 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name test_cou
         debug_info verbosity result (fun _ -> "Unsupported wast action: Get");
         error "Unsupported wast action: Get"
       end
+    | AssertTrap (act, _) ->
+      begin match act.it with
+      | Invoke (ovar, funcname_utf8, val_args) ->
+        let open Execute in
+        let modname = ovar_to_name default_module_name ovar in
+        let funcname = Wasm.Ast.string_of_name funcname_utf8 in 
+        let* args = wasm_vals_to_coq val_args in
+        (*Printf.printf "%s" (Utils.implode (Extract.PP.pp_values args));*)
+        let* res = invoke_func verbosity hs (s, Extract.empty_frame) args modname funcname in 
+        begin match res with
+        | Cfg_err -> error "Invocation error"
+        | Cfg_res (s', _, _) ->
+          debug_info verbosity stage (fun _ -> "Test failed: execution is supposed to trap but succeeded\n");
+          pure (hs, s', mod_counter, default_module_name, false)
+        | Cfg_trap (s', _) -> 
+          debug_info verbosity stage (fun _ -> "Test passed: execution trapped as expected\n");
+          pure (hs, s', mod_counter, default_module_name, true)
+        end
+      | Get (_ovar, _funcname) ->
+        debug_info verbosity result (fun _ -> "Unsupported wast action: Get");
+        error "Unsupported wast action: Get"
+      end
     | AssertInvalid (moddef, _str) ->
       (* very ugly... *)
       let exception Exn in
