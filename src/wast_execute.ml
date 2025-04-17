@@ -15,7 +15,6 @@ let ovar_to_name default ovar =
   | None -> default
 
 let wasm_num_to_hexstring num = 
-  let open Wasm.Source in
   (* This somehow doesn't include the type signature. *)
   let val_string = Wasm.Values.hex_string_of_num num in
   (*Printf.printf "%s\n" val_string;*)
@@ -104,9 +103,15 @@ let load_wast_module verbosity hs s ovar moddef mod_counter =
       pure (hs', s', mod_counter+1, modname)
   | _ -> error "Unsupported module encoding"
 
-let run_wast_command verbosity cmd hs s mod_counter default_module_name =
-  let open Wasm.Script in
-  let open Wasm.Source in
+
+
+let run_wast_command verbosity cmd hs s mod_counter default_module_name test_counter =
+  debug_info verbosity stage 
+  (fun _ -> 
+    let cmd_sexpr = Wasm.Arrange.script `Textual [cmd] in
+    let cmd_string = String.concat "" (List.map (Wasm.Sexpr.to_string 200) cmd_sexpr) in
+    "\n\n----------\nTest " ^ string_of_int test_counter ^ "\n----------\n" ^ cmd_string ^ "\n"
+    );
   match cmd.it with
   | Module (ovar, moddef) -> 
     let* (hs', s', modc, defname) = load_wast_module verbosity hs s ovar moddef mod_counter in
@@ -183,7 +188,7 @@ let rec run_wast_commands verbosity cmds hs s mod_counter default_module_name as
   | [] -> 
     pure (assert_ok, assert_total)
   | cmd :: cmds' ->
-    let* (hs', s', mod_counter', default_module_name', verdict) = run_wast_command verbosity cmd hs s mod_counter default_module_name in
+    let* (hs', s', mod_counter', default_module_name', verdict) = run_wast_command verbosity cmd hs s mod_counter default_module_name (assert_total+1) in
     let new_ok = assert_ok + if verdict then 1 else 0 in 
     let new_total = assert_total + 1 in
     Printf.printf "\rTests passed: %d/%d (%.2f%%)" new_ok new_total (float_of_int new_ok *. 100.0 /. float_of_int new_total);
@@ -195,7 +200,7 @@ let run_wast_script verbosity script =
   let starting_store = empty_store_record in
   let* ret = run_wast_commands verbosity script starting_host_store starting_store 0 "" 0 0 in
   match ret with
-    | (assert_ok, assert_total) -> 
+    | (_assert_ok, _assert_total) -> 
       debug_info verbosity result (fun _ -> "\n");
       (*debug_info verbosity result (fun _ -> Printf.sprintf "Result: %d/%d (%.2f%%)\n" assert_ok assert_total (float_of_int assert_ok *. 100.0 /. float_of_int assert_total));*)
       pure ()

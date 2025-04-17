@@ -635,7 +635,7 @@ Definition parse_function_type {n} : byte_parser function_type n :=
 
 Definition parse_limits {n} : byte_parser limits n :=
   exact_byte x00 &> ((fun min => {| lim_min := min; lim_max := None |}) <$> parse_u32_as_N) <|>
-  exact_byte x01 &> ((fun min max => {| lim_min := min; lim_max := Some max |}) <$> parse_u32_as_N) <*> parse_u32_as_N.
+  (exact_byte x01 &> ((fun min max => {| lim_min := min; lim_max := Some max |}) <$> parse_u32_as_N) <*> parse_u32_as_N).
 
 Definition parse_table_type {n} : byte_parser table_type n :=
   ((fun ety lims => {| tt_limits := lims; tt_elem_type := ety |}) <$> parse_reference_type) <*> parse_limits.
@@ -744,13 +744,19 @@ Definition parse_module_mem {n} : byte_parser module_mem n :=
   (fun tty => {| modmem_type := tty |}) <$> parse_memory_type.
 
 Definition parse_module_data_0 {n} : byte_parser module_data n :=
-  ((fun es (init: list byte) => {| moddata_init := List.map compcert_byte_of_byte init; moddata_mode := MD_active 0%N es; |}) <$> parse_expr) <*> parse_vec anyTok.
+  ((fun es (init: list byte) =>
+      {| moddata_init := List.map compcert_byte_of_byte init; moddata_mode := MD_active 0%N es; |})
+     <$> parse_expr) <*> parse_vec anyTok.
 
 Definition parse_module_data_1 {n} : byte_parser module_data n :=
-  (fun (init: list byte) => {| moddata_init := List.map compcert_byte_of_byte init; moddata_mode := MD_passive; |}) <$> parse_vec anyTok.
+  (fun (init: list byte) =>
+     {| moddata_init := List.map compcert_byte_of_byte init; moddata_mode := MD_passive; |})
+    <$> parse_vec anyTok.
 
 Definition parse_module_data_2 {n} : byte_parser module_data n :=
-  (((fun x es (init: list byte) => {| moddata_init := List.map compcert_byte_of_byte init; moddata_mode := MD_active x es; |}) <$> parse_memidx) <*> parse_expr) <*> parse_vec anyTok.
+  (((fun x es (init: list byte) =>
+       {| moddata_init := List.map compcert_byte_of_byte init; moddata_mode := MD_active x es; |})
+      <$> parse_memidx) <*> parse_expr) <*> parse_vec anyTok.
 
 Definition parse_module_data {n}: byte_parser module_data n :=
   exact_byte x00 &> parse_module_data_0 <|>
@@ -794,8 +800,8 @@ Definition parse_codesec {n} : byte_parser (list module_func_without_type) n :=
 Definition parse_datasec {n} : byte_parser (list module_data) n :=
   exact_byte x0b &> parse_u32_as_int32 &> parse_vec parse_module_data.
 
-Definition parse_datacountsec {n} : byte_parser nat n :=
-  exact_byte x0c &> parse_u32_as_int32 &> parse_u32_as_nat.
+Definition parse_datacountsec {n} : byte_parser N n :=
+  exact_byte x0c &> parse_u32_as_int32 &> parse_u32_as_N.
 
 Definition parse_magic {n} : byte_parser unit n :=
   (exact_byte x00 &> exact_byte x61 &> exact_byte x73 &> exact_byte x6d) $> tt.
@@ -853,7 +859,7 @@ Definition parse_startsec_wrapper {n} : byte_parser module_start n :=
 Definition parse_elemsec_wrapper {n} : byte_parser (list module_element) n :=
   (parse_with_customsec_star_before parse_elemsec).
 
-Definition parse_datacountsec_wrapper {n} : byte_parser nat n :=
+Definition parse_datacountsec_wrapper {n} : byte_parser N n :=
   (parse_with_customsec_star_before parse_datacountsec).
 
 Definition parse_codesec_wrapper {n} : byte_parser (list module_func_without_type) n :=
@@ -877,6 +883,12 @@ Definition option_to_nat (on: option nat) : nat :=
   | None => 0
   end.
 
+Definition datacount_agree (len: N) (ocount: option N) : bool :=
+  match ocount with
+  | Some n => N.eqb len n
+  | None => true
+  end.
+
 Definition parse_module_sections_after {n} {A} (f: byte_parser A n) : byte_parser module n :=
   guardM
   (fun results =>
@@ -890,12 +902,11 @@ Definition parse_module_sections_after {n} {A} (f: byte_parser A n) : byte_parse
          let globals := option_to_list oglobals in
          let exports := option_to_list oexports in
          let elems := option_to_list oelems in
-         let datacount := option_to_nat odatacount in
          let codes := option_to_list ocodes in
          let datas := option_to_list odatas in
    (* Check that the information across different sections are consistent *)
          if (Nat.eqb (List.length fts) (List.length codes)) then
-           if (Nat.eqb (List.length datas) datacount) then
+           if (datacount_agree (N.of_nat (List.length datas)) odatacount) then
              Some {|
                mod_types := types;
                mod_funcs :=
