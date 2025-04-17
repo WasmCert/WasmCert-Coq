@@ -8,6 +8,19 @@ open Wasm.Source
 open Wasm.Values
 open Wasm.Script
 
+exception Timeout
+
+let with_timeout timeout f =
+  let _ =
+    Sys.set_signal Sys.sigalrm (Sys.Signal_handle (fun _ -> raise Timeout))
+  in
+  ignore (Unix.alarm timeout);
+  try
+    let r = f () in
+    ignore (Unix.alarm 0); r
+  with
+  | e -> ignore (Unix.alarm 0); raise e
+
 let ovar_to_name default ovar = 
   let open Wasm.Source in 
   match ovar with
@@ -188,9 +201,9 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name test_cou
       let res = (load_wast_module verbosity hs s None moddef mod_counter) in
       begin match to_out res with
       | OK _ -> 
-        error "Unexpected successful instantiation of an malformed module"
+        error "Unexpected successful instantiation of a malformed module"
       | Error _ -> 
-        debug_info verbosity stage (fun _ -> "Test passed: correctly rejected an malformed module\n");
+        debug_info verbosity stage (fun _ -> "Test passed: correctly rejected a malformed module\n");
         pure (hs, s, mod_counter, default_module_name)
       end
     | _ -> error "Unsupported wast assertion"
@@ -202,28 +215,33 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name test_cou
 end
     
 
-let rec run_wast_commands verbosity cmds hs s mod_counter default_module_name assert_ok assert_total =
+let rec run_wast_commands verbosity timeout cmds hs s mod_counter default_module_name assert_ok assert_total =
   match cmds with
   | [] -> 
     pure (assert_ok, assert_total)
   | cmd :: cmds' ->
-    let verdict = run_wast_command verbosity cmd hs s mod_counter default_module_name (assert_total+1) in
-    begin match to_out verdict with
-    | OK eve -> 
-      let* (hs', s', mod_counter', default_module_name') = eve in
-      let new_ok = assert_ok + 1 in
-      let new_total = assert_total + 1 in
-        Printf.printf "\rTests passed: %d/%d (%.2f%%) " new_ok new_total (float_of_int new_ok *. 100.0 /. float_of_int new_total);
-        flush stdout;
-        run_wast_commands verbosity cmds' hs' s' mod_counter' default_module_name' new_ok new_total
-    | Error msg ->
-        debug_info verbosity stage (fun _ -> "Test failed: " ^ msg ^ "\n");
-        let new_ok = assert_ok in
-        let new_total = assert_total + 1 in
-        Printf.printf "\rTests passed: %d/%d (%.2f%%) " new_ok new_total (float_of_int new_ok *. 100.0 /. float_of_int new_total);
-        flush stdout;
-        run_wast_commands verbosity cmds' hs s mod_counter default_module_name new_ok new_total
-      end
+      let verdict = 
+        try
+          (with_timeout timeout (fun _ -> run_wast_command verbosity cmd hs s mod_counter default_module_name (assert_total+1))) with
+          | Timeout -> error "Execution was timed out"
+         in
+        begin match to_out verdict with
+        | OK eve -> 
+          let* (hs', s', mod_counter', default_module_name') = eve in
+          let new_ok = assert_ok + 1 in
+          let new_total = assert_total + 1 in
+            Printf.printf "\rTests passed: %d/%d (%.2f%%) " new_ok new_total (float_of_int new_ok *. 100.0 /. float_of_int new_total);
+            flush stdout;
+            run_wast_commands verbosity timeout cmds' hs' s' mod_counter' default_module_name' new_ok new_total
+        | Error msg ->
+            debug_info verbosity stage (fun _ -> "Test failed: " ^ msg ^ "\n");
+            let new_ok = assert_ok in
+            let new_total = assert_total + 1 in
+            Printf.printf "\rTests passed: %d/%d (%.2f%%) " new_ok new_total (float_of_int new_ok *. 100.0 /. float_of_int new_total);
+            flush stdout;
+            run_wast_commands verbosity timeout cmds' hs s mod_counter default_module_name new_ok new_total
+          end
+      
 
 
 let spectest_host_str = 
@@ -253,11 +271,11 @@ let register_spectest_host verbosity hs s =
     debug_info verbosity stage (fun _ -> "Successfully instantiated module " ^ modname ^ ".\n");
     pure (hs', s')
 
-let run_wast_script verbosity script =
+let run_wast_script verbosity timeout script =
   let starting_host_store = Execute.StringMap.empty in
   let starting_store = empty_store_record in
   let* (hs, s) = register_spectest_host verbosity starting_host_store starting_store in
-  let* ret = run_wast_commands verbosity script hs s 0 "" 0 0 in
+  let* ret = run_wast_commands verbosity timeout script hs s 0 "" 0 0 in
   match ret with
     | (assert_ok, assert_total) -> 
       debug_info verbosity result (fun _ -> "\n");
@@ -266,9 +284,9 @@ let run_wast_script verbosity script =
       pure ()
     
 
-let run_wast_string verbosity scriptstr = 
+let run_wast_string verbosity timeout scriptstr = 
   let script = Parse.parse_wast scriptstr in
-  run_wast_script verbosity script
+  run_wast_script verbosity timeout script
 
 
   

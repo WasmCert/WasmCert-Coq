@@ -41,7 +41,7 @@ let process_args_and_run verbosity text no_exec srcs func_name src_module_name a
   with Invalid_argument msg -> error msg
 
 (** Similar to [process_args_and_run], but differs in the output type. *)
-let process_args_and_run_out verbosity text no_exec wast_mode srcs func_name src_module_name args =
+let process_args_and_run_out verbosity text no_exec wast_mode wast_timeout srcs func_name src_module_name args =
   (if wast_mode then 
     let files =
       List.map (fun dest ->
@@ -54,7 +54,7 @@ let process_args_and_run_out verbosity text no_exec wast_mode srcs func_name src
           s) srcs in
     match files with
     | [] -> Execute.Host.error "No wast file provided"
-    | [scriptstr] -> Wast_execute.run_wast_string verbosity scriptstr
+    | [scriptstr] -> Wast_execute.run_wast_string verbosity wast_timeout scriptstr
     | _ -> Execute.Host.error "Wast mode does not support multiple files"
 else
   process_args_and_run verbosity text no_exec srcs func_name src_module_name args)
@@ -111,6 +111,10 @@ let wast =
   let doc = "Running a .wast test suite" in
   Arg.(value & flag & info ["wast"] ~docv:"ARG" ~doc)
 
+let wast_timeout = 
+  let doc = "Set the timeout for running .wast test suites" in
+  Arg.(value & opt int 5 & info ["t"] ~docv:"ARG" ~doc)
+
 let srcs =
   let doc = "Source file(s) to interpret." in
   let docinfo = 
@@ -128,7 +132,7 @@ let cmd =
   in
   Cmd.v 
      (Cmd.info "wasm_interpreter" ~version:"c9b010d-dirty" ~doc ~exits ~man ~man_xrefs)
-     Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ wast $ srcs $ func_name $ module_name $ args ))
+     Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ wast $ wast_timeout $ srcs $ func_name $ module_name $ args ))
 
   
 let () = Stdlib.exit @@ 
