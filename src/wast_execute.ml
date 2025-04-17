@@ -185,6 +185,7 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name test_cou
           match r with
           | (hs, s, mod_counter, default_module_name) -> 
             debug_info verbosity stage (fun _ -> "Test failed: an invalid module was successfully instantiated\n");
+            (* module counter doesn't increase *)
             (hs, s, mod_counter, default_module_name, false)
           ) 
         (fun _ -> raise Exn) res)
