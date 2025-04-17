@@ -109,14 +109,15 @@ let load_wast_module verbosity hs s ovar moddef mod_counter =
       pure (hs', s', mod_counter+1, modname)
   | Quoted _ -> error "Unsupported module encoding: Quoted"
 
-
+let print_wast_command cmd = 
+  let cmd_sexpr = Wasm.Arrange.script `Textual [cmd] in
+  let cmd_string = String.concat "" (List.map (Wasm.Sexpr.to_string 200) cmd_sexpr) in
+  cmd_string
 
 let run_wast_command verbosity cmd hs s mod_counter default_module_name test_counter =
   debug_info verbosity stage 
   (fun _ -> 
-    let cmd_sexpr = Wasm.Arrange.script `Textual [cmd] in
-    let cmd_string = String.concat "" (List.map (Wasm.Sexpr.to_string 200) cmd_sexpr) in
-    "\n\n----------\nTest " ^ string_of_int test_counter ^ "\n----------\n" ^ cmd_string ^ "\n"
+    "\n\n----------\nTest " ^ string_of_int test_counter ^ "\n----------\n" ^ print_wast_command cmd ^ "\n"
     );
   match cmd.it with
   | Module (ovar, moddef) -> 
@@ -145,10 +146,10 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name test_cou
               (debug_info verbosity stage (fun _ -> "Test passed: result matches asserted value\n");
               pure (hs, s', mod_counter, default_module_name, true))
             else 
-              (debug_info verbosity stage (fun _ -> "Test failed: result mismatches\n");
+              (debug_info verbosity result (fun _ -> "\nTest failed: result mismatches\nTest detail: \n" ^ print_wast_command cmd ^ "\n");
               pure (hs, s', mod_counter, default_module_name, false))
         | Cfg_trap (s', _) -> 
-          debug_info verbosity stage (fun _ -> "Test failed: unexpected trap\n");
+          debug_info verbosity result (fun _ -> "\nTest failed: unexpected trap\nTest detail: \n" ^ print_wast_command cmd ^ "\n");
           pure (hs, s', mod_counter, default_module_name, false)
         end
       | Get (_ovar, _funcname) ->
@@ -167,7 +168,7 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name test_cou
         begin match res with
         | Cfg_err -> error "Invocation error"
         | Cfg_res (s', _, _) ->
-          debug_info verbosity stage (fun _ -> "Test failed: execution is supposed to trap but succeeded\n");
+          debug_info verbosity result (fun _ -> "\nTest failed: execution is supposed to trap but succeeded\nTest detail: \n" ^ print_wast_command cmd ^ "\n");
           pure (hs, s', mod_counter, default_module_name, false)
         | Cfg_trap (s', _) -> 
           debug_info verbosity stage (fun _ -> "Test passed: execution trapped as expected\n");
@@ -184,7 +185,7 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name test_cou
         begin try (pmatch (fun r -> 
           match r with
           | (hs, s, mod_counter, default_module_name) -> 
-            debug_info verbosity stage (fun _ -> "Test failed: an invalid module was successfully instantiated\n");
+            debug_info verbosity result (fun _ -> "\nTest failed: an invalid module was successfully instantiated\nTest detail: \n" ^ print_wast_command cmd ^ "\n");
             (* module counter doesn't increase *)
             (hs, s, mod_counter, default_module_name, false)
           ) 
@@ -199,7 +200,7 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name test_cou
         begin try (pmatch (fun r -> 
           match r with
           | (hs, s, mod_counter, default_module_name) -> 
-            debug_info verbosity stage (fun _ -> "Test failed: an invalid module was successfully instantiated\n");
+            debug_info verbosity result (fun _ -> "\nTest failed: a malformed module was successfully instantiated\nTest detail: \n" ^ print_wast_command cmd ^ "\n");
             (hs, s, mod_counter, default_module_name, false)
           ) 
         (fun _ -> raise Exn) res)
@@ -224,14 +225,42 @@ let rec run_wast_commands verbosity cmds hs s mod_counter default_module_name as
     flush stdout;
     run_wast_commands verbosity cmds' hs' s' mod_counter' default_module_name' new_ok new_total
 
+let spectest_host_str = 
+  "(module
+  (global (export \"global_i32\") i32 (i32.const 666))      ;; value 666
+  (global (export \"global_i64\") i64 (i64.const 666))      ;; value 666
+  (global (export \"global_f32\") f32 (f32.const 666.6))      ;; value 666.6
+  (global (export \"global_f64\") f64 (f64.const 666.6))      ;; value 666.6
+
+  (table (export \"table\") 10 20 funcref)  ;; null-initialized
+
+  (memory (export \"memory\") 1 2)          ;; zero-initialized
+
+  (func (export \"print\"))
+  (func (export \"print_i32\") (param i32))
+  (func (export \"print_i64\") (param i64))
+  (func (export \"print_f32\") (param f32))
+  (func (export \"print_f64\") (param f64))
+  (func (export \"print_i32_f32\") (param i32 f32))
+  (func (export \"print_f64_f64\") (param f64 f64))
+)"
+
+let register_spectest_host verbosity hs s = 
+  let* m = Parse.parse_module verbosity true spectest_host_str in
+  let modname = "spectest" in
+  let* (hs', s') = Execute.instantiate_modules verbosity hs s [modname] [m] in
+    debug_info verbosity stage (fun _ -> "Successfully instantiated module " ^ modname ^ ".\n");
+    pure (hs', s')
+
 let run_wast_script verbosity script =
   let starting_host_store = Execute.StringMap.empty in
   let starting_store = empty_store_record in
-  let* ret = run_wast_commands verbosity script starting_host_store starting_store 0 "" 0 0 in
+  let* (hs, s) = register_spectest_host verbosity starting_host_store starting_store in
+  let* ret = run_wast_commands verbosity script hs s 0 "" 0 0 in
   match ret with
-    | (_assert_ok, _assert_total) -> 
+    | (assert_ok, assert_total) -> 
       debug_info verbosity result (fun _ -> "\n");
-      (*debug_info verbosity result (fun _ -> Printf.sprintf "Result: %d/%d (%.2f%%)\n" assert_ok assert_total (float_of_int assert_ok *. 100.0 /. float_of_int assert_total));*)
+      debug_info verbosity result (fun _ -> Printf.sprintf "Result: %d/%d (%.2f%%)\n" assert_ok assert_total (float_of_int assert_ok *. 100.0 /. float_of_int assert_total));
       pure ()
     
 
