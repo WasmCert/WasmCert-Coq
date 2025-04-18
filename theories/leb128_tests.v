@@ -19,7 +19,7 @@ Proof.
 Qed.
 
 Definition test_wikipedia_decode :
-  check_toks test_wikipedia (fun n => parse_unsigned n) = Singleton 624485%N.
+  check_toks test_wikipedia parse_unsigned = Singleton 624485%N.
 Proof.
   vm_compute. reflexivity.
 Qed.

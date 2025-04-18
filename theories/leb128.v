@@ -1,6 +1,5 @@
 (* LEB128 integer format *)
 (* https://en.wikipedia.org/wiki/LEB128 *)
-(* TODO: size bound *)
 Require Import Numbers.BinNums.
 Require Import BinNat BinInt.
 Require Import Coq.Init.Byte.
@@ -117,11 +116,11 @@ Section Language.
     Coq.Strings.Byte.to_N <$> anyTok.
 
   (* parse a final byte *)
-  Definition parse_unsigned_end {n} : byte_parser (N * nat) n :=
+  Definition parse_unsigned_end {n} : byte_parser N n :=
     guardM
       (fun b =>
         let '(_, (_, (_, (_, (_, (_, (_, msb))))))) := Byte.to_bits b in
-        if msb then None else Some ((Coq.Strings.Byte.to_N b), 1))
+        if msb then None else Some (Coq.Strings.Byte.to_N b))
       anyTok.
 
   (* parse a non-final byte *)
@@ -136,7 +135,7 @@ Section Language.
   Section Unsigned_sec.
 
     Record Unsigned (n : nat) : Type := MkUnsigned
-    { _unsigned : byte_parser (N * nat) n;
+    { _unsigned : byte_parser N n;
     }.
     
     Arguments MkUnsigned {_}.
@@ -148,20 +147,12 @@ Section Language.
       let aux := Induction.map _unsigned _ rec in
       let unsigned_ :=
         parse_unsigned_end <|>
-        (((fun lsb '(rest, curlen) => (BinNatDef.N.add lsb (BinNatDef.N.mul 128%N rest), curlen + 1)) <$> parse_unsigned_ctd) <*> aux) in
+        (((fun lsb rest => BinNatDef.N.add lsb (BinNatDef.N.mul 128%N rest)) <$> parse_unsigned_ctd) <*> aux) in
       MkUnsigned unsigned_).
     
-    Definition parse_unsigned_len : [ byte_parser (N * nat) ] :=
-      fun n => _unsigned n (parse_unsigned_aux n).
-    
     (** top-level function *)
-    Definition parse_unsigned (len_bound: nat) {n} : byte_parser N n :=
-      guardM
-        (fun '(ret, len) =>
-           if Nat.leb len len_bound then Some ret
-           else None
-        )
-        (extract parse_unsigned_len n).
+    Definition parse_unsigned : [ byte_parser N ] :=
+      fun n => _unsigned n (parse_unsigned_aux n).
 
   End Unsigned_sec.
 
@@ -169,13 +160,13 @@ Definition sub_2_7 (k : N) :=
   BinIntDef.Z.sub (BinInt.Z_of_N k) (BinIntDef.Z.pow (BinInt.Z.of_nat 2) (BinInt.Z.of_nat 7)).
 
 (* parse a non-final byte *)
-Definition parse_signed_end {n} : byte_parser (Z * nat) n :=
+Definition parse_signed_end {n} : byte_parser Z n :=
 guardM
   (fun b =>
     let '(_, (_, (_, (_, (_, (_, (b7, b8))))))) := Byte.to_bits b in
     if b8 then None
-    else if b7 then  Some ((sub_2_7 (Coq.Strings.Byte.to_N b)), 1)
-    else Some ((ZArith.BinInt.Z_of_N (Coq.Strings.Byte.to_N b)), 1))
+    else if b7 then  Some (sub_2_7 (Coq.Strings.Byte.to_N b))
+    else Some (ZArith.BinInt.Z_of_N (Coq.Strings.Byte.to_N b)))
   anyTok.
 
 (* parse a final byte *)
@@ -190,7 +181,7 @@ Definition parse_signed_ctd {n} : byte_parser Z n :=
 Section Signed_sec.
 
   Record Signed (n : nat) : Type := MkSigned
-  { _signed : byte_parser (Z * nat) n;
+  { _signed : byte_parser Z n;
   }.
     
   Arguments MkUnsigned {_}.
@@ -202,19 +193,11 @@ Section Signed_sec.
       let aux := Induction.map _signed _ rec in
       let signed_ :=
         parse_signed_end <|>
-        (((fun lsb '(rest, curlen) => (ZArith.BinInt.Zplus lsb (ZArith.BinInt.Zmult 128%Z rest), curlen+1)) <$> parse_signed_ctd) <*> aux) in
+        (((fun lsb rest => ZArith.BinInt.Zplus lsb (ZArith.BinInt.Zmult 128%Z rest)) <$> parse_signed_ctd) <*> aux) in
       MkSigned _ signed_).
     
-    Definition parse_signed_len : [ byte_parser (Z * nat) ] := fun n => _signed n (signed_aux n).
+    Definition parse_signed : [ byte_parser Z ] := fun n => _signed n (signed_aux n).
     
-    Definition parse_signed (len_bound: nat) {n} : byte_parser Z n :=
-      guardM
-        (fun '(ret, len) =>
-           if Nat.leb len len_bound then Some ret
-           else None
-        )
-        (extract parse_signed_len n).
-
   End Signed_sec.
 
 End Language.
