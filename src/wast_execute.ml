@@ -234,7 +234,7 @@ let rec run_wast_commands verbosity timeout cmds hs s mod_counter default_module
             flush stdout;
             run_wast_commands verbosity timeout cmds' hs' s' mod_counter' default_module_name' new_ok new_total
         | Error msg ->
-            debug_info verbosity stage (fun _ -> "Test failed: " ^ msg ^ "\n");
+            debug_info verbosity stage ~style:red (fun _ -> "Test failed: " ^ msg ^ "\n");
             let new_ok = assert_ok in
             let new_total = assert_total + 1 in
             Printf.printf "\rTests passed: %d/%d (%.2f%%) " new_ok new_total (float_of_int new_ok *. 100.0 /. float_of_int new_total);

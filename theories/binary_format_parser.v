@@ -11,7 +11,7 @@ From compcert Require Import Integers.
 From parseque Require Import Parseque.
 Require Import Strings.Byte.
 Require Import leb128.
-Require Import BinNat.
+Require Import BinNat BinInt.
 Require Import PeanoNat.
 
 Notation "p $> b" := (cmap b p) (at level 59, right associativity).
@@ -34,24 +34,32 @@ Definition exact_byte (b : byte) {n} : byte_parser byte n :=
 
 (* TODO: need to make sure these do the right thing *)
 Definition parse_u32_as_N {n} : byte_parser N n :=
-  extract parse_unsigned n.
+  guardM
+    (fun m => if N.leb m 4294967295%N then Some m
+           else None
+    )
+   (parse_unsigned 5).
 
 Definition assert_u32 {n} (k: N) : byte_parser N n :=
   guardM
     (fun parsed_n => if N.eqb parsed_n k then Some k else None)
     parse_u32_as_N.
 
-Definition parse_u32_as_int32 {n} : byte_parser Wasm_int.Int32.int n :=
-  (* TODO: limit size *)
-  (fun x => Wasm_int.Int32.repr (BinIntDef.Z.of_N x)) <$> (extract parse_unsigned n).
-
 Definition parse_s32 {n} : byte_parser Wasm_int.Int32.int n :=
-  (* TODO: limit size *)
-  (fun x => Wasm_int.Int32.repr x) <$> (extract parse_signed n).
+  guardM
+    (fun x => if (andb (Z.leb x 2147483647%Z)
+                 (Z.leb (-2147483648)%Z x)) then
+                  Some (Wasm_int.Int32.repr x)
+                else None)
+    (parse_signed 5).
 
 Definition parse_s64 {n} : byte_parser Wasm_int.Int64.int n :=
-  (* TODO: limit size *)
-  (fun x => Wasm_int.Int64.repr x) <$> (extract parse_signed n).
+  guardM
+    (fun x => if (andb (Z.leb x 9223372036854775807%Z)
+                 (Z.leb (-9223372036854775808)%Z x)) then
+                  Some (Wasm_int.Int64.repr x)
+                else None)
+    (parse_signed 10).
 
 Fixpoint k_plus_one_anyTok (k : nat) {n} : byte_parser (list byte) n :=
   match k with
@@ -97,31 +105,31 @@ Definition parse_vec {B} {n} (f : byte_parser B n) : byte_parser (list B) n :=
 
 (* Kept as separate definitions in case a distincion is required in the future *)
 Definition parse_labelidx {n} : byte_parser labelidx n :=
-  (fun x => Wasm_int.N_of_uint i32m x) <$> parse_u32_as_int32.
+  parse_u32_as_N.
 
 Definition parse_funcidx {n} : byte_parser funcidx n :=
-  (fun x => Wasm_int.N_of_uint i32m x) <$> parse_u32_as_int32.
+  parse_u32_as_N.
 
 Definition parse_tableidx {n} : byte_parser tableidx n :=
-  (fun x => Wasm_int.N_of_uint i32m x) <$> parse_u32_as_int32.
+  parse_u32_as_N.
 
 Definition parse_memidx {n} : byte_parser memidx n :=
-  (fun x => Wasm_int.N_of_uint i32m x) <$> parse_u32_as_int32.
+  parse_u32_as_N.
 
 Definition parse_typeidx {n} : byte_parser typeidx n :=
-  (fun x => Wasm_int.N_of_uint i32m x) <$> parse_u32_as_int32.
+  parse_u32_as_N.
 
 Definition parse_localidx {n} : byte_parser localidx n :=
-  (fun x => Wasm_int.N_of_uint i32m x) <$> parse_u32_as_int32.
+  parse_u32_as_N.
 
 Definition parse_globalidx {n} : byte_parser globalidx n :=
-  (fun x => Wasm_int.N_of_uint i32m x) <$> parse_u32_as_int32.
+  parse_u32_as_N.
 
 Definition parse_elemidx {n} : byte_parser elemidx n :=
-  (fun x => Wasm_int.N_of_uint i32m x) <$> parse_u32_as_int32.
+  parse_u32_as_N.
 
 Definition parse_dataidx {n} : byte_parser dataidx n :=
-  (fun x => Wasm_int.N_of_uint i32m x) <$> parse_u32_as_int32.
+  parse_u32_as_N.
 
 Definition parse_number_type {n} : byte_parser number_type n :=
   (exact_byte x7f $> T_i32) <|>
@@ -283,11 +291,11 @@ Definition parse_table_instruction {n}: byte_parser basic_instruction n :=
   parse_table_size <|>
   parse_table_fill.
 
-Definition parse_alignment_exponent {n} : byte_parser BinNat.N.t n :=
-  (Wasm_int.N_of_uint i32m) <$> parse_u32_as_int32.
+Definition parse_alignment_exponent {n} : byte_parser N n :=
+  parse_u32_as_N.
 
-Definition parse_static_offset {n} : byte_parser BinNat.N.t n :=
-  (Wasm_int.N_of_uint i32m) <$> parse_u32_as_int32.
+Definition parse_static_offset {n} : byte_parser N n :=
+  parse_u32_as_N.
 
 Definition parse_memarg {n} : byte_parser memarg n :=
   (fun ao =>
@@ -770,50 +778,53 @@ Definition parse_module_data_2 {n} : byte_parser module_data n :=
        {| moddata_init := List.map compcert_byte_of_byte init; moddata_mode := MD_active x es; |})
       <$> parse_memidx) <*> parse_expr) <*> parse_vec anyTok.
 
-Definition parse_module_data {n}: byte_parser module_data n :=
+Definition parse_module_data {n} : byte_parser module_data n :=
   assert_u32 0%N &> parse_module_data_0 <|>
   assert_u32 1%N &> parse_module_data_1 <|>
   assert_u32 2%N &> parse_module_data_2.
 
+Definition parse_name {n} : byte_parser name n :=
+  parse_vec anyTok.
+
 Definition parse_customsec {n} : byte_parser (list byte) n :=
-  exact_byte x00 &> parse_vec anyTok.
+  exact_byte x00 &> parse_u32_as_N &> parse_name &> parse_vec anyTok.
 
 (* Low priority: check that the sections have the correct byte sizes? *)
 Definition parse_typesec {n} : byte_parser (list function_type) n :=
-  exact_byte x01 &> parse_u32_as_int32 &> parse_vec parse_function_type.
+  exact_byte x01 &> parse_u32_as_N &> parse_vec parse_function_type.
 
 Definition parse_importsec {n} : byte_parser (list module_import) n :=
-  exact_byte x02 &> parse_u32_as_int32 &> parse_vec parse_module_import.
+  exact_byte x02 &> parse_u32_as_N &> parse_vec parse_module_import.
 
 Definition parse_funcsec {n} : byte_parser (list typeidx) n :=
-  exact_byte x03 &> parse_u32_as_int32 &> parse_vec parse_typeidx.
+  exact_byte x03 &> parse_u32_as_N &> parse_vec parse_typeidx.
 
 Definition parse_tablesec {n} : byte_parser (list module_table) n :=
-  exact_byte x04 &> parse_u32_as_int32 &> parse_vec parse_module_table.
+  exact_byte x04 &> parse_u32_as_N &> parse_vec parse_module_table.
 
 Definition parse_memsec {n} : byte_parser (list module_mem) n :=
-  exact_byte x05 &> parse_u32_as_int32 &> parse_vec parse_module_mem.
+  exact_byte x05 &> parse_u32_as_N &> parse_vec parse_module_mem.
 
 Definition parse_globalsec {n} : byte_parser (list module_global) n :=
-  exact_byte x06 &> parse_u32_as_int32 &> parse_vec parse_module_global.
+  exact_byte x06 &> parse_u32_as_N &> parse_vec parse_module_global.
 
 Definition parse_exportsec {n} : byte_parser (list module_export) n :=
-  exact_byte x07 &> parse_u32_as_int32 &> parse_vec parse_module_export.
+  exact_byte x07 &> parse_u32_as_N &> parse_vec parse_module_export.
 
 Definition parse_startsec {n} : byte_parser module_start n :=
-  exact_byte x08 &> parse_u32_as_int32 &> parse_module_start.
+  exact_byte x08 &> parse_u32_as_N &> parse_module_start.
 
 Definition parse_elemsec {n} : byte_parser (list module_element) n :=
-  exact_byte x09 &> parse_u32_as_int32 &> parse_vec parse_module_element.
+  exact_byte x09 &> parse_u32_as_N &> parse_vec parse_module_element.
 
 Definition parse_codesec {n} : byte_parser (list module_func_without_type) n :=
-  exact_byte x0a &> parse_u32_as_int32 &> parse_vec parse_code.
+  exact_byte x0a &> parse_u32_as_N &> parse_vec parse_code.
 
 Definition parse_datasec {n} : byte_parser (list module_data) n :=
-  exact_byte x0b &> parse_u32_as_int32 &> parse_vec parse_module_data.
+  exact_byte x0b &> parse_u32_as_N &> parse_vec parse_module_data.
 
 Definition parse_datacountsec {n} : byte_parser N n :=
-  exact_byte x0c &> parse_u32_as_int32 &> parse_u32_as_N.
+  exact_byte x0c &> parse_u32_as_N &> parse_u32_as_N.
 
 Definition parse_magic {n} : byte_parser unit n :=
   (exact_byte x00 &> exact_byte x61 &> exact_byte x73 &> exact_byte x6d) $> tt.
