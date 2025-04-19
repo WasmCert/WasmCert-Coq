@@ -113,7 +113,7 @@ let wast =
 
 let wast_timeout = 
   let doc = "Set the timeout for running .wast test suites" in
-  Arg.(value & opt int 5 & info ["t"] ~docv:"ARG" ~doc)
+  Arg.(value & opt int 10 & info ["t"] ~docv:"ARG" ~doc)
 
 let srcs =
   let doc = "Source file(s) to interpret." in

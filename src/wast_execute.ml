@@ -139,6 +139,17 @@ let print_wast_command cmd =
   let cmd_string = String.concat "" (List.map (Wasm.Sexpr.to_string 200) cmd_sexpr) in
   cmd_string
 
+let run_invoke verbosity act_invoke hs s default_module_name = 
+  match act_invoke with
+  | (ovar, funcname_utf8, val_args) ->
+    let open Execute in
+    let modname = ovar_to_name default_module_name ovar in
+    let funcname = Wasm.Ast.string_of_name funcname_utf8 in 
+    let* args = wasm_vals_to_coq val_args in
+    let* res = invoke_func verbosity hs (s, Extract.empty_frame) args modname funcname in 
+      debug_info verbosity stage (fun _ -> "Successfully executed function " ^ funcname ^ " of module: " ^ modname ^ ".\n");
+      pure res
+
 let run_wast_command verbosity cmd hs s mod_counter default_module_name test_counter =
   debug_info verbosity stage 
   (fun _ -> 
@@ -149,32 +160,39 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name test_cou
   | Module (ovar, moddef) -> 
     let* (hs', s', modc, defname) = load_wast_module verbosity hs s ovar moddef mod_counter in
     pure (hs', s', modc, defname)
+  | Action act ->
+    begin match act.it with
+    | Invoke (ovar, funcname_utf8, val_args) ->
+      let* res = run_invoke verbosity (ovar, funcname_utf8, val_args) hs s default_module_name in 
+      begin match res with
+      | Cfg_err -> error "Invocation error"
+      | Cfg_trap _ -> error "Unexpecte trap"
+      | Cfg_res (s', _, _) ->
+        pure (hs, s', mod_counter, default_module_name)
+      end
+    | Get (_ovar, _funcname) ->
+        error "Unsupported wast action: Get"
+    end
   | Assertion asrt -> 
     begin match asrt.it with 
     | AssertReturn (act, expect_rets) ->
       begin match act.it with
       | Invoke (ovar, funcname_utf8, val_args) ->
-        let open Execute in
-        let modname = ovar_to_name default_module_name ovar in
-        let funcname = Wasm.Ast.string_of_name funcname_utf8 in 
-        let* args = wasm_vals_to_coq val_args in
-        (*Printf.printf "%s" (Utils.implode (Extract.PP.pp_values args));*)
-        let* res = invoke_func verbosity hs (s, Extract.empty_frame) args modname funcname in 
+        let* res = run_invoke verbosity (ovar, funcname_utf8, val_args) hs s default_module_name in 
         begin match res with
         | Cfg_err -> error "Invocation error"
         | Cfg_res (s', _, vs) ->
-          debug_info verbosity stage (fun _ -> "Successfully executed function " ^ funcname ^ " of module: " ^ modname ^ ".\n");
           debug_info verbosity stage (fun _ -> "Returned: ");
-          debug_info verbosity stage (fun _ -> print_invoke_result verbosity res; "");
+          debug_info verbosity stage (fun _ -> Execute.print_invoke_result verbosity res; "");
           debug_info verbosity stage (fun _ -> "Expected: " ^ wasm_results_to_string expect_rets ^ "\n");
           let assert_result = wasm_assert_rets vs expect_rets in
             if assert_result then
               (debug_info verbosity stage (fun _ -> "Test passed: result matches asserted value\n");
               pure (hs, s', mod_counter, default_module_name))
             else 
-              error "result mismatches"
+              error "Result mismatches"
         | Cfg_trap _ -> 
-              error "unexpected trap"
+              error "Unexpected trap"
         end
       | Get (_ovar, _funcname) ->
         error "Unsupported wast action: Get"
