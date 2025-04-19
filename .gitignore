@@ -27,7 +27,7 @@
 .saves
 .DS_Store
 
-/tests/wast/
+/wast/
 
 /wasm_interpreter
 /wasm_coq_interpreter.exe

@@ -1,8 +1,7 @@
 default:
 	opam install .
 
-run_wast_local:
-	for wastfile in ./tests/wast/*.wast; do \
-		echo "Running: $$wastfile"; \
-		dune exec -- wasm_coq_interpreter --wast "$$wastfile"; \
-	done
+run_wast:
+	@FOLDER=$$(if [ "$(filter-out run_wast,$(MAKECMDGOALS))" ]; then echo "$(word 2, $(MAKECMDGOALS))"; else echo "./wast"; fi);\
+	chmod +x run_wast.sh; \
+	./run_wast.sh "$$FOLDER"
