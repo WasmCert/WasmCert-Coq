@@ -19,6 +19,18 @@ Module Wast_interface.
     | Tnum_f64, VAL_num (VAL_float64 c) => Wasm_float.float_is_arithmetic f64m c
     | _, _ => false
     end.
+
+  Definition is_funcref (v: value) : bool :=
+    match v with
+    | VAL_ref (VAL_ref_func _) => true
+    | _ => false
+    end.
+  
+  Definition is_externref (v: value) : bool :=
+    match v with
+    | VAL_ref (VAL_ref_extern _) => true
+    | _ => false
+    end.
   
 End Wast_interface.
 

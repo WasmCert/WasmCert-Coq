@@ -29,39 +29,44 @@ let ovar_to_name default ovar =
 
 let wasm_num_to_hexstring num = 
   (* This somehow doesn't include the type signature. *)
-  let val_string = Wasm.Values.hex_string_of_num num in
+  let val_string = hex_string_of_num num in
   (*Printf.printf "%s\n" val_string;*)
-    Wasm.Types.string_of_num_type (Wasm.Values.type_of_num num) ^ ".const " ^ val_string
+    Wasm.Types.string_of_num_type (type_of_num num) ^ ".const " ^ val_string
 
+let wasm_ref_to_string = function
+  | NullRef t -> "ref.null " ^ Wasm.Types.string_of_refed_type t
+  | ExternRef n -> "ref.extern " ^ Wasm.I32.to_string_u n
+  | _ -> assert false
 
 let wasm_val_to_string wval = 
-  let open Wasm.Source in
   match wval.it with
-  | Wasm.Values.Num num -> Some (wasm_num_to_hexstring num)
-  | _ -> None
+  | Num num -> Some (wasm_num_to_hexstring num)
+  | Ref ref -> Some (wasm_ref_to_string ref)
+  | _-> Some (string_of_value wval.it)
 (*
 let wasm_vals_to_string wvals = 
   String.concat "" (List.filter_map (function | Some x -> Some x | _ -> None) (List.map wasm_val_to_string wvals))
 *)
 
 let wasm_numpat_to_string numpat =
-  let open Wasm.Script in
   match numpat with
   | NumPat num -> wasm_num_to_hexstring num.it
   | NanPat _nanop -> "Nan"
 
+let wasm_refpat_to_string refpat = 
+  match refpat with
+  | RefPat ref -> string_of_ref ref.it
+  | _ -> "Unsupported refpat printout"
+
 let wasm_result_to_string ret = 
-  let open Wasm.Script in
-  let open Wasm.Source in
   match ret.it with
   | NumResult numpat -> wasm_numpat_to_string numpat
-  | _ -> "Unsupported result type: vec/ref"
+  | RefResult refpat -> wasm_refpat_to_string refpat
+  | _ -> "Unsupported result type: vec"
 
 let wasm_results_to_string rets = 
   String.concat "; " (List.map wasm_result_to_string rets)
 
-
-(* Some stupid hacks here -- does this lose precision for floats? *)
 let wasm_val_to_coq wval = 
   match wasm_val_to_string wval with
   | Some valstr -> Parse.parse_arg valstr
@@ -96,9 +101,16 @@ let wasm_assert_numpat ret numpat =
   | NumPat num -> (wasm_num_to_coq num.it = Some ret)
   | NanPat nanop -> wasm_assert_nanpat ret nanop
 
+let wasm_assert_refpat ret refpat =
+  match refpat with
+  | RefPat r -> (wasm_val_to_coq ((Ref r.it) @@ no_region) = Some ret)
+  | RefTypePat Wasm.Types.FuncRefType -> Extract.Wast_interface.is_funcref ret
+  | RefTypePat Wasm.Types.ExternRefType -> Extract.Wast_interface.is_externref ret
+
 let wasm_assert_ret ret ret_exp = 
   match ret_exp.it with
   | NumResult numpat -> wasm_assert_numpat ret numpat
+  | RefResult refpat -> wasm_assert_refpat ret refpat
   | _ -> false
 
 let wasm_assert_rets rets ret_exps = 
