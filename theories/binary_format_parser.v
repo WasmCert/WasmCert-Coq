@@ -1,18 +1,12 @@
 (** Parser for the binary Wasm format. **)
-(* (C) J. Pichon - see LICENSE.txt *)
-(* TODO: all the numeric stuff is in dire need of testing *)
-
 (* Some documentation from the original agdarsec paper:
    gallais.github.io/pdf/agdarsec18.pdf
 *)
 
-From Wasm Require Import datatypes_properties typing.
+From Wasm Require Import datatypes_properties typing leb128.
 From compcert Require Import Integers.
 From parseque Require Import Parseque.
-Require Import Strings.Byte.
-Require Import leb128.
-Require Import BinNat BinInt.
-Require Import PeanoNat.
+Require Import Strings.Byte BinNat BinInt PeanoNat.
 
 Notation "p $> b" := (cmap b p) (at level 59, right associativity).
 
@@ -101,12 +95,8 @@ Definition parse_vec_aux {B} {n} (f : byte_parser B n) (k : N)
 
 (* parsing a length-indexed list *)
 Definition parse_vec {B} {n} (f : byte_parser B n) : byte_parser (list B) n :=
-  (fun len_list => 
-     match len_list with
-     | (_, Some xs) => xs
-     | (_, None) => nil
-     end) <$>
-  (parse_vec_length &?>>= (fun k => parse_vec_aux f k)).
+  exact_byte x00 $> nil <|>
+  (parse_vec_length >>= (fun k => parse_vec_aux f k)).
 
 Definition parse_f32 {n} : byte_parser Wasm_float.FloatSize32.T n :=
   (fun bs => Floats.Float32.of_bits (Integers.Int.repr (common.Memdata.decode_int (List.map compcert_byte_of_byte bs)))) <$> (parse_vec_aux anyTok 4%N).
@@ -687,9 +677,12 @@ Definition parse_import_desc {n} : byte_parser module_import_desc n :=
   exact_byte x02 &> (MID_mem <$> parse_memory_type) <|>
   exact_byte x03 &> (MID_global <$> parse_global_type).
 
+Definition parse_name {n} : byte_parser name n :=
+  parse_vec anyTok.
+
 Definition parse_module_import {n} : byte_parser module_import n :=
-  ((fun modul name desc => {| imp_module := modul; imp_name := name; imp_desc := desc; |}) <$> parse_vec anyTok) <*>
-  parse_vec anyTok <*> parse_import_desc.
+  ((fun '(modul, name, desc) => {| imp_module := modul; imp_name := name; imp_desc := desc; |}) <$> (parse_name <&>
+  parse_name <&> parse_import_desc)).
 
 Definition parse_module_global {n} : byte_parser module_global n :=
   ((fun ty e => {| modglob_type := ty; modglob_init := e |}) <$> parse_global_type) <*> parse_expr.
@@ -702,7 +695,7 @@ Definition parse_module_export_desc {n} : byte_parser module_export_desc n :=
 
 Definition parse_module_export {n} : byte_parser module_export n :=
   ((fun name desc => {| modexp_name := name; modexp_desc := desc |}) <$>
-  parse_vec anyTok) <*> parse_module_export_desc.
+  parse_name) <*> parse_module_export_desc.
 
 Definition parse_module_start {n} : byte_parser module_start n :=
   (fun func => {| modstart_func := func |}) <$> parse_funcidx.
@@ -746,27 +739,31 @@ Definition parse_module_element {n}: byte_parser module_element n :=
   assert_u32 6%N &> parse_module_element_6 <|>
   assert_u32 7%N &> parse_module_element_7.
 
-Definition parse_N_value_type {n} : byte_parser (list value_type) n :=
-  ((fun k t => List.repeat t (N.to_nat k)) <$> parse_u32_as_N) <*> parse_value_type.
-
-Definition parse_locals {n} : byte_parser (list value_type) n :=
-  (fun tss => tss) <$> parse_N_value_type.
+Definition parse_locals {n} : byte_parser (N * value_type) n :=
+  parse_u32_as_N <&> parse_value_type.
 
 (* Spec defines code and functypes separately *)
 Definition module_func_without_type : Type := (list value_type) * expr.
 
+(* Safe parsing against huge local counts *)
+Definition verify_locals (args: list (N * value_type)) : option (list value_type) :=
+  let argcounts := List.map fst args in
+  let argtotal := List.fold_left (fun a b => N.add a b) argcounts 0%N in
+  if (N.ltb argtotal 4294967296%N) then
+    Some (List.concat (List.map (fun '(n, t) => List.repeat t (N.to_nat n)) args))
+  else None.
+
 Definition parse_code_func {n} : byte_parser module_func_without_type n :=
-  ((fun locals e => (List.concat locals, e)) <$> parse_vec parse_locals) <*> parse_expr.
+  guardM
+    (fun '(locals, e) =>
+       match verify_locals locals with
+       | Some ts => Some (ts, e)
+       | None => None
+     end)
+    (parse_vec parse_locals <&> parse_expr).
 
 Definition parse_code {n} : byte_parser module_func_without_type n :=
-  guardM
-    (fun sf =>
-      match sf with
-      (* TODO: we are supposed to check that the size matches *)
-      (* There's no obvious function in Parseque that returns the number of tokens conumed *)
-      | (s, f) => (* if Nat.eqb s (func_size f) then *) Some f (* else None *)
-      end)
-    (parse_u32_as_N <&> parse_code_func).
+  parse_u32_as_N >>= (fun sz => assert_sized parse_code_func (fun szn => N.eqb sz (N.of_nat szn))).
 
 Definition parse_module_table {n} : byte_parser module_table n :=
   (fun tty => {| modtab_type := tty |}) <$> parse_table_type.
@@ -793,9 +790,6 @@ Definition parse_module_data {n} : byte_parser module_data n :=
   assert_u32 0%N &> parse_module_data_0 <|>
   assert_u32 1%N &> parse_module_data_1 <|>
   assert_u32 2%N &> parse_module_data_2.
-
-Definition parse_name {n} : byte_parser name n :=
-  parse_vec anyTok.
 
 Definition parse_customsec {n} : byte_parser (name * list byte) n :=
   exact_byte x00 &>
@@ -1042,3 +1036,10 @@ Definition run_parse_bes (bs : list byte) : option (list basic_instruction) :=
 
 Definition run_parse_module (bs : list byte) : option module :=
   run bs (fun n => parse_module).
+
+Open Scope list_scope.
+
+Definition test := x00 :: "a" :: "s" :: "m" :: x01 :: x00 :: x00 :: x00 ::
+                       x02 :: x04 :: x01 :: x00 :: x00 :: x04 :: nil.
+
+Compute (run_parse_module test).
