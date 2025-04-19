@@ -4,7 +4,7 @@
 From Wasm Require Import datatypes_properties typing numerics.
 From compcert Require Import Integers.
 From parseque Require Import Parseque.
-Require Import Strings.Byte.
+Require Import Strings.Byte Strings.String.
 Require Import ZArith.
 
 Open Scope Z.
@@ -26,6 +26,16 @@ Definition exact_byte (b : byte) {n} : byte_parser byte n :=
       if byte_eqb b' b then Some b'
       else None)
     anyTok.
+
+Fixpoint exact_bytes (bs: list byte) {n} : byte_parser unit n :=
+  match bs with
+  | nil => fail
+  | cons b nil => exact_byte b $> tt
+  | cons b bs' => exact_byte b &> exact_bytes bs'
+  end.
+
+Definition exact_string (s: string) {n} : byte_parser unit n :=
+  exact_bytes (list_byte_of_string s).
 
 Inductive value_sign : Set :=
 | sgn_plus
@@ -107,13 +117,13 @@ Definition parse_hexnum {n} : byte_parser Z n :=
 
 (* Hex needs to be first *)
 Definition parse_unsigned_int {n} : byte_parser Z n :=
-  (exact_byte "0" &> exact_byte "x" &> parse_hexnum) <|>
+  (exact_string "0x" &> parse_hexnum) <|>
   parse_num.
 
 Definition parse_signed_int {n} : byte_parser Z n :=
   get_signed_z <$>
-    (parse_opt_sign_before ((exact_byte "0" &> exact_byte "x" &> parse_hexnum)
-                       <|> parse_num)).
+    (parse_opt_sign_before ((exact_string "0x" &> parse_hexnum)
+                              <|> parse_num)).
 
 Definition parse_uninterpreted_int {n} : byte_parser Z n :=
   parse_unsigned_int <|>
@@ -276,10 +286,10 @@ Definition parse_hexfloat {n} : byte_parser T n :=
   ).
 
 Definition parse_floatinf {n} : byte_parser T n :=
-  exact_byte "i" &> exact_byte "n" &> exact_byte "f" $> Wasm_float.float_inf mx.
+  exact_string "inf" $> Wasm_float.float_inf mx.
 
 Definition parse_float_nan_canon {n}: byte_parser T n :=
-  exact_byte "n" &> exact_byte "a" &> exact_byte "n" $> Wasm_float.float_canon_nan mx.
+  exact_string "nan" $> Wasm_float.float_canon_nan mx.
 
 Definition parse_float_nan_pl {n}: byte_parser T n :=
   guardM (fun n =>
@@ -287,9 +297,7 @@ Definition parse_float_nan_pl {n}: byte_parser T n :=
      | Zpos p => Wasm_float.float_nan mx p
      | _ => None
   end)
-    (exact_byte "n" &> exact_byte "a" &> exact_byte "n" &>
-    exact_byte ":" &> exact_byte "0" &> exact_byte "x" &>
-    parse_hexnum).
+    (exact_string "nan:0x" &> parse_hexnum).
 
 (* decfloat needs to be later than hexfloat similarly *)
 Definition parse_fmag {n} : byte_parser T n :=
@@ -311,20 +319,19 @@ Definition parse_float {n} : byte_parser T n :=
 End Parse_float.
 
 Definition parse_i32_sym {n}: byte_parser number_type n :=
-  exact_byte "i" &> exact_byte "3" &> exact_byte "2" $> T_i32.
+  exact_string "i32" $> T_i32.
 
 Definition parse_i64_sym {n}: byte_parser number_type n :=
-  exact_byte "i" &> exact_byte "6" &> exact_byte "4" $> T_i64.
+  exact_string "i64" $> T_i64.
 
 Definition parse_f32_sym {n}: byte_parser number_type n :=
-  exact_byte "f" &> exact_byte "3" &> exact_byte "2" $> T_f32.
+  exact_string "f32" $> T_f32.
 
 Definition parse_f64_sym {n}: byte_parser number_type n :=
-  exact_byte "f" &> exact_byte "6" &> exact_byte "4" $> T_f64.
+  exact_string "f64" $> T_f64.
 
 Definition parse_dotconst {n} : byte_parser unit n :=
-  exact_byte "." &> exact_byte "c" &> exact_byte "o" &> exact_byte "n" &>
-             exact_byte "s" &> exact_byte "t" $> tt.
+  exact_string ".const" $> tt.
 
 Definition parse_arg {n} : byte_parser datatypes.value n :=
   parse_i32_sym &> parse_dotconst &> exact_byte " " &> ((fun z => VAL_num (VAL_int32 (Wasm_int.Int32.repr z))) <$> parse_uninterpreted_int) <|>
