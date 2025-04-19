@@ -5,9 +5,14 @@
   (flags -w "-extraction-reserved-identifier")
 )
 
+;(subdir wast
+  ;(ocamllex (modules wast_lexer))
+  ;(menhir (modules wast))
+;)
+
 (executable
   (name wasm_coq_interpreter)
-  (libraries cmdliner linenoise)
+  (libraries cmdliner linenoise wasm)
   (modes (best exe))
   (public_name wasm_coq_interpreter)
   (promote (into ../))

@@ -10,9 +10,27 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* Placeholder for better array lookup in the future *)
+(* Placeholder for better array lookup in the future. *)
 Definition lookup_N {T: Type} (l: list T) (n: N) : option T :=
   List.nth_error l (N.to_nat n).
+
+(* A safe version that avoids stack overflowing when n is large, but slower. *)
+Definition lookup_N_safe {T: Type} (l: list T) (n: N) : option T :=
+  if (n <? N.of_nat (List.length l))%N then
+    List.nth_error l (N.to_nat n)
+  else None.
+
+Lemma lookup_N_safe_spec: forall {T: Type} (l: list T) (n:N),
+    lookup_N_safe l n = lookup_N l n.
+Proof.
+  move => T l n.
+  unfold lookup_N_safe.
+  destruct (n <? N.of_nat (length l))%N eqn:Hlt => //.
+  move/N.ltb_spec0 in Hlt.
+  symmetry.
+  apply List.nth_error_None.
+  by lias.
+Qed.
 
 Definition empty_t_context := Build_t_context nil nil nil nil nil nil nil nil nil None nil.
 
@@ -869,7 +887,7 @@ Definition limits_extension (l1 l2: limits) : bool :=
 Definition table_type_extension (t1 t2: table_type) : bool :=
   (t1.(tt_elem_type) == t2.(tt_elem_type)) &&
   (limits_extension t1.(tt_limits) t2.(tt_limits)).
-  
+
 (* Spec has an error here -- same for mem extension *)
 Definition table_extension (t1 t2 : tableinst) : bool :=
   (table_type_extension t1.(tableinst_type) t2.(tableinst_type)) &&
@@ -877,7 +895,7 @@ Definition table_extension (t1 t2 : tableinst) : bool :=
 
 Definition mem_extension (m1 m2 : meminst) : bool :=
   (limits_extension m1.(meminst_type) m2.(meminst_type)) &&
-  (mem_length m1 <= mem_length m2).
+  (N.leb (mem_length m1) (mem_length m2)).
 
 Definition global_extension (g1 g2: globalinst) : bool :=
   (g_type g1 == g_type g2) &&
@@ -1103,8 +1121,8 @@ Definition result_to_stack (r : result) :=
 
 Definition load_store_t_bounds (a : alignment_exponent) (tp : option packed_type) (t : number_type) : bool :=
   match tp with
-  | None => N.pow 2 a <= tnum_length t
-  | Some tp' => (N.pow 2 a <= tp_length tp') && (tp_length tp' < tnum_length t) && (is_int_t t)
+  | None => N.leb (N.pow 2 a) (tnum_length t)
+  | Some tp' => N.leb (N.pow 2 a) (N.of_nat (tp_length tp')) && (tp_length tp' < tnum_length t) && (is_int_t t)
   end.
 
 Definition cvt_wrap t v : option value_num :=

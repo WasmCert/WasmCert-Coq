@@ -194,6 +194,15 @@ Definition eqextern_typeP : Equality.axiom extern_type_eqb :=
 
 HB.instance Definition extern_type_eqMixin := hasDecEq.Build extern_type eqextern_typeP.
 
+Definition extern_value_eq_dec : forall v1 v2 : extern_value, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+
+Definition extern_value_eqb v1 v2 : bool := extern_value_eq_dec v1 v2.
+Definition eqextern_valueP : Equality.axiom extern_value_eqb :=
+  eq_dec_Equality_axiom extern_value_eq_dec.
+
+HB.instance Definition extern_value_eqMixin := hasDecEq.Build extern_value eqextern_valueP.
+
 (** Induction scheme for [basic_instruction]. **)
 Definition basic_instruction_rect' :=
   ltac:(rect'_build basic_instruction_rect).

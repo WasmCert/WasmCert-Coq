@@ -1213,7 +1213,7 @@ Proof.
   simpl in *.
   move/eqP in Hif0.
   unfold memtype_valid, limit_valid_range in Hif.
-  remove_bools_options => /=; rewrite List.length_app List.repeat_length Nat2N.inj_add nat_of_add_bin eq_refl; split => /=; try by rewrite Hif0 N.div_mul; lias.
+  remove_bools_options => /=; rewrite List.length_app List.repeat_length eq_refl; split => /=; try by rewrite Hif0 N.div_mul; lias.
   - unfold memtype_valid, limit_valid_range => /=.
     rewrite Hif0 N.div_mul in Hif1 => //=.
     rewrite Hif0 N.div_mul => //.

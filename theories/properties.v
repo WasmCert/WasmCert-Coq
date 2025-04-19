@@ -1645,7 +1645,8 @@ Lemma mem_extension_refl:
     reflexive mem_extension.
 Proof.
   move => m. unfold table_extension, limits_extension.
-  do 2 (apply/andP; split => //).
+  apply/andP; split => //; last by apply N.leb_refl.
+  apply/andP; split => //.
   apply/N.leb_spec0; by lias.
 Qed.
 
