@@ -118,6 +118,7 @@ let wasm_assert_rets rets ret_exps =
   List.fold_left (fun a b -> a && b) true assert_results
 
 let load_wast_module verbosity hs s ovar moddef mod_counter =
+  begin try
   match moddef.it with 
   | Textual ast_module ->
     let bin_module = Wasm.Encode.encode ast_module in
@@ -132,7 +133,15 @@ let load_wast_module verbosity hs s ovar moddef mod_counter =
     let* (hs', s') = Execute.instantiate_modules verbosity hs s [modname] [m] in
       debug_info verbosity stage (fun _ -> "Successfully instantiated module " ^ modname ^ ".\n");
       pure (hs', s', mod_counter+1, modname)
-  | Quoted _ -> error "Unsupported module encoding: Quoted"
+  | Quoted (modnamestr, text_module) -> 
+    let* m = Parse.parse_module verbosity true text_module in
+    let modname = if modnamestr = "" then ("default_module_" ^ (string_of_int mod_counter)) else modnamestr in
+    let* (hs', s') = Execute.instantiate_modules verbosity hs s [modname] [m] in
+      debug_info verbosity stage (fun _ -> "Successfully instantiated module " ^ modname ^ ".\n");
+      pure (hs', s', mod_counter+1, modname)
+  with
+  | _ -> error "Execption raised in loading module"
+  end
 
 let print_wast_command cmd = 
   let cmd_sexpr = Wasm.Arrange.script `Textual [cmd] in
@@ -155,7 +164,7 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name test_cou
   (fun _ -> 
     "\n\n----------\nTest " ^ string_of_int test_counter ^ "\n----------\n" ^ print_wast_command cmd ^ "\n"
     );
-  begin try
+ begin try
   begin match cmd.it with
   | Module (ovar, moddef) -> 
     let* (hs', s', modc, defname) = load_wast_module verbosity hs s ovar moddef mod_counter in
@@ -212,6 +221,26 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name test_cou
           error "Unexpected successful execution when trap is expected"
         | Cfg_trap (s', _) -> 
           debug_info verbosity stage (fun _ -> "Test passed: execution trapped as expected\n");
+          pure (hs, s', mod_counter, default_module_name)
+        end
+      | Get (_ovar, _funcname) ->
+        error "Unsupported wast action: Get"
+      end
+    | AssertExhaustion (act, _) ->
+      begin match act.it with
+      | Invoke (ovar, funcname_utf8, val_args) ->
+        let open Execute in
+        let modname = ovar_to_name default_module_name ovar in
+        let funcname = Wasm.Ast.string_of_name funcname_utf8 in 
+        let* args = wasm_vals_to_coq val_args in
+        (*Printf.printf "%s" (Utils.implode (Extract.PP.pp_values args));*)
+        let* res = invoke_func verbosity hs (s, Extract.empty_frame) args modname funcname in 
+        begin match res with
+        | Cfg_err -> error "Invocation error"
+        | Cfg_res _ ->
+          error "Unexpected successful execution when exhaustion is expected"
+        | Cfg_trap (s', _) -> 
+          debug_info verbosity stage (fun _ -> "Test passed: execution trapped as exhaustion required\n");
           pure (hs, s', mod_counter, default_module_name)
         end
       | Get (_ovar, _funcname) ->
