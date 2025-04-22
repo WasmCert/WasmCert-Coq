@@ -199,7 +199,7 @@ Definition parse_call {n} : byte_parser basic_instruction n :=
 
 Definition parse_call_indirect {n} : byte_parser basic_instruction n :=
   exact_byte x11 &>
-  ((BI_call_indirect <$> parse_typeidx) <*> parse_tableidx).
+  (((fun typ tab => BI_call_indirect tab typ) <$> parse_typeidx) <*> parse_tableidx).
 
 
 (* Reference instructions *)
@@ -1036,10 +1036,3 @@ Definition run_parse_bes (bs : list byte) : option (list basic_instruction) :=
 
 Definition run_parse_module (bs : list byte) : option module :=
   run bs (fun n => parse_module).
-
-Open Scope list_scope.
-
-Definition test := x00 :: "a" :: "s" :: "m" :: x01 :: x00 :: x00 :: x00 ::
-                       x02 :: x04 :: x01 :: x00 :: x00 :: x04 :: nil.
-
-Compute (run_parse_module test).
