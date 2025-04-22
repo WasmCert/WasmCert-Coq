@@ -160,12 +160,12 @@ let instantiate_host verbosity exts s module_name m =
     let exts'' = StringMap.add module_name exps_map exts in
     debug_info verbosity stage (fun _ -> "Adding the following exports to module " ^ module_name ^ " : " ^ (String.concat "" exps_str) ^ "\n");
     pure (exts'', s')
-  (* Trap won't be counted as an irrecoverable error in the host *)
+  (* Trap should be counted as an instantiation error *)
   | Cfg_trap (s', f) -> 
     let exps = get_exports f in
     let exps_map = StringMap.of_seq (List.to_seq exps) in
     let exts'' = StringMap.add module_name exps_map exts in
-    pure (exts'', s')
+    TopHost.error "Instantiation resulted in a trap"
   | Cfg_err -> TopHost.error "invalid module instantiation"
 
 let rec instantiate_modules verbosity exts s names modules =

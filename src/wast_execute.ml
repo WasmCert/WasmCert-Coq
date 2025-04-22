@@ -256,7 +256,10 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name test_cou
         debug_info verbosity stage (fun _ -> "Test passed: correctly rejected an invalid module\n");
         pure (hs, s, mod_counter, default_module_name)
       end
-    | AssertMalformed (moddef, _str) ->
+    (* The following three assertiosn are grouped into one *)
+    | AssertMalformed (moddef, _str)
+    | AssertUnlinkable (moddef, _str)
+    | AssertUninstantiable (moddef, _str) ->
       let res = (load_wast_module verbosity hs s None moddef mod_counter) in
       begin match to_out res with
       | OK _ -> 
