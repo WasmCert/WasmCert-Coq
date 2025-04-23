@@ -1,5 +1,6 @@
 (** Execution of Wast testing script **)
 
+open Execute
 open Execute.Host
 open Execute.Interpreter
 open Output
@@ -21,11 +22,15 @@ let with_timeout timeout f =
   with
   | e -> ignore (Unix.alarm 0); raise e
 
-let ovar_to_name default ovar = 
-  let open Wasm.Source in 
+let ovar_to_name default hs ovar = 
   match ovar with
-  | Some v -> v.it
-  | None -> default
+  | Some v -> 
+    let (exts, varmap) = hs in
+    begin match StringMap.find_opt v.it varmap with
+    | Some s -> pure s
+    | None -> error ("Invalid module variable name: " ^ v.it)
+    end
+  | None -> pure default
 
 let wasm_num_to_hexstring num = 
   (* This somehow doesn't include the type signature. *)
@@ -123,9 +128,24 @@ let load_wast_module verbosity hs s ovar moddef mod_counter =
   | Textual ast_module ->
     let bin_module = Wasm.Encode.encode ast_module in
     let* m = Parse.parse_module verbosity false bin_module in
-    let modname = ovar_to_name ("default_module_" ^ (string_of_int mod_counter)) ovar in
+    let modname = "default_module_" ^ (string_of_int mod_counter) in
+    let* varname = begin match ovar with
+    | Some v -> 
+      let (exts, varmap) = hs in
+      begin match StringMap.find_opt v.it varmap with
+      | Some s -> error ("Module variable name " ^ v.it ^ " already exists")
+      | None -> pure v.it
+      end
+    | None -> pure ""
+    end in
     let* (hs', s') = Execute.instantiate_modules verbosity hs s [modname] [m] in
-      debug_info verbosity stage (fun _ -> "Successfully instantiated module " ^ modname ^ ".\n");
+    debug_info verbosity stage (fun _ -> "Successfully instantiated module " ^ modname ^ ".\n");
+    if varname != "" then
+      let (exts, varmap) = hs' in
+      let varmap' = StringMap.add varname modname varmap in
+        debug_info verbosity stage (fun _ -> "Module registered to module variable " ^ varname ^ ".\n");
+        pure ((exts, varmap'), s', mod_counter+1, modname)
+    else 
       pure (hs', s', mod_counter+1, modname)
   | Encoded (modnamestr, bin_module) -> 
     let* m = Parse.parse_module verbosity false bin_module in
@@ -148,11 +168,12 @@ let print_wast_command cmd =
   let cmd_string = String.concat "" (List.map (Wasm.Sexpr.to_string 200) cmd_sexpr) in
   cmd_string
 
+let wasm_name_to_string = Wasm.Ast.string_of_name
+
 let run_invoke verbosity act_invoke hs s default_module_name = 
   match act_invoke with
   | (ovar, funcname_utf8, val_args) ->
-    let open Execute in
-    let modname = ovar_to_name default_module_name ovar in
+    let* modname = ovar_to_name default_module_name hs ovar in
     let funcname = Wasm.Ast.string_of_name funcname_utf8 in 
     let* args = wasm_vals_to_coq val_args in
     let* res = invoke_func verbosity hs (s, Extract.empty_frame) args modname funcname in 
@@ -209,12 +230,7 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name test_cou
     | AssertTrap (act, _) ->
       begin match act.it with
       | Invoke (ovar, funcname_utf8, val_args) ->
-        let open Execute in
-        let modname = ovar_to_name default_module_name ovar in
-        let funcname = Wasm.Ast.string_of_name funcname_utf8 in 
-        let* args = wasm_vals_to_coq val_args in
-        (*Printf.printf "%s" (Utils.implode (Extract.PP.pp_values args));*)
-        let* res = invoke_func verbosity hs (s, Extract.empty_frame) args modname funcname in 
+        let* res = run_invoke verbosity (ovar, funcname_utf8, val_args) hs s default_module_name in
         begin match res with
         | Cfg_err -> error "Invocation error"
         | Cfg_res _ ->
@@ -229,12 +245,7 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name test_cou
     | AssertExhaustion (act, _) ->
       begin match act.it with
       | Invoke (ovar, funcname_utf8, val_args) ->
-        let open Execute in
-        let modname = ovar_to_name default_module_name ovar in
-        let funcname = Wasm.Ast.string_of_name funcname_utf8 in 
-        let* args = wasm_vals_to_coq val_args in
-        (*Printf.printf "%s" (Utils.implode (Extract.PP.pp_values args));*)
-        let* res = invoke_func verbosity hs (s, Extract.empty_frame) args modname funcname in 
+        let* res = run_invoke verbosity (ovar, funcname_utf8, val_args) hs s default_module_name in
         begin match res with
         | Cfg_err -> error "Invocation error"
         | Cfg_res _ ->
@@ -269,6 +280,26 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name test_cou
         pure (hs, s, mod_counter, default_module_name)
       end
     | _ -> error "Unsupported wast assertion"
+    end
+  | Register (newname_utf8, ovar) ->
+    let newname = wasm_name_to_string newname_utf8 in
+    let* varname = begin match ovar with
+    | Some v -> pure v.it
+    | None -> error "Register command must specify a non-empty variable name"
+    end in
+    let (exts, varmap) = hs in
+    begin match StringMap.find_opt varname varmap with
+    | Some oldname ->
+      (* Updating the module varmap *)
+      let varmap' = StringMap.add varname newname varmap in
+      (* Updating the module exports map *)
+      let exts' = begin match StringMap.find_opt oldname exts with 
+      | Some modmap -> exts |> StringMap.remove oldname |> StringMap.add newname modmap
+      | None -> exts
+      end in
+        debug_info verbosity stage (fun _ -> "Test passed: successfully registered module " ^ varname ^ " with name: " ^ newname ^ "\n");
+        pure ((exts', varmap'), s, mod_counter, newname)
+    | None -> error ("Nonexistent module variable " ^ varname ^ " to be registered")
     end
   | _ -> error "Unsupported wast command"
   end
@@ -334,7 +365,7 @@ let register_spectest_host verbosity hs s =
     pure (hs', s')
 
 let run_wast_script verbosity timeout script =
-  let starting_host_store = Execute.StringMap.empty in
+  let starting_host_store = (Execute.StringMap.empty, Execute.StringMap.empty) in
   let starting_store = empty_store_record in
   let* (hs, s) = register_spectest_host verbosity starting_host_store starting_store in
   let* ret = run_wast_commands verbosity timeout script hs s 0 "" 0 0 in

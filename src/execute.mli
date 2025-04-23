@@ -36,7 +36,8 @@ val eval_wasm_cfg: Output.verbosity -> Interpreter.wasm_config_tuple -> eval_cfg
 (* Type of the host extern val store *)
 module StringMap : Map.S with type key = string
 
-type host_extern_store = (Interpreter.externval StringMap.t) StringMap.t
+(* Host store consists of the module exports store and a module variable name map (from vars to actual names in string). *)
+type host_extern_store = ((Interpreter.externval StringMap.t) StringMap.t) * (string StringMap.t)
 
 (* Given a starting state and a list of imports (store references), instantiating a module.
    Return the interpreter result after running the instantiation instructions. Does not update the host export store. *)

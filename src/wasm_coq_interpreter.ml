@@ -19,7 +19,7 @@ let process_args_and_run verbosity text no_exec srcs func_name src_module_name a
           s) srcs in
     let mnames = List.map extract_module_name srcs in
     let* modules = parse_modules verbosity text files in
-    let starting_host_store = Execute.StringMap.empty in
+    let starting_host_store = (Execute.StringMap.empty, Execute.StringMap.empty) in
     let starting_store = empty_store_record in
     let* (exts, s) = Execute.instantiate_modules verbosity starting_host_store starting_store mnames modules in
     let* args = parse_args arg_strings in

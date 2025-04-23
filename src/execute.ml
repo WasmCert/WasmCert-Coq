@@ -86,9 +86,10 @@ let eval_wasm_cfg verbosity cfg =
 
 module StringMap = Map.Make(String);;
 
-type host_extern_store = (Interpreter.externval StringMap.t) StringMap.t
+type host_extern_store = ((Interpreter.externval StringMap.t) StringMap.t) * (string StringMap.t)
 
-let invoke_func verbosity exts sf args modname name =
+let invoke_func verbosity hs sf args modname name =
+  let (exts, _) = hs in
   let (s, f) = sf in
   let* es_init =
     TopHost.from_out (
@@ -129,16 +130,17 @@ let instantiate_imps verbosity s m imps =
         | Some cfg -> OK cfg)) in
   pure (eval_wasm_cfg verbosity wasm_cfg)
 
-let get_ext_import exts path = 
+let get_ext_import hs path = 
   let (m, imp_name) = path in
+  let (exts, _) = hs in
   match StringMap.find_opt m exts with
   | Some imps_map ->
     StringMap.find_opt imp_name imps_map
   | None -> None
 
-let instantiate verbosity exts s m = 
+let instantiate verbosity hs s m = 
   let import_paths = get_import_path m in
-  let oext_vals = List.map (get_ext_import exts) import_paths in
+  let oext_vals = List.map (get_ext_import hs) import_paths in
   let ext_vals = List.filter_map (fun x -> x) oext_vals in
   if List.length oext_vals = List.length ext_vals then
     let* inst_res = instantiate_imps verbosity s m ext_vals in
@@ -146,35 +148,34 @@ let instantiate verbosity exts s m =
   else
     TopHost.error "invalid module imports"
 
-let instantiate_host verbosity exts s module_name m = 
-  let* inst_res = instantiate verbosity exts s m in
+let instantiate_host verbosity hs s module_name m = 
+  let* inst_res = instantiate verbosity hs s m in
   (* Add the exported instances to the host store. *)
-  match inst_res with
-  | Cfg_res (s', f, _vs) -> 
-    let exps = get_exports f in
-    let exps_str = List.map 
-      (fun exp -> 
-        match exp with
-        | (exp_name, exp_val) -> exp_name ^ " at " ^ pp_externval exp_val ^ ";") exps in
-    let exps_map = StringMap.of_seq (List.to_seq exps) in
-    let exts'' = StringMap.add module_name exps_map exts in
-    debug_info verbosity stage (fun _ -> "Adding the following exports to module " ^ module_name ^ " : " ^ (String.concat "" exps_str) ^ "\n");
-    pure (exts'', s')
-  (* Trap should be counted as an instantiation error *)
-  | Cfg_trap (s', f) -> 
-    let exps = get_exports f in
-    let exps_map = StringMap.of_seq (List.to_seq exps) in
-    let exts'' = StringMap.add module_name exps_map exts in
-    TopHost.error "Instantiation resulted in a trap"
-  | Cfg_err -> TopHost.error "invalid module instantiation"
+    match inst_res with
+    | Cfg_res (s', f, _vs) -> 
+      let exps = get_exports f in
+      let exps_str = List.map 
+        (fun exp -> 
+          match exp with
+          | (exp_name, exp_val) -> exp_name ^ " at " ^ pp_externval exp_val ^ ";") exps in
+      let exps_map = StringMap.of_seq (List.to_seq exps) in
+      let (exts, modvarmaps) = hs in
+      let exts' = StringMap.add module_name exps_map exts in
+      let hs' = (exts', modvarmaps) in
+      debug_info verbosity stage (fun _ -> "Adding the following exports to module " ^ module_name ^ " : " ^ (String.concat "" exps_str) ^ "\n");
+      pure (hs', s')
+    (* Trap should be counted as an instantiation error *)
+    | Cfg_trap (s', f) -> 
+      TopHost.error "Instantiation resulted in a trap"
+    | Cfg_err -> TopHost.error "invalid module instantiation"
 
-let rec instantiate_modules verbosity exts s names modules =
+let rec instantiate_modules verbosity hs s names modules =
   match (names, modules) with
-  | ([], _) -> pure (exts, s)
+  | ([], _) -> pure (hs, s)
   | (name :: names', m :: modules') -> 
     debug_info verbosity stage (fun () -> "Processing module: " ^ name ^ "\n");
-    let* (exts', s') = instantiate_host verbosity exts s name m in
-      instantiate_modules verbosity exts' s' names' modules'
+    let* (hs', s') = instantiate_host verbosity hs s name m in
+      instantiate_modules verbosity hs' s' names' modules'
   | _ -> TopHost.error "Invalid module name parsing results"
 
   (*
