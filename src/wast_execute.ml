@@ -283,24 +283,31 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name test_cou
     end
   | Register (newname_utf8, ovar) ->
     let newname = wasm_name_to_string newname_utf8 in
-    let* varname = begin match ovar with
-    | Some v -> pure v.it
-    | None -> error "Register command must specify a non-empty variable name"
-    end in
     let (exts, varmap) = hs in
-    begin match StringMap.find_opt varname varmap with
-    | Some oldname ->
-      (* Updating the module varmap *)
-      let varmap' = StringMap.add varname newname varmap in
-      (* Updating the module exports map *)
-      let exts' = begin match StringMap.find_opt oldname exts with 
-      | Some modmap -> exts |> StringMap.remove oldname |> StringMap.add newname modmap
-      | None -> exts
-      end in
-        debug_info verbosity stage (fun _ -> "Test passed: successfully registered module " ^ varname ^ " with name: " ^ newname ^ "\n");
-        pure ((exts', varmap'), s, mod_counter, newname)
-    | None -> error ("Nonexistent module variable " ^ varname ^ " to be registered")
-    end
+    (* Updating the varmap, if a varname is specified. Also retrieving the module name in the export store to be updated later *)
+    let* (oldname, varmap') = begin match ovar with
+    | Some v -> 
+      let varname = v.it in
+      begin match StringMap.find_opt varname varmap with
+      | Some oldname ->
+        (* Updating the module varmap *)
+        pure (oldname, StringMap.add varname newname varmap)
+      | None -> error ("Nonexistent module variable " ^ varname ^ " to be registered")
+      end
+    | None -> 
+      (* No varname is specified; registering the default module. The varmap does not need to be updated *)
+      pure (default_module_name, varmap)
+    end in
+    (* Updating the module exports map *)
+    let exts' = begin match StringMap.find_opt oldname exts with 
+    | Some modmap -> exts |> StringMap.remove oldname |> StringMap.add newname modmap
+    | None -> 
+      (* This must mean that whatever module being registered has no export, so the registration is technically redundant. *)
+      debug_info verbosity intermediate (fun _ -> "Warning: potential redundant registration since no export is found\n");
+      exts
+    end in
+      debug_info verbosity stage (fun _ -> "Test passed: successfully registered module previously named " ^ oldname ^ " with new name: " ^ newname ^ "\n");
+      pure ((exts', varmap'), s, mod_counter, newname)
   | _ -> error "Unsupported wast command"
   end
   with 
