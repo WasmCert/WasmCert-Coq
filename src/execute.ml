@@ -94,21 +94,18 @@ let invoke_func verbosity hs sf args modname name =
   let* es_init =
     TopHost.from_out (
       ovpending verbosity stage "interpreting" (fun _ ->
-        if (String.equal name "") then
-          Error ("no function name specified")
-        else
-          begin match StringMap.find_opt modname exts with
-          | Some mmap ->
-            begin match StringMap.find_opt name mmap with
-            | Some extval ->
-              begin match invoke_extern s extval args with
-              | None -> Error ("Unknown function `" ^ name ^ "`, or invalid argument types")
-              | Some es_init -> OK es_init
-              end
-            | None -> Error "The specified function does not exist"
+        begin match StringMap.find_opt modname exts with
+        | Some mmap ->
+          begin match StringMap.find_opt name mmap with
+          | Some extval ->
+            begin match invoke_extern s extval args with
+            | None -> Error ("Unknown function `" ^ name ^ "`, or invalid argument types")
+            | Some es_init -> OK es_init
             end
-          | None -> Error "The specified module does not exist"
+          | None -> Error "The specified function does not exist"
           end
+        | None -> Error "The specified module does not exist"
+        end
       )) in
     let cfg_init = (s, (f, es_init)) in
     pure (eval_wasm_cfg verbosity cfg_init)

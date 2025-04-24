@@ -168,13 +168,14 @@ let print_wast_command cmd =
   let cmd_string = String.concat "" (List.map (Wasm.Sexpr.to_string 200) cmd_sexpr) in
   cmd_string
 
-let wasm_name_to_string = Wasm.Ast.string_of_name
+let wasm_name_to_raw_string n = 
+  Wasm.Utf8.encode n
 
 let run_invoke verbosity act_invoke hs s default_module_name = 
   match act_invoke with
   | (ovar, funcname_utf8, val_args) ->
     let* modname = ovar_to_name default_module_name hs ovar in
-    let funcname = Wasm.Ast.string_of_name funcname_utf8 in 
+    let funcname = wasm_name_to_raw_string funcname_utf8 in 
     let* args = wasm_vals_to_coq val_args in
     let* res = invoke_func verbosity hs (s, Extract.empty_frame) args modname funcname in 
       debug_info verbosity stage (fun _ -> "Successfully executed function " ^ funcname ^ " of module: " ^ modname ^ ".\n");
@@ -282,7 +283,7 @@ let run_wast_command verbosity cmd hs s mod_counter default_module_name test_cou
     | _ -> error "Unsupported wast assertion"
     end
   | Register (newname_utf8, ovar) ->
-    let newname = wasm_name_to_string newname_utf8 in
+    let newname = wasm_name_to_raw_string newname_utf8 in
     let (exts, varmap) = hs in
     (* Updating the varmap, if a varname is specified. Also retrieving the module name in the export store to be updated later *)
     let* (oldname, varmap') = begin match ovar with
