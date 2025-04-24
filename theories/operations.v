@@ -14,6 +14,7 @@ Unset Printing Implicit Defensive.
 Definition lookup_N {T: Type} (l: list T) (n: N) : option T :=
   List.nth_error l (N.to_nat n).
 
+(*
 (* A safe version that avoids stack overflowing when n is large, but slower. *)
 Definition lookup_N_safe {T: Type} (l: list T) (n: N) : option T :=
   if (n <? N.of_nat (List.length l))%N then
@@ -31,6 +32,7 @@ Proof.
   apply List.nth_error_None.
   by lias.
 Qed.
+*)
 
 Definition empty_t_context := Build_t_context nil nil nil nil nil nil nil nil nil None nil.
 

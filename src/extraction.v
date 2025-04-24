@@ -1,9 +1,9 @@
 (** Extraction to OCaml. **)
-(* (C) M. Bodin, J. Pichon - see LICENSE.txt *)
 
 From Coq Require Extraction.
 
 From Wasm Require Import
+  efficient
   datatypes_properties
   binary_format_parser
   text_format_parser
@@ -21,7 +21,10 @@ From Coq Require Import
 
 Extraction Language OCaml.
 
+Extract Constant lookup_N => "EfficientExtraction.lookup_N_safe".
+
 Extraction "extract"
+  EfficientExtraction
   run_parse_module
   run_parse_arg
   Instantiation_func_extract

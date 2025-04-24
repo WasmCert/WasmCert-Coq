@@ -114,7 +114,7 @@ Fixpoint same_lab_h (iss : seq tableidx) (lab_c : seq (seq value_type)) (ts : se
   match iss with
   | [::] => Some ts
   | i :: iss' =>
-      match lookup_N_safe lab_c i with
+      match lookup_N lab_c i with
       | None => None
       | Some xx =>
           if xx == ts then same_lab_h iss' lab_c xx
@@ -130,7 +130,7 @@ Definition same_lab (iss : seq tableidx) (lab_c : seq (seq value_type)) : option
   match iss with
   | [::] => None
   | i :: iss' =>
-      match lookup_N_safe lab_c i with
+      match lookup_N lab_c i with
       | Some xx => same_lab_h iss' lab_c xx
       | None => None
       end
@@ -160,7 +160,7 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
       | BI_ref_null t => type_update ts [::]  [::T_ref t]
       | BI_ref_is_null => type_update_ref_is_null ts
       | BI_ref_func x =>
-          match lookup_N_safe C.(tc_funcs) x with
+          match lookup_N C.(tc_funcs) x with
           | Some _ =>
               if x \in C.(tc_refs)
               then type_update ts [::] [::T_ref T_funcref]
@@ -240,12 +240,12 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
           | None => None
           end
       | BI_br i =>
-          match lookup_N_safe (tc_labels C) i with
+          match lookup_N (tc_labels C) i with
           | Some xx => type_update_top ts (xx) nil
           | None => None 
           end
       | BI_br_if i =>
-          match lookup_N_safe (tc_labels C) i with
+          match lookup_N (tc_labels C) i with
           | Some xx => type_update ts ((T_num T_i32 :: xx)) xx
           | None => None 
           end
@@ -260,16 +260,16 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
           | Some tls => type_update_top ts (tls) nil
           end
       | BI_call x =>
-          match lookup_N_safe (tc_funcs C) x with
+          match lookup_N (tc_funcs C) x with
           | None => None 
           | Some (Tf tn tm) =>
               type_update ts (tn) tm
           end
       | BI_call_indirect x y =>
-          match lookup_N_safe C.(tc_tables) x with
+          match lookup_N C.(tc_tables) x with
           | Some tabt =>
               if tabt.(tt_elem_type) == T_funcref then
-                match lookup_N_safe (tc_types C) y with
+                match lookup_N (tc_types C) y with
                 | Some (Tf tn tm) =>
                     type_update ts ((T_num T_i32 :: tn)) tm
                 | None => None 
@@ -278,27 +278,27 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
           | None => None
           end
       | BI_local_get i =>
-          match lookup_N_safe (tc_locals C) i with
+          match lookup_N (tc_locals C) i with
           | None => None 
           | Some xx => type_update ts [::] [::xx]
           end
       | BI_local_set i =>
-          match lookup_N_safe (tc_locals C) i with
+          match lookup_N (tc_locals C) i with
           | None => None 
           | Some xx => type_update ts [::xx] [::]
           end
       | BI_local_tee i =>
-          match lookup_N_safe (tc_locals C) i with
+          match lookup_N (tc_locals C) i with
           | None => None 
           | Some xx => type_update ts [::xx] [::xx]
           end
       | BI_global_get i =>
-          match lookup_N_safe (tc_globals C) i with
+          match lookup_N (tc_globals C) i with
           | None => None 
           | Some xx => type_update ts [::] [::tg_t xx]
           end
       | BI_global_set i =>
-          match lookup_N_safe (tc_globals C) i with
+          match lookup_N (tc_globals C) i with
           | None => None 
           | Some xx =>
               if is_mut xx
@@ -306,40 +306,40 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
               else None
           end
       | BI_table_get x =>
-          match lookup_N_safe (tc_tables C) x with
+          match lookup_N (tc_tables C) x with
           | None => None 
           | Some tabt =>
               type_update ts [::(T_num T_i32)] [::T_ref tabt.(tt_elem_type)]
           end
       | BI_table_set x =>
-          match lookup_N_safe (tc_tables C) x with
+          match lookup_N (tc_tables C) x with
           | None => None 
           | Some tabt =>
               type_update ts [::(T_ref tabt.(tt_elem_type)); (T_num T_i32)] nil
           end
       | BI_table_size x =>
-          match lookup_N_safe (tc_tables C) x with
+          match lookup_N (tc_tables C) x with
           | None => None 
           | Some tabt =>
               type_update ts nil [::T_num T_i32]
           end
       | BI_table_grow x =>
-          match lookup_N_safe (tc_tables C) x with
+          match lookup_N (tc_tables C) x with
           | None => None 
           | Some tabt =>
               type_update ts [::T_num T_i32; (T_ref tabt.(tt_elem_type))] [::T_num T_i32]
           end
       | BI_table_fill x =>
-          match lookup_N_safe (tc_tables C) x with
+          match lookup_N (tc_tables C) x with
           | None => None 
           | Some tabt =>
               type_update ts [::(T_num T_i32); (T_ref tabt.(tt_elem_type)); (T_num T_i32)] nil
           end
       | BI_table_copy x y =>
-          match lookup_N_safe (tc_tables C) x with
+          match lookup_N (tc_tables C) x with
           | None => None 
           | Some tabt1 =>
-              match lookup_N_safe (tc_tables C) y with
+              match lookup_N (tc_tables C) y with
               | Some tabt2 =>
                   if tabt1.(tt_elem_type) == tabt2.(tt_elem_type)
                   then type_update ts [::(T_num T_i32); (T_num T_i32); (T_num T_i32)] nil
@@ -348,10 +348,10 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
               end
           end
       | BI_table_init x y =>
-          match lookup_N_safe (tc_tables C) x with
+          match lookup_N (tc_tables C) x with
           | None => None 
           | Some tabt =>
-              match lookup_N_safe (tc_elems C) y with
+              match lookup_N (tc_elems C) y with
               | Some t =>
                   if tabt.(tt_elem_type) == t
                   then type_update ts [::(T_num T_i32); (T_num T_i32); (T_num T_i32)] nil
@@ -360,12 +360,12 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
               end
           end
       | BI_elem_drop x =>
-          match lookup_N_safe (tc_elems C) x with
+          match lookup_N (tc_elems C) x with
           | None => None 
           | Some tabt => Some ts
           end
       | BI_load t tp_sx marg =>
-          match lookup_N_safe C.(tc_mems) 0%N with
+          match lookup_N C.(tc_mems) 0%N with
           | Some _ =>
               if load_store_t_bounds marg.(memarg_align) (option_projl tp_sx) t
               then type_update ts [::(T_num T_i32)] [::T_num t]
@@ -373,7 +373,7 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
           | None => None
           end
       | BI_load_vec lvarg marg =>
-          match lookup_N_safe C.(tc_mems) 0%N with
+          match lookup_N C.(tc_mems) 0%N with
           | Some _ =>
               if load_vec_bounds lvarg marg
               then type_update ts [::(T_num T_i32)] [::T_vec T_v128]
@@ -381,7 +381,7 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
           | None => None
           end
       | BI_load_vec_lane width marg x =>
-          match lookup_N_safe C.(tc_mems) 0%N with
+          match lookup_N C.(tc_mems) 0%N with
           | Some _ =>
               if load_vec_lane_bounds width marg x
               then type_update ts [:: T_vec T_v128; T_num T_i32] [::T_vec T_v128]
@@ -389,7 +389,7 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
           | None => None
           end
       | BI_store t tp marg =>
-          match lookup_N_safe C.(tc_mems) 0%N with
+          match lookup_N C.(tc_mems) 0%N with
           | Some _ =>
               if load_store_t_bounds marg.(memarg_align) tp t
               then type_update ts [::T_num t; T_num T_i32] [::]
@@ -397,7 +397,7 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
           | None => None
           end
       | BI_store_vec_lane width marg x =>
-          match lookup_N_safe C.(tc_mems) 0%N with
+          match lookup_N C.(tc_mems) 0%N with
           | Some _ =>
               if load_vec_lane_bounds width marg x
               then type_update ts [::T_vec T_v128; T_num T_i32] [::]
@@ -405,33 +405,33 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
           | None => None
           end
       | BI_memory_size =>
-          match lookup_N_safe C.(tc_mems) 0%N with
+          match lookup_N C.(tc_mems) 0%N with
           | Some _ =>
               type_update ts [::] [::(T_num T_i32)]
           | None => None
           end
       | BI_memory_grow =>
-          match lookup_N_safe C.(tc_mems) 0%N with
+          match lookup_N C.(tc_mems) 0%N with
           | Some _ =>
               type_update ts [::(T_num T_i32)] [::(T_num T_i32)]
           | None => None
           end
       | BI_memory_fill =>
-          match lookup_N_safe C.(tc_mems) 0%N with
+          match lookup_N C.(tc_mems) 0%N with
           | Some _ =>
               type_update ts [::(T_num T_i32); (T_num T_i32); (T_num T_i32)] nil
           | None => None
           end
       | BI_memory_copy =>
-          match lookup_N_safe C.(tc_mems) 0%N with
+          match lookup_N C.(tc_mems) 0%N with
           | Some _ =>
               type_update ts [::(T_num T_i32); (T_num T_i32); (T_num T_i32)] nil
           | None => None
           end
       | BI_memory_init x =>
-          match lookup_N_safe C.(tc_mems) 0%N with
+          match lookup_N C.(tc_mems) 0%N with
           | Some _ =>
-              match lookup_N_safe C.(tc_datas) x with
+              match lookup_N C.(tc_datas) x with
               | Some _ =>
                   type_update ts [::(T_num T_i32); (T_num T_i32); (T_num T_i32)] nil
               | None => None
@@ -439,7 +439,7 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
           | None => None
           end
       | BI_data_drop x =>
-          match lookup_N_safe C.(tc_datas) x with
+          match lookup_N C.(tc_datas) x with
           | Some _ => Some ts
           | None => None
           end
