@@ -14,26 +14,6 @@ Unset Printing Implicit Defensive.
 Definition lookup_N {T: Type} (l: list T) (n: N) : option T :=
   List.nth_error l (N.to_nat n).
 
-(*
-(* A safe version that avoids stack overflowing when n is large, but slower. *)
-Definition lookup_N_safe {T: Type} (l: list T) (n: N) : option T :=
-  if (n <? N.of_nat (List.length l))%N then
-    List.nth_error l (N.to_nat n)
-  else None.
-
-Lemma lookup_N_safe_spec: forall {T: Type} (l: list T) (n:N),
-    lookup_N_safe l n = lookup_N l n.
-Proof.
-  move => T l n.
-  unfold lookup_N_safe.
-  destruct (n <? N.of_nat (length l))%N eqn:Hlt => //.
-  move/N.ltb_spec0 in Hlt.
-  symmetry.
-  apply List.nth_error_None.
-  by lias.
-Qed.
-*)
-
 Definition empty_t_context := Build_t_context nil nil nil nil nil nil nil nil nil None nil.
 
 (** read `len` bytes from `m` starting at `start_idx` *)

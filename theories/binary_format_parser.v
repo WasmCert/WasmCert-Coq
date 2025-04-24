@@ -3,7 +3,7 @@
    gallais.github.io/pdf/agdarsec18.pdf
 *)
 
-From Wasm Require Import datatypes_properties typing leb128.
+From Wasm Require Import datatypes_properties typing leb128 utf8.
 From compcert Require Import Integers.
 From parseque Require Import Parseque.
 Require Import Strings.Byte BinNat BinInt PeanoNat.
@@ -678,7 +678,9 @@ Definition parse_import_desc {n} : byte_parser module_import_desc n :=
   exact_byte x03 &> (MID_global <$> parse_global_type).
 
 Definition parse_name {n} : byte_parser name n :=
-  parse_vec anyTok.
+  guardM (fun bs => if utf8_valid bs then Some bs
+                 else None)
+  (parse_vec anyTok).
 
 Definition parse_module_import {n} : byte_parser module_import n :=
   ((fun '(modul, name, desc) => {| imp_module := modul; imp_name := name; imp_desc := desc; |}) <$> (parse_name <&>
