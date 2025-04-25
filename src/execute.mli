@@ -26,12 +26,13 @@ type eval_cfg_result =
   | Cfg_res of Interpreter.store_record * Extract.frame * Extract.value0 list
   | Cfg_trap of Interpreter.store_record * Extract.frame
   | Cfg_err
+  | Cfg_exhaustion
 
 (* Evaluating an interpreter configuration fully. *)
-val eval_interp_cfg: Output.verbosity -> int -> Interpreter.interp_config_tuple -> eval_cfg_result
+val eval_interp_cfg: Output.verbosity -> int -> int -> Interpreter.interp_config_tuple -> eval_cfg_result
 
 (* Evaluate a Wasm configuration using the interpreter configuration. *)
-val eval_wasm_cfg: Output.verbosity -> Interpreter.wasm_config_tuple -> eval_cfg_result
+val eval_wasm_cfg: Output.verbosity -> int -> Interpreter.wasm_config_tuple -> eval_cfg_result
 
 (* Type of the host extern val store *)
 module StringMap : Map.S with type key = string
@@ -49,8 +50,8 @@ val instantiate_host: Output.verbosity -> host_extern_store -> Interpreter.store
 (* Instantiate a sequence of modules with names. *)
 val instantiate_modules: Output.verbosity -> host_extern_store -> Interpreter.store_record -> string list -> Extract.module0 list -> (host_extern_store * Interpreter.store_record) Host.host_event
 
-(** Given a verbosity level, a host and Wasm state, a list of arguments, and a module and function name, invoke the Wasm function. *)
-val invoke_func : Output.verbosity -> host_extern_store -> (Interpreter.store_record * Extract.frame) -> Extract.value0 list -> string -> string -> eval_cfg_result Host.host_event
+(** Given a verbosity level, a host and Wasm state, a list of arguments, a module and function name, and a maximum fuel, invoke the Wasm function. *)
+val invoke_func : Output.verbosity -> host_extern_store -> (Interpreter.store_record * Extract.frame) -> Extract.value0 list -> string -> string -> int -> eval_cfg_result Host.host_event
 
 (** Print the result of a function invocation. *)
 val print_invoke_result : Output.verbosity -> eval_cfg_result -> unit

@@ -52,43 +52,49 @@ type eval_cfg_result =
   | Cfg_res of store_record * frame * value list
   | Cfg_trap of store_record * frame
   | Cfg_err
+  | Cfg_exhaustion
 
-let rec eval_interp_cfg verbosity gen cfg =
+let rec eval_interp_cfg verbosity gen fuel cfg =
   let print_step_header gen =
     debug_info verbosity intermediate ~style:bold
       (fun () -> Printf.sprintf "step %d:\n" gen) in
-  let cfg_res = run_one_step cfg in
-  print_step_header gen;
-  debug_info verbosity intermediate
-    (fun _ -> pp_res_cfg_except_store cfg cfg_res);
-  match cfg_res with
-  | RSC_normal (_hs', cfg') ->
-    eval_interp_cfg verbosity (gen+1) cfg'
-  | RSC_value (s, f, vs) ->
-    debug_info verbosity stage ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n");
-    (Cfg_res (s, f, vs))
-  | RSC_trap (s, f) ->
-    debug_info verbosity stage ~style:red (fun _ -> "trap after " ^ string_of_int gen ^ " steps\n");
-    Cfg_trap (s, f)
-  | RSC_invalid ->
-    debug_info verbosity stage ~style:red (fun _ -> "Invalid cfg\n");
-    Cfg_err
-  | RSC_error ->
-    debug_info verbosity stage ~style:red (fun _ -> "Ill-typed input\n");
-    Cfg_err
+  if (fuel >= 0) && (gen >= fuel) then begin
+    debug_info verbosity stage ~style:red (fun _ -> "Fuel exhaustion\n");
+    Cfg_exhaustion
+  end
+  else
+    let cfg_res = run_one_step cfg in
+      print_step_header gen;
+      debug_info verbosity intermediate
+        (fun _ -> pp_res_cfg_except_store cfg cfg_res);
+      match cfg_res with
+      | RSC_normal (_hs', cfg') ->
+        eval_interp_cfg verbosity (gen+1) fuel cfg'
+      | RSC_value (s, f, vs) ->
+        debug_info verbosity stage ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n");
+        (Cfg_res (s, f, vs))
+      | RSC_trap (s, f) ->
+        debug_info verbosity stage ~style:red (fun _ -> "trap after " ^ string_of_int gen ^ " steps\n");
+        Cfg_trap (s, f)
+      | RSC_invalid ->
+        debug_info verbosity stage ~style:red (fun _ -> "Invalid cfg\n");
+        Cfg_err
+      | RSC_error ->
+        debug_info verbosity stage ~style:red (fun _ -> "Ill-typed input\n");
+        Cfg_err
   
-let eval_wasm_cfg verbosity cfg =
+let eval_wasm_cfg verbosity fuel cfg =
   let interp_cfg_inst = interp_cfg_of_wasm cfg in
   debug_info verbosity intermediate (fun _ ->
     Printf.sprintf "\nExecuting configuration:\n%s\n" (pp_cfg_tuple_ctx_except_store interp_cfg_inst));
-  eval_interp_cfg verbosity 1 interp_cfg_inst
+  eval_interp_cfg verbosity 1 fuel interp_cfg_inst
 
 
 module StringMap = Map.Make(String);;
 
 type host_extern_store = ((Interpreter.externval StringMap.t) StringMap.t) * (string StringMap.t)
 
-let invoke_func verbosity hs sf args modname name =
+let invoke_func verbosity hs sf args modname name fuel =
   let (exts, _) = hs in
   let (s, f) = sf in
   let* es_init =
@@ -108,7 +114,7 @@ let invoke_func verbosity hs sf args modname name =
         end
       )) in
     let cfg_init = (s, (f, es_init)) in
-    pure (eval_wasm_cfg verbosity cfg_init)
+    pure (eval_wasm_cfg verbosity fuel cfg_init)
 
 let print_invoke_result verbosity res = 
   debug_info verbosity result (fun _ ->
@@ -116,6 +122,7 @@ let print_invoke_result verbosity res =
     | Cfg_res (_, _, vs) -> pp_values vs
     | Cfg_trap (_, _) -> "Execution returned a trap; run the interpreter in detailed mode (--vi) for more information\n"
     | Cfg_err -> "Execution returned an error; run the interpreter in detailed mode (--vi) for more information\n"
+    | Cfg_exhaustion -> "Fuel exhaustion\n"
   )
 
 let instantiate_imps verbosity s m imps =
@@ -125,7 +132,7 @@ let instantiate_imps verbosity s m imps =
         match interp_instantiate_wrapper s m imps with
         | None -> Error "instantiation error"
         | Some cfg -> OK cfg)) in
-  pure (eval_wasm_cfg verbosity wasm_cfg)
+  pure (eval_wasm_cfg verbosity (-1) wasm_cfg)
 
 let get_ext_import hs path = 
   let (m, imp_name) = path in
