@@ -755,7 +755,7 @@ Ltac unify_principal :=
 
 Section Host.
 
-Context {hfc: host_function_class}.
+Context {hfc: host_function_class} `{memory: Memory}.
   
 Lemma value_typing_ref_impl: forall s v t,
   value_typing s (VAL_ref v) t ->

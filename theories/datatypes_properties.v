@@ -1,5 +1,4 @@
 (** Properties about Wasm datatypes (mainly equality relations) **)
-(* (C) M. Bodin, J. Pichon - see LICENSE.txt *)
 
 From Wasm Require Export datatypes.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
@@ -237,7 +236,7 @@ Definition administrative_instruction_rect :=
 
 Section Host.
 
-Context `{host_function_class}.
+  Context `{host_function_class}.
 
 Definition funcinst_eq_dec : forall (cl1 cl2 : funcinst),
   {cl1 = cl2} + {cl1 <> cl2}.
@@ -295,6 +294,8 @@ Definition eqexportinstP : Equality.axiom exportinst_eqb :=
   eq_dec_Equality_axiom exportinst_eq_dec.
 
 HB.instance Definition exportinst_eqMixin := hasDecEq.Build exportinst eqexportinstP.
+
+Context `{Memory}.
 
 Definition store_record_eq_dec : forall v1 v2 : store_record, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.

@@ -3,12 +3,15 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From compcert Require Floats.
-From Wasm Require Export common memory_list datatypes_properties list_extra.
+From Wasm Require Export common memory datatypes_properties list_extra.
 From Coq Require Import BinNat.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
+
+Section Operations.
+  Context `{memory: Memory} `{hfc: host_function_class}.
 
 (* Placeholder for better array lookup in the future. *)
 Definition lookup_N {T: Type} (l: list T) (n: N) : option T :=
@@ -26,20 +29,20 @@ Definition read_bytes (m : meminst) (start_idx : N) (len : nat) : option bytes :
     (iota 0 len)).
 
 (** write bytes `bs` to `m` starting at `start_idx` *)
-Definition write_bytes (m : meminst) (start_idx : N) (bs : bytes) : option meminst :=
-  let x :=
-    list_extra.fold_lefti
-      (fun off dat_o b =>
-        match dat_o with
-        | None => None
-        | Some dat =>
-          let idx := N.add start_idx (N.of_nat off) in
-          mem_update idx b dat
-        end)
-      bs
-      (Some m.(meminst_data)) in
-  match x with
-  | Some dat => Some {| meminst_data := dat; meminst_type := m.(meminst_type); |}
+Fixpoint write_bytes (m : mem_t) (start_idx : N) (bs : bytes) : option mem_t :=
+  match bs with
+  | nil => Some m
+  | b :: bs' =>
+      match mem_update start_idx b m with
+      | Some m' => write_bytes m' (N.add start_idx 1%N) bs'
+      | None => None
+      end
+  end.
+
+Definition write_bytes_meminst (m: meminst) (start_idx : N) (bs: bytes) : option meminst :=
+  match write_bytes m.(meminst_data) start_idx bs with
+  | Some md' =>
+      Some (Build_meminst m.(meminst_type) md')
   | None => None
   end.
 
@@ -55,8 +58,8 @@ Definition page_size : N := 65536%N.
 
 Definition page_limit : N := 65536%N.
 
-Definition ml_valid (m: memory_list) : Prop :=
-  N.modulo (memory_list.mem_length m) page_size = 0%N.
+Definition ml_valid (m: mem_t) : Prop :=
+  N.modulo (mem_length m) page_size = 0%N.
 
 Definition mem_length (m : meminst) : N :=
   mem_length m.(meminst_data).
@@ -171,9 +174,11 @@ Definition load_vec_lane (m: meminst) (i: N) (v: value_vec) (width: width_vec) (
 
 Definition store (m : meminst) (n : N) (off : static_offset) (bs : bytes) (l : nat) : option meminst :=
   if N.leb (n + off + N.of_nat l) (mem_length m)
-  then write_bytes m (n + off) (bytes_takefill #00 l bs)
+  then write_bytes_meminst m (n + off) (bytes_takefill #00 l bs)
   else None.
 
+(* The first argument of wrap doesn't affect the opsem at all, so this is fine.
+Might need a change in the future if this behaviour changes. *)
 Definition store_packed := store.
 
 Definition store_vec_lane (m: meminst) (n: N) (v: value_vec) (width: width_vec) (marg: memarg) (x: laneidx) : option meminst :=
@@ -566,10 +571,6 @@ Definition option_bind (A B : Type) (f : A -> option B) (x : option A) :=
   | None => None
   | Some y => f y
   end.
-
-Section Host.
-
-Context `{hfc: host_function_class}.
 
 Definition cl_type (cl : funcinst) : function_type :=
   match cl with
@@ -1294,7 +1295,7 @@ Definition cvtop_valid (t2: number_type) (op: cvtop) (t1: number_type) (s: optio
   ((op == CVO_promote) && (t2 == T_f64) && (t1 == T_f32) && (s == None)) ||
   ((op == CVO_reinterpret) && ((is_int_t t2 && is_float_t t1) || (is_float_t t2 && is_int_t t1)) && (s == None)).
 
-End Host.
+End Operations.
 
 #[export]
 Hint Unfold v_to_e: core.

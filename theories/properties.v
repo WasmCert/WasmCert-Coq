@@ -1288,7 +1288,7 @@ Ltac extract_listn :=
 
 Section Host.
 
-Context `{hfc: host_function_class}.
+Context `{hfc: host_function_class} `{memory: Memory}.
 
 Lemma values_typing_size: forall s vs ts,
     values_typing s vs ts ->
@@ -1551,7 +1551,8 @@ Proof.
   rewrite set_nthE.
   destruct (n < size l) eqn:Hsize.
   - replace (n.+1) with (n+1)%coq_nat; last by lias.
-    apply memory_list.lookup_split; by lias.
+    rewrite List.nth_error_app2; rewrite length_is_size size_takel; try by lias.
+    by rewrite Nat.sub_diag.
   - rewrite List.nth_error_app2; last by rewrite length_is_size; lias.
     rewrite - cat_nseq.
     rewrite List.nth_error_app2; last by repeat rewrite length_is_size; rewrite size_nseq.

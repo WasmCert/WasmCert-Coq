@@ -10,7 +10,7 @@ Unset Printing Implicit Defensive.
 
 Section Host.
 
-Context `{hfc: host_function_class}.
+Context `{hfc: host_function_class} `{memory: Memory}.
 
 (** std-doc:
 For the purpose of checking external values against imports, such values are classified by external types. The following auxiliary typing rules specify this typing relation relative to a store S in which the referenced instances live.
@@ -425,7 +425,7 @@ Definition tableinst_typing (s: store_record) (ti: tableinst) : option table_typ
 Definition meminst_typing (s: store_record) (mi: meminst) : option memory_type :=
   let '{| meminst_type := mi_type; meminst_data := ds |} := mi in
   if memtype_valid mi_type then
-    if memory_list.mem_length ds == N.mul (mi_type.(lim_min)) page_size then
+    if mem_length mi == N.mul (mi_type.(lim_min)) page_size then
       Some mi_type
     else None
   else None.

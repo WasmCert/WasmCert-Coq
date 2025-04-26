@@ -275,7 +275,7 @@ Proof.
            a case split on the failure case due to an attempt on using the default values
            of non-defaultable types *)
         { apply <<hs, (s, (Build_frame_ctx vs'' m (Build_frame (rev vs' ++ zs) i) es0, nil) :: (fc, lcs) :: ccs', (nil, nil), Some (AI_label m nil (to_e_list es)))>> => //=.
-          apply (@reduce_focus_pivot _ _ nil ([::(Build_frame_ctx vs'' m _ es0, nil)])) => //=.
+          apply (@reduce_focus_pivot _ _ _ nil ([::(Build_frame_ctx vs'' m _ es0, nil)])) => //=.
           apply (list_label_ctx_eval.(ctx_reduce)) => //=.
           rewrite split_n_is_take_drop in Hsplit; injection Hsplit as <- <-.
           eapply r_label with (lh := LH_base (rev (drop n vs0)) es0) => /=; subst; infer_hole.
@@ -443,7 +443,7 @@ Proof.
             (* Exiting the frame now. Note that this implementation does not 
                attempt to directly construct the next canonical cfg (les can be non-empty) *)
             apply <<hs, (s, cc :: ccs', (vs0 ++ lvs, les), None)>> => //=.
-            apply (@reduce_focus_pivot _ _ [:: (Build_frame_ctx lvs lk lf les, nil)] nil) => //=.
+            apply (@reduce_focus_pivot _ _ _ [:: (Build_frame_ctx lvs lk lf les, nil)] nil) => //=.
             apply (list_label_ctx_eval.(ctx_reduce)) => //=.
             repeat rewrite cats0.
             resolve_reduce_ctx lvs les.

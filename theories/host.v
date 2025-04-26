@@ -3,7 +3,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From HB Require Import structures.
-From Wasm Require Import common datatypes operations typing.
+From Wasm Require Import common datatypes operations typing memory_list.
 From ExtLib Require Import Structures.Monad.
 
 (* XXX unused? *)
@@ -24,7 +24,7 @@ Set Implicit Arguments.
 
 Section Predicate.
 
-Context `{hfc: host_function_class}.
+Context `{hfc: host_function_class} `{memory: Memory}.
 (** We assume a set of host functions. **)
 
 (** The application of a host function either:
@@ -59,7 +59,7 @@ End Predicate.
 
 Section Executable.
 
-Context `{hfc: host_function_class}.
+Context `{hfc: host_function_class} `{memory: Memory}.
 
 Class executable_host := make_executable_host {
     host_event : Type -> Type (** The events that the host actions can yield. **) ;
@@ -111,6 +111,9 @@ Instance hfc: host_function_class.
 Proof.
   exact (Build_host_function_class host_function_eq_dec).
 Defined.
+
+#[export]
+Instance memory: Memory := memory_list.Memory_list.
 
 Parameter host_apply : store_record -> function_type -> host_function -> seq value ->
                        host_event (option (store_record * result)).
@@ -166,6 +169,9 @@ Instance hfc: host_function_class.
 Proof.
   exact (Build_host_function_class host_function_eq_dec).
 Defined.
+
+#[export]
+Instance memory: Memory := memory_list.Memory_list.
 
 Definition store_record :Type := store_record.
 
