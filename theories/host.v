@@ -3,7 +3,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From HB Require Import structures.
-From Wasm Require Import common datatypes operations typing memory_list.
+From Wasm Require Import common datatypes operations typing memory_vec.
 From ExtLib Require Import Structures.Monad.
 
 (* XXX unused? *)
@@ -29,7 +29,7 @@ Context `{hfc: host_function_class} `{memory: Memory}.
 
 (** The application of a host function either:
   - returns [Some (st', result)], returning a new Wasm store and a result (which can be [Trap]),
-  - diverges, represented as [None].
+  - diverges, represented as [None]y
   This can be non-deterministic. **)
 
 Class host := {
@@ -113,7 +113,7 @@ Proof.
 Defined.
 
 #[export]
-Instance memory: Memory := memory_list.Memory_list.
+Instance memory: Memory := memory_vec.Memory_vec.
 
 Parameter host_apply : store_record -> function_type -> host_function -> seq value ->
                        host_event (option (store_record * result)).
@@ -171,7 +171,7 @@ Proof.
 Defined.
 
 #[export]
-Instance memory: Memory := memory_list.Memory_list.
+Instance memory: Memory := memory_vec.Memory_vec.
 
 Definition store_record :Type := store_record.
 
