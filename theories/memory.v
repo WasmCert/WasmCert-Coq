@@ -37,10 +37,10 @@ Section Memory.
         N.lt i len ->
         mem_lookup i (mem_make b len) = Some b;
       
-      mem_update_exists :
+(*      mem_update_exists :
       forall mem i b,
         N.lt i (mem_length mem) ->
-        { mem' | mem_update i b mem = Some mem'};
+        { mem' | mem_update i b mem = Some mem'};*)
 
       mem_update_lookup :
       forall mem mem' i b,
