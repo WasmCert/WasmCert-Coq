@@ -897,3 +897,113 @@ Ltac resolve_value_principal_typing :=
       context [value_typing ?s ?v ?t'] =>
       erewrite (value_typing_trans H Hsub); eauto => //=
   end.
+
+(* Given a value type, destruct it and the subcases as well. *)
+Ltac destruct_value_type t :=
+  destruct t as [ [ | | | ] | [] | [ | ] | ].
+
+(* DESTRUCT ALL VALUE TYPES TO THE OBLIVION *)
+Ltac total_destruction :=
+  repeat match goal with
+    | v: value_type |- _ =>
+        destruct_value_type v => //=
+    end.
+
+Section Lattice_properties.
+  
+  (* Properties of inf and sup *)
+  Lemma t_inf_comm t1 t2:
+    t_inf t1 t2 = t_inf t2 t1.
+  Proof.
+    by total_destruction.
+  Qed.
+  
+  Lemma t_inf_sub t1 t2 tinf:
+    tinf = t_inf t1 t2 ->
+    tinf <t: t1.
+  Proof.
+    by total_destruction.
+  Qed.
+
+  Lemma t_inf_strict t1 t2 t3:
+    t3 <t: t1 ->
+    t3 <t: t2 ->
+    t3 <t: t_inf t1 t2.
+  Proof.
+    by total_destruction.
+  Qed.
+  
+  Lemma t_sup_comm t1 t2:
+    t_sup t1 t2 = t_sup t2 t1.
+  Proof.
+    by total_destruction.
+  Qed.
+  
+  Lemma t_sup_sub t1 t2 tsup:
+    t_sup t1 t2 = Some tsup ->
+    t1 <t: tsup.
+  Proof.
+    by total_destruction.
+  Qed.
+
+  Lemma t_sup_strict t1 t2 t3 tsup:
+    t1 <t: t3 ->
+    t2 <t: t3 ->
+    t_sup t1 t2 = Some tsup ->
+    tsup <t: t3.
+  Proof.
+    by total_destruction.
+  Qed.
+  
+  Lemma ts_inf_comm ts1 ts2:
+    ts_inf ts1 ts2 = ts_inf ts2 ts1.
+  Proof.
+    move: ts2; induction ts1; destruct ts2 => //=.
+    unfold ts_inf.
+    unfold ts_inf in IHts1.
+    specialize (IHts1 ts2).
+    rewrite eq_sym.
+    rewrite eq_sym in IHts1.
+    destruct (length _ == length _) eqn:Hlen => //=.
+    rewrite t_inf_comm.
+    do 2 f_equal.
+    by injection IHts1.
+  Qed.
+  
+  Lemma ts_inf_sub ts1 ts2 tsinf:
+    ts_inf ts1 ts2 = Some tsinf ->
+    tsinf <ts: ts1.
+  Proof.
+    unfold ts_inf.
+    destruct (length _ == length _) eqn:Hlen => //=.
+    move => [Hmap]; subst.
+    move: ts2 Hlen.
+    induction ts1; destruct ts2 => //=.
+    move => Hlen.
+    move/eqP in Hlen; injection Hlen as Hlen.
+    specialize (IHts1 ts2).
+    rewrite Hlen eq_refl in IHts1.
+    specialize (IHts1 Logic.eq_refl).
+    apply/andP; split => //.
+    by eapply t_inf_sub; eauto.
+  Qed.
+
+  Lemma ts_inf_strict ts1 ts2 ts3 tsinf:
+    ts3 <ts: ts1 ->
+    ts3 <ts: ts2 ->
+    ts_inf ts1 ts2 = Some tsinf ->                  
+    ts3 <ts: tsinf.
+  Proof.
+    move : ts2 ts3 tsinf.
+    induction ts1; destruct ts2, ts3, tsinf => //=; unfold ts_inf; intros; remove_bools_options.
+    apply/andP; split.
+    - by apply t_inf_strict => //.
+    - specialize (IHts1 ts2 ts3).
+      unfold ts_inf in IHts1.
+      simpl in Hif.
+      move/eqP in Hif; injection Hif as Hlen.
+      rewrite Hlen eq_refl in IHts1.
+      by apply IHts1.
+  Qed.
+    
+End Lattice_properties.

@@ -154,7 +154,7 @@ Definition be_principal_typing (C: t_context) (be: basic_instruction) (tf: instr
   | BI_br_table ins k =>
       exists tx ty ts,
       tf = (Tf (tx ++ (ts ++ [::T_num T_i32])) ty) /\
-        List.Forall (fun i => (lookup_N C.(tc_labels) i) = Some ts) (ins ++ [::k])
+        List.Forall (fun i => (exists ts', lookup_N C.(tc_labels) i = Some ts' /\ ts <ts: ts')) (ins ++ [::k])
   | BI_return =>
       exists tx ty ts,
       tf = (Tf (tx ++ ts) ty) /\

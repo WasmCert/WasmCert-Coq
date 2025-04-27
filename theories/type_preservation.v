@@ -108,22 +108,30 @@ Proof.
   - (* Br_br_table *)
     rewrite catA size_cat addnK take_size_cat => //.
     rewrite cats0.
-    apply ety_a' => //; econstructor; eauto => //.
-    { unfold lookup_N in *.
-      eapply Forall_lookup in Hconjr; eauto.
-      rewrite List.nth_error_app1 => //; eauto.
-      (* Implicit parameters *)
-      unfold labelidx, u32 in H.
+    unfold lookup_N in *.
+    eapply Forall_lookup with (x := j) (n := N.to_nat (Wasm_int.N_of_uint i32m c)) in Hconjr; eauto; last first.
+    { rewrite List.nth_error_app1 => //.
       by lias.
+    }
+    {
+      destruct Hconjr as [ts' [Hnth Hsub]].
+      apply ety_subtyping with (t1s := (extr ++ ts')) (t2s := extr0).
+      { by apply ety_a' => //; econstructor; eauto => //. }
+      { eapply instr_subtyping_weaken1 with (tx1 := extr ++ extr1); eauto; by resolve_subtyping. }
     }
   - (* Br_br_table_oob *)
     rewrite catA size_cat addnK take_size_cat => //.
     rewrite cats0.
-    apply ety_a' => //; econstructor; eauto => //.
-    { unfold lookup_N in *.
-      eapply Forall_lookup in Hconjr; eauto.
-      rewrite List.nth_error_app2 => //; eauto.
+    unfold lookup_N in *.
+    eapply Forall_lookup with (x := i) (n := length iss) in Hconjr; eauto; last first.
+    { rewrite List.nth_error_app2 => //.
       by rewrite Nat.sub_diag.
+    }
+    {
+      destruct Hconjr as [ts' [Hnth Hsub]].
+      apply ety_subtyping with (t1s := (extr ++ ts')) (t2s := extr0).
+      { by apply ety_a' => //; econstructor; eauto => //. }
+      { eapply instr_subtyping_weaken1 with (tx1 := extr ++ extr1); eauto; by resolve_subtyping. }
     }
   - (* Frame_const *)
     inversion Hconjl0; subst.

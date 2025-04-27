@@ -265,7 +265,7 @@ Inductive be_typing : t_context -> seq basic_instruction -> instr_type -> Prop :
   lookup_N C.(tc_labels) i = Some ts ->
   be_typing C [::BI_br_if i] (Tf (ts ++ [::T_num T_i32]) ts)
 | bet_br_table : forall C i ins ts t1s t2s,
-  List.Forall (fun i => (lookup_N C.(tc_labels) i) = Some ts) (ins ++ [::i]) ->
+  List.Forall (fun i => (exists ts', lookup_N C.(tc_labels) i = Some ts' /\ ts <ts: ts')) (ins ++ [::i]) ->
   be_typing C [::BI_br_table ins i] (Tf (t1s ++ (ts ++ [::T_num T_i32])) t2s)
 | bet_return : forall C ts t1s t2s,
   tc_return C = Some ts ->
