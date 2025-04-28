@@ -5,7 +5,7 @@ From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From Wasm Require Export opsem interpreter_ctx instantiation_spec.
 
 Open Scope string_scope.
-Open Scope list_scope.
+Open Scope seq_scope.
 
 Section Instantiation_func.
 

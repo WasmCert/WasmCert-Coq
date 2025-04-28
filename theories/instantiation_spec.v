@@ -438,13 +438,6 @@ Definition module_data_get_funcidx (d: module_data) :=
 Definition module_datas_get_funcidx (ds: list module_data) :=
   nlist_nodup (List.concat (List.map module_data_get_funcidx ds)).
 
-(* Why do these counts in the reference interpreter? These are not funcidx.
-   Dropped them out here. *)
-Definition module_import_get_funcidx (imp: module_import) : list funcidx := nil.
-
-Definition module_imports_get_funcidx (imps: list module_import) :=
-  nlist_nodup (List.concat (List.map module_import_get_funcidx imps)).
-
 Definition module_export_get_funcidx (exp: module_export) : list funcidx :=
   match exp.(modexp_desc) with
   | MED_func fid => [::fid]
@@ -459,16 +452,19 @@ Definition module_exports_get_funcidx (exps: list module_export) :=
 
   Used in generating the refs components.
 
-  What this actually includes is quite difficult to find. Check
+  What this actually includes is quite difficult to find. In conclusion,
+  funcrefs can only appear in globals/elems/datas/exports with the above excluded.
+
+  The reference interpreter has an implementation that collects all 'free' variables:
   https://github.com/WebAssembly/spec/blob/main/interpreter/syntax/free.ml
-  for the implementation.
+
+  Check in particular all the entries that could produce the `funcs` field.
  **)
 Definition module_filter_funcidx (m: module) : list funcidx :=
   nlist_nodup
     ((module_globals_get_funcidx m.(mod_globals)) ++
        (module_elems_get_funcidx m.(mod_elems)) ++
        (module_datas_get_funcidx m.(mod_datas)) ++
-       (module_imports_get_funcidx m.(mod_imports)) ++
        (module_exports_get_funcidx m.(mod_exports))
     ).
 
