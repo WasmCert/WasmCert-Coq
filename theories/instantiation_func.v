@@ -356,4 +356,14 @@ Definition invoke_extern (s: store_record) (ext: extern_value) (args: list value
   | _ => None
   end.
 
+Definition wasm_global_get (s: store_record) (ext: extern_value) : option value :=
+  match ext with
+  | EV_global gi =>
+      match lookup_N s.(s_globals) gi with
+      | Some gv => Some gv.(g_val)
+      | None => None
+      end
+  | _ => None
+  end.
+
 End Instantiation_func_extract.

@@ -25,7 +25,7 @@ let with_timeout timeout f =
 let ovar_to_name default hs ovar = 
   match ovar with
   | Some v -> 
-    let (exts, varmap) = hs in
+    let (_, varmap) = hs in
     begin match StringMap.find_opt v.it varmap with
     | Some s -> pure s
     | None -> error ("Invalid module variable name: " ^ v.it)
@@ -131,9 +131,9 @@ let load_wast_module verbosity hs s ovar moddef mod_counter =
     let modname = "default_module_" ^ (string_of_int mod_counter) in
     let* varname = begin match ovar with
     | Some v -> 
-      let (exts, varmap) = hs in
+      let (_, varmap) = hs in
       begin match StringMap.find_opt v.it varmap with
-      | Some s -> error ("Module variable name " ^ v.it ^ " already exists")
+      | Some _ -> error ("Module variable name " ^ v.it ^ " already exists")
       | None -> pure v.it
       end
     | None -> pure ""
@@ -160,7 +160,7 @@ let load_wast_module verbosity hs s ovar moddef mod_counter =
       debug_info verbosity stage (fun _ -> "Successfully instantiated module " ^ modname ^ ".\n");
       pure (hs', s', mod_counter+1, modname)
   with
-  | _ -> error "Execption raised in loading module"
+  | _ -> error "Exception raised in loading module"
   end
 
 let print_wast_command cmd = 
@@ -181,6 +181,13 @@ let run_invoke verbosity act_invoke hs s default_module_name fuel =
       debug_info verbosity stage (fun _ -> "Successfully executed function " ^ funcname ^ " of module: " ^ modname ^ ".\n");
       pure res
 
+let run_get verbosity act_get hs s default_module_name = 
+  match act_get with
+  | (ovar, extname_utf8) ->
+    let* modname = ovar_to_name default_module_name hs ovar in
+    let extname = wasm_name_to_raw_string extname_utf8 in
+      global_get verbosity hs s modname extname
+
 let run_wast_command verbosity timeout fuel cmd hs s mod_counter default_module_name test_counter =
   debug_info verbosity stage 
   (fun _ -> 
@@ -200,9 +207,12 @@ let run_wast_command verbosity timeout fuel cmd hs s mod_counter default_module_
       | Cfg_trap _ -> error "Unexpecte trap"
       | Cfg_res (s', _, _) ->
         pure (hs, s', mod_counter, default_module_name)
+      | Cfg_exhaustion -> error "Unexpected exhaustion"
       end
-    | Get (_ovar, _funcname) ->
-        error "Unsupported wast action: Get"
+    | Get (ovar, extname_utf8) ->
+        let* _ = run_get verbosity (ovar, extname_utf8) hs s default_module_name in
+        debug_info verbosity stage (fun _ -> "Test passed: successfully retrieved the value " ^ wasm_name_to_raw_string extname_utf8);
+        pure (hs, s, mod_counter, default_module_name)
     end
   | Assertion asrt -> 
     begin match asrt.it with 
@@ -226,8 +236,14 @@ let run_wast_command verbosity timeout fuel cmd hs s mod_counter default_module_
         | Cfg_trap _ -> 
               error "Unexpected trap"
         end
-      | Get (_ovar, _funcname) ->
-        error "Unsupported wast action: Get"
+      | Get (ovar, extname_utf8) ->
+        let* res_v = run_get verbosity (ovar, extname_utf8) hs s default_module_name in
+        let assert_result = wasm_assert_rets [res_v] expect_rets in
+          if assert_result then
+            (debug_info verbosity stage (fun _ -> "Test passed: result matches asserted value\n");
+              pure (hs, s, mod_counter, default_module_name))
+          else
+            error "Result mismatches"
       end
     | AssertTrap (act, _) ->
       begin match act.it with
@@ -235,7 +251,7 @@ let run_wast_command verbosity timeout fuel cmd hs s mod_counter default_module_
         let* res = run_invoke verbosity (ovar, funcname_utf8, val_args) hs s default_module_name fuel in
         begin match res with
         | Cfg_err -> error "Invocation error"
-        | Cfg_exhaustion -> error "Unexpected exhaustion"
+        | Cfg_exhaustion -> error "Unexpected exhaustion when trap is expected"
         | Cfg_res _ ->
           error "Unexpected successful execution when trap is expected"
         | Cfg_trap (s', _) -> 
@@ -289,7 +305,6 @@ let run_wast_command verbosity timeout fuel cmd hs s mod_counter default_module_
         debug_info verbosity stage (fun _ -> "Test passed: correctly rejected a malformed module\n");
         pure (hs, s, mod_counter, default_module_name)
       end
-    | _ -> error "Unsupported wast assertion"
     end
   | Register (newname_utf8, ovar) ->
     let newname = wasm_name_to_raw_string newname_utf8 in

@@ -94,6 +94,20 @@ module StringMap = Map.Make(String);;
 
 type host_extern_store = ((Interpreter.externval StringMap.t) StringMap.t) * (string StringMap.t)
 
+let global_get verbosity hs s modname extname = 
+  let (exts, _) = hs in 
+  match StringMap.find_opt modname exts with
+  | Some mmap ->
+    begin match StringMap.find_opt extname mmap with
+    | Some extval -> 
+      begin match wasm_global_get s extval with
+      | Some v -> pure v
+      | None -> TopHost.error "Specified extern value is not a global"
+      end
+    | None -> TopHost.error "Extern value not found"
+    end
+  | None -> TopHost.error "Module not found"
+
 let invoke_func verbosity hs sf args modname name fuel =
   let (exts, _) = hs in
   let (s, f) = sf in

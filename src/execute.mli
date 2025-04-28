@@ -40,6 +40,9 @@ module StringMap : Map.S with type key = string
 (* Host store consists of the module exports store and a module variable name map (from vars to actual names in string). *)
 type host_extern_store = ((Interpreter.externval StringMap.t) StringMap.t) * (string StringMap.t)
 
+(* Get a global variable from the store by a host export name. *)
+val global_get: Output.verbosity -> host_extern_store -> Interpreter.store_record -> string -> string -> Extract.value0 Host.host_event
+
 (* Given a starting state and a list of imports (store references), instantiating a module.
    Return the interpreter result after running the instantiation instructions. Does not update the host export store. *)
 val instantiate: Output.verbosity -> host_extern_store -> Interpreter.store_record -> Extract.module0 -> eval_cfg_result Host.host_event

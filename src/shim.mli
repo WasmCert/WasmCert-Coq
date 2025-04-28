@@ -59,6 +59,9 @@ module type InterpreterType = sig
   val interp_cfg_of_wasm : 
     wasm_config_tuple -> interp_config_tuple
 
+  val wasm_global_get :
+    store_record -> externval -> value option
+
   (** Look-up a specific extracted function of the instantiation. *)
   val invoke_extern:
     store_record -> externval -> value list -> (administrative_instruction list) option

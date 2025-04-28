@@ -59,6 +59,9 @@ module type InterpreterType = sig
   val interp_cfg_of_wasm : 
     wasm_config_tuple -> interp_config_tuple
 
+  val wasm_global_get :
+    store_record -> externval -> value option
+
   (** Look-up a specific extracted function of the instantiation and invoke with the provided arguments. *)
   val invoke_extern :
     store_record -> externval -> value list -> (administrative_instruction list) option
@@ -131,6 +134,9 @@ functor (EH : Host) -> struct
   let run_v_init = Interpreter.run_v_init
 
   let interp_cfg_of_wasm = Interpreter.interp_cfg_of_wasm
+
+  let wasm_global_get =
+    Instantiation.wasm_global_get
 
   let invoke_extern =
     Instantiation.invoke_extern
