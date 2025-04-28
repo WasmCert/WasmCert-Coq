@@ -528,7 +528,11 @@ Definition get_init_expr_elem (i: nat) (elem: module_element) : list basic_instr
   match elem.(modelem_mode) with
   | ME_passive => nil
   | ME_active tidx bes =>
-      bes ++ [::BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m Z0)); BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m (BinInt.Z.of_nat (length elem.(modelem_init))))); BI_table_init tidx (N.of_nat i); BI_elem_drop (N.of_nat i)]
+      bes ++
+        [::BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m Z0));
+         BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m (BinInt.Z.of_nat (length elem.(modelem_init)))));
+         BI_table_init tidx (N.of_nat i);
+         BI_elem_drop (N.of_nat i)]
   | ME_declarative => [::BI_elem_drop (N.of_nat i)]
   end.
 

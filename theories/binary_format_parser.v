@@ -708,28 +708,60 @@ Definition parse_elemkind {n}: byte_parser reference_type n :=
 (* Slightly messy, but so is the spec *)
 (* https://webassembly.github.io/spec/core/binary/modules.html#element-section *)
 Definition parse_module_element_0 {n} : byte_parser module_element n :=
-  ((fun es (fids: list funcidx) => {| modelem_type := T_funcref; modelem_init := List.map (fun y => cons (BI_ref_func y) nil) fids; modelem_mode := ME_active 0%N es; |}) <$> parse_expr) <*> parse_vec parse_funcidx.
+  ((fun es (fids: list funcidx) =>
+      {| modelem_type := T_funcref;
+        modelem_init := List.map (fun y => cons (BI_ref_func y) nil) fids;
+        modelem_mode := ME_active 0%N es; |})
+     <$> parse_expr) <*> parse_vec parse_funcidx.
 
 Definition parse_module_element_1 {n} : byte_parser module_element n :=
-  ((fun t (fids: list funcidx) => {| modelem_type := t; modelem_init := List.map (fun y => cons (BI_ref_func y) nil) fids; modelem_mode := ME_passive; |}) <$> parse_elemkind) <*> parse_vec parse_funcidx.
+  ((fun t (fids: list funcidx) =>
+      {| modelem_type := t;
+        modelem_init := List.map (fun y => cons (BI_ref_func y) nil) fids;
+        modelem_mode := ME_passive; |})
+     <$> parse_elemkind) <*> parse_vec parse_funcidx.
 
 Definition parse_module_element_2 {n} : byte_parser module_element n :=
-  ((((fun (x: tableidx) es t (fids: list funcidx) => {| modelem_type := t; modelem_init := List.map (fun y => cons (BI_ref_func y) nil) fids; modelem_mode := ME_active x es; |}) <$> parse_tableidx) <*> parse_expr) <*> parse_elemkind) <*> parse_vec parse_funcidx.
+  ((((fun (x: tableidx) es t (fids: list funcidx) =>
+        {| modelem_type := t;
+          modelem_init := List.map (fun y => cons (BI_ref_func y) nil) fids;
+          modelem_mode := ME_active x es; |})
+       <$> parse_tableidx) <*> parse_expr) <*> parse_elemkind) <*> parse_vec parse_funcidx.
 
 Definition parse_module_element_3 {n} : byte_parser module_element n :=
-  ((fun t (fids: list funcidx) => {| modelem_type := t; modelem_init := List.map (fun y => cons (BI_ref_func y) nil) fids; modelem_mode := ME_declarative; |}) <$> parse_elemkind) <*> parse_vec parse_funcidx.
+  ((fun t (fids: list funcidx) =>
+      {| modelem_type := t;
+        modelem_init := List.map (fun y => cons (BI_ref_func y) nil) fids;
+        modelem_mode := ME_declarative; |})
+     <$> parse_elemkind) <*> parse_vec parse_funcidx.
 
 Definition parse_module_element_4 {n} : byte_parser module_element n :=
-  ((fun es els => {| modelem_type := T_funcref; modelem_init := els; modelem_mode := ME_active 0%N es; |}) <$> parse_expr) <*> parse_vec parse_expr.
+  ((fun es els =>
+      {| modelem_type := T_funcref;
+        modelem_init := els;
+        modelem_mode := ME_active 0%N es; |})
+     <$> parse_expr) <*> parse_vec parse_expr.
 
 Definition parse_module_element_5 {n} : byte_parser module_element n :=
-  ((fun t els => {| modelem_type := t; modelem_init := els; modelem_mode := ME_passive; |}) <$> parse_reference_type) <*> parse_vec parse_expr.
+  ((fun t els =>
+      {| modelem_type := t;
+        modelem_init := els;
+        modelem_mode := ME_passive; |})
+     <$> parse_reference_type) <*> parse_vec parse_expr.
 
 Definition parse_module_element_6 {n} : byte_parser module_element n :=
-  ((((fun (x: tableidx) es t els => {| modelem_type := t; modelem_init := els; modelem_mode := ME_active x es; |}) <$> parse_tableidx) <*> parse_expr) <*> parse_reference_type) <*> parse_vec parse_expr.
+  ((((fun (x: tableidx) es t els =>
+        {| modelem_type := t;
+          modelem_init := els;
+          modelem_mode := ME_active x es; |})
+       <$> parse_tableidx) <*> parse_expr) <*> parse_reference_type) <*> parse_vec parse_expr.
 
 Definition parse_module_element_7 {n} : byte_parser module_element n :=
-  ((fun t els => {| modelem_type := t; modelem_init := els; modelem_mode := ME_declarative; |}) <$> parse_reference_type) <*> parse_vec parse_expr.
+  ((fun t els =>
+      {| modelem_type := t;
+        modelem_init := els;
+        modelem_mode := ME_declarative; |})
+     <$> parse_reference_type) <*> parse_vec parse_expr.
 
 Definition parse_module_element {n}: byte_parser module_element n :=
   assert_u32 0%N &> parse_module_element_0 <|>

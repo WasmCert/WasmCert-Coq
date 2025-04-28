@@ -130,8 +130,8 @@ let instantiate_imps verbosity s m imps =
     TopHost.from_out (
       ovpending verbosity stage "instantiation" (fun _ ->
         match interp_instantiate_wrapper s m imps with
-        | None -> Error "instantiation error"
-        | Some cfg -> OK cfg)) in
+        | (None, errmsg) -> Error ("instantiation error: " ^ errmsg)
+        | (Some cfg, _) -> OK cfg)) in
   pure (eval_wasm_cfg verbosity (-1) wasm_cfg)
 
 let get_ext_import hs path = 
@@ -172,6 +172,7 @@ let instantiate_host verbosity hs s module_name m =
     | Cfg_trap (s', f) -> 
       TopHost.error "Instantiation resulted in a trap"
     | Cfg_err -> TopHost.error "invalid module instantiation"
+    | Cfg_exhaustion -> TopHost.error "instantiation resulted in exhaustion"
 
 let rec instantiate_modules verbosity hs s names modules =
   match (names, modules) with

@@ -65,7 +65,7 @@ module type InterpreterType = sig
 
   (** Perform the instantiation of a module. *)
   val interp_instantiate_wrapper :
-    store_record -> Extract.module0 -> externval list  -> wasm_config_tuple option
+    store_record -> Extract.module0 -> externval list  -> wasm_config_tuple option * string
 
   (** Extracting the import path from the parsed module. *)
   val get_import_path: Extract.module0 -> (string * string) list

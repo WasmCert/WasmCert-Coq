@@ -1,8 +1,8 @@
 (** Executable instantiation **)
 
+From Coq Require Import BinNat String List.
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From Wasm Require Export opsem interpreter_ctx instantiation_spec.
-From Coq Require Import BinNat.
 
 Section Instantiation_func.
 
@@ -270,9 +270,13 @@ Definition interp_alloc_module (s : store_record) (m : module) (imps : list exte
   let '(s', i_ds) := alloc_datas s5 m.(mod_datas) in
   (s', inst).
 
-Definition interp_instantiate (hs: host_state) (s : store_record) (m : module) (v_imps : list extern_value) : option (host_state * store_record * frame * list basic_instruction) :=
+Open Scope string_scope.
+Open Scope list_scope.
+
+(* Use a monad for error reporting at some point? *)
+Definition interp_instantiate (hs: host_state) (s : store_record) (m : module) (v_imps : list extern_value) : option (host_state * store_record * frame * list basic_instruction) * string :=
   match module_type_checker m with
-  | None => None
+  | None => (None, "Module type checking failure")
   | Some (t_imps_mod, t_exps) =>
       match those (map (external_type_checker s) v_imps) with
       | Some t_imps =>
@@ -290,26 +294,24 @@ Definition interp_instantiate (hs: host_state) (s : store_record) (m : module) (
               |} in
             let f_init := Build_frame nil inst_init in
             match get_global_inits s f_init m.(mod_globals) with
-            | None => None
+            | None => (None, "Error in evaluating global initialisers")
             | Some g_inits =>
                 match get_elem_inits s f_init m.(mod_elems) with
                 | Some r_inits =>
                     let '(s', inst_final) := interp_alloc_module s m v_imps g_inits r_inits in
                     let f_final := Build_frame nil inst_final in
-                    Some (hs, s', f_final, get_init_expr_elems m.(mod_elems) ++ get_init_expr_datas m.(mod_datas) ++ get_init_expr_start m.(mod_start))
-                | None => None
+                    (Some (hs, s', f_final, get_init_expr_elems m.(mod_elems) ++ get_init_expr_datas m.(mod_datas) ++ get_init_expr_start m.(mod_start)), "")
+                | None => (None, "Error in evaluating elem initialisers")
                 end
             end
-          else None
-      | None => None
+          else (None, "Import type checking failure")
+      | None => (None, "Bad external values for imports")
       end
   end.
 
 End Instantiation_func.
 
 (** Extraction **)
-
-Require Import Coq.Strings.String.
 
 Module Instantiation_func_extract.
 
@@ -325,10 +327,10 @@ Definition empty_store_record : store_record := {|
   |}.
 
 (* Provide a unit host state and convert the starting expression to administrative *)
-Definition interp_instantiate_wrapper (s: store_record) (m : module) (v_imps: list extern_value) : option config_tuple :=
+Definition interp_instantiate_wrapper (s: store_record) (m : module) (v_imps: list extern_value) : option config_tuple * string :=
   match interp_instantiate tt s m v_imps with
-  | Some (hs', s', f, bes) => Some (s', (f, to_e_list bes))
-  | None => None
+  | (Some (hs', s', f, bes), str) => (Some (s', (f, to_e_list bes)), str)
+  | (None, str) => (None, str)
   end.
 
 Definition string_of_name (n: name) : string :=

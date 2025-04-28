@@ -65,7 +65,7 @@ module type InterpreterType = sig
 
   (** Perform the instantiation of a module. *)
   val interp_instantiate_wrapper :
-    store_record -> Extract.module0 -> externval list  -> wasm_config_tuple option
+    store_record -> Extract.module0 -> externval list  -> wasm_config_tuple option * string
 
   val get_import_path: Extract.module0 -> (string * string) list
   val get_exports : frame -> (string * externval) list
@@ -135,8 +135,9 @@ functor (EH : Host) -> struct
   let invoke_extern =
     Instantiation.invoke_extern
 
-  let interp_instantiate_wrapper =
-    Instantiation.interp_instantiate_wrapper
+  let interp_instantiate_wrapper s m extvals =
+    let (res, msg) = Instantiation.interp_instantiate_wrapper s m extvals in
+    (res, Utils.implode msg)
 
   let get_import_path m = 
     let implode_pair p =

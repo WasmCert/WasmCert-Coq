@@ -239,11 +239,11 @@ Proof.
   by eexists; eauto.
 Qed.
 
-Lemma interp_instantiate_imp_instantiate : forall hs hs' s m v_imps s_end f bes,
-  interp_instantiate hs s m v_imps = Some (hs', s_end, f, bes) ->
+Lemma interp_instantiate_imp_instantiate : forall hs hs' s m v_imps s_end f bes str,
+  interp_instantiate hs s m v_imps = (Some (hs', s_end, f, bes), str) ->
   instantiate s m v_imps (s_end, f, bes).
 Proof.
-  move => hs hs' s m v_imps s_end f bes.
+  move => hs hs' s m v_imps s_end f bes str.
   unfold interp_instantiate, instantiate.
   move => Hinterp.
   destruct (module_type_checker m) as [[t_imps_mod t_exps] |] eqn:Hmodcheck => //.
