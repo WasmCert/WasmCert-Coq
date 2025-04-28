@@ -181,7 +181,7 @@ let run_invoke verbosity act_invoke hs s default_module_name fuel =
       debug_info verbosity stage (fun _ -> "Successfully executed function " ^ funcname ^ " of module: " ^ modname ^ ".\n");
       pure res
 
-let run_wast_command verbosity fuel cmd hs s mod_counter default_module_name test_counter =
+let run_wast_command verbosity timeout fuel cmd hs s mod_counter default_module_name test_counter =
   debug_info verbosity stage 
   (fun _ -> 
     "\n\n----------\nTest " ^ string_of_int test_counter ^ "\n----------\n" ^ print_wast_command cmd ^ "\n"
@@ -248,7 +248,12 @@ let run_wast_command verbosity fuel cmd hs s mod_counter default_module_name tes
     | AssertExhaustion (act, _) ->
       begin match act.it with
       | Invoke (ovar, funcname_utf8, val_args) ->
-        let* res = run_invoke verbosity (ovar, funcname_utf8, val_args) hs s default_module_name fuel in
+        let* res = try 
+        (with_timeout (timeout - 1) (fun _ -> run_invoke verbosity (ovar, funcname_utf8, val_args) hs s default_module_name fuel)) 
+      with | Timeout ->
+        debug_info verbosity stage (fun _ -> "An assert_exhaustion assertion was halted due to timing out\n");
+          pure Cfg_exhaustion
+      in
         begin match res with
         | Cfg_err -> error "Invocation error"
         | Cfg_res _ ->
@@ -327,7 +332,7 @@ let rec run_wast_commands verbosity timeout fuel cmds hs s mod_counter default_m
   | cmd :: cmds' ->
       let verdict = 
         try
-          (with_timeout timeout (fun _ -> run_wast_command verbosity fuel cmd hs s mod_counter default_module_name (assert_total+1))) with
+          (with_timeout timeout (fun _ -> run_wast_command verbosity timeout fuel cmd hs s mod_counter default_module_name (assert_total+1))) with
           | Timeout -> error "Execution was timed out"
          in
         begin match to_out verdict with
