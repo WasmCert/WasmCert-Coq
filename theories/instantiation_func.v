@@ -4,6 +4,9 @@ From Coq Require Import BinNat String List.
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From Wasm Require Export opsem interpreter_ctx instantiation_spec.
 
+Open Scope string_scope.
+Open Scope list_scope.
+
 Section Instantiation_func.
 
 Context `{ho: host}.
@@ -138,7 +141,7 @@ Definition module_data_type_checker (c : t_context) (d : module_data) : bool :=
 Definition module_start_type_checker (c : t_context) (ms : module_start) : bool :=
   module_start_typing c ms.
 
-Definition module_type_checker (m : module) : option ((list extern_type) * (list extern_type)) :=
+Definition module_type_checker (m : module) : option ((list extern_type) * (list extern_type)) * string :=
   let '{|
     mod_types := tfs;
     mod_funcs := fs;
@@ -199,13 +202,13 @@ Definition module_type_checker (m : module) : option ((list extern_type) * (list
        export_name_unique exps
       then
        match module_exports_typer c exps with
-       | Some expts => Some (impts, expts)
-       | None => None
+       | Some expts => (Some (impts, expts), "ok")
+       | None => (None, "invalid module export type")
        end
-    else None
-    | _ => None
+    else (None, "invalid module components")
+    | _ => (None, "invalid module elem or data types")
     end
-  | (Some _, None) | (None, Some _) | (None, None) => None
+  | (Some _, None) | (None, Some _) | (None, None) => (None, "invalid module function or import references")
   end.
 
 Definition external_type_checker (s : store_record) (v : extern_value): option extern_type :=
@@ -270,14 +273,11 @@ Definition interp_alloc_module (s : store_record) (m : module) (imps : list exte
   let '(s', i_ds) := alloc_datas s5 m.(mod_datas) in
   (s', inst).
 
-Open Scope string_scope.
-Open Scope list_scope.
-
 (* Use a monad for error reporting at some point? *)
 Definition interp_instantiate (hs: host_state) (s : store_record) (m : module) (v_imps : list extern_value) : option (host_state * store_record * frame * list basic_instruction) * string :=
   match module_type_checker m with
-  | None => (None, "Module type checking failure")
-  | Some (t_imps_mod, t_exps) =>
+  | (None, str) => (None, ("Module type checking failure:" ++ str)%string)
+  | (Some (t_imps_mod, t_exps), _) =>
       match those (map (external_type_checker s) v_imps) with
       | Some t_imps =>
           if all2 import_subtyping t_imps t_imps_mod then

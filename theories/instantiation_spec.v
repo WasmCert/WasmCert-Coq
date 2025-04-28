@@ -402,7 +402,7 @@ Definition module_export_typing (c: t_context) (exp: module_export) (e: extern_t
 
 Definition nlist_nodup : list N -> list N := List.nodup N.eq_dec.
 
-(* This filters duplicate using the most native method. The spec is ambiguous on what a 'set' is to be fair. *)
+(* This filters duplicate using the most native method. The spec is ambiguous on how a 'set' should be implemented to be fair. *)
 Fixpoint be_get_funcidx (be: basic_instruction) : list funcidx :=
   match be with
   | BI_ref_func x => [:: x]
@@ -429,16 +429,48 @@ Definition module_elem_get_funcidx (el: module_element) :=
 Definition module_elems_get_funcidx (els: list module_element) :=
   nlist_nodup (List.concat (List.map module_elem_get_funcidx els)).
 
+Definition module_data_get_funcidx (d: module_data) :=
+    match d.(moddata_mode) with
+    | MD_active _ es => expr_get_funcidx es
+    | _ => nil
+    end.
+
+Definition module_datas_get_funcidx (ds: list module_data) :=
+  nlist_nodup (List.concat (List.map module_data_get_funcidx ds)).
+
+(* Why do these counts in the reference interpreter? These are not funcidx.
+   Dropped them out here. *)
+Definition module_import_get_funcidx (imp: module_import) : list funcidx := nil.
+
+Definition module_imports_get_funcidx (imps: list module_import) :=
+  nlist_nodup (List.concat (List.map module_import_get_funcidx imps)).
+
+Definition module_export_get_funcidx (exp: module_export) : list funcidx :=
+  match exp.(modexp_desc) with
+  | MED_func fid => [::fid]
+  | _ => nil
+  end.
+
+Definition module_exports_get_funcidx (exps: list module_export) :=
+  nlist_nodup (List.concat (List.map module_export_get_funcidx exps)).
+
 (** std-doc: the set of function indices occurring in the module, except in its
   functions or start function.
 
   Used in generating the refs components.
+
+  What this actually includes is quite difficult to find. Check
+  https://github.com/WebAssembly/spec/blob/main/interpreter/syntax/free.ml
+  for the implementation.
  **)
-(* But then, what is left -- just the global initialisers and elems? *)
 Definition module_filter_funcidx (m: module) : list funcidx :=
   nlist_nodup
-    (module_globals_get_funcidx m.(mod_globals) ++
-     module_elems_get_funcidx m.(mod_elems)).
+    ((module_globals_get_funcidx m.(mod_globals)) ++
+       (module_elems_get_funcidx m.(mod_elems)) ++
+       (module_datas_get_funcidx m.(mod_datas)) ++
+       (module_imports_get_funcidx m.(mod_imports)) ++
+       (module_exports_get_funcidx m.(mod_exports))
+    ).
 
 Definition export_name_unique (exps: list module_export) : bool :=
   List.nodup name_eq_dec (map modexp_name exps) == (map modexp_name exps).
