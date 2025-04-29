@@ -181,10 +181,10 @@ let instantiate_host verbosity hs s module_name m =
       let exts' = StringMap.add module_name exps_map exts in
       let hs' = (exts', modvarmaps) in
       debug_info verbosity stage (fun _ -> "Adding the following exports to module " ^ module_name ^ " : " ^ (String.concat "" exps_str) ^ "\n");
-      pure (hs', s')
-    (* Trap should be counted as an instantiation error *)
+      pure (hs', s', inst_res)
+    (* Trap should be counted as an instantiation error eventually, but any store modification needs to persist -- from linking.wast *)
     | Cfg_trap (s', f) -> 
-      TopHost.error "Instantiation resulted in a trap"
+      pure (hs, s', inst_res)
     | Cfg_err -> TopHost.error "invalid module instantiation"
     | Cfg_exhaustion -> TopHost.error "instantiation resulted in exhaustion"
 
@@ -193,7 +193,7 @@ let rec instantiate_modules verbosity hs s names modules =
   | ([], _) -> pure (hs, s)
   | (name :: names', m :: modules') -> 
     debug_info verbosity stage (fun () -> "Processing module: " ^ name ^ "\n");
-    let* (hs', s') = instantiate_host verbosity hs s name m in
+    let* (hs', s', inst_res) = instantiate_host verbosity hs s name m in
       instantiate_modules verbosity hs' s' names' modules'
   | _ -> TopHost.error "Invalid module name parsing results"
 

@@ -1,6 +1,5 @@
 (** Relational instantiation in the spec **)
 (* see https://webassembly.github.io/spec/core/exec/modules.html#exec-instantiation *)
-(* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From Wasm Require Import list_extra datatypes datatypes_properties
@@ -56,7 +55,7 @@ Definition gen_func_instance mf inst : funcinst :=
                 
 Definition alloc_func (s : store_record) (m_f : module_func) (mi : moduleinst) : store_record * funcaddr :=
   let funcaddr := N.of_nat (List.length s.(s_funcs)) in
-  (* Spec didn't say what if this is out of bound; but it cannot happen to valid modules *)
+  (* Spec didn't say what if this is out of bound; but it cannot happen to valid modules, and instantiate performs a type checking first *)
   let funcinst := gen_func_instance m_f mi in
   let S' := add_func s funcinst in
   (S', funcaddr).

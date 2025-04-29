@@ -48,7 +48,7 @@ val global_get: Output.verbosity -> host_extern_store -> Interpreter.store_recor
 val instantiate: Output.verbosity -> host_extern_store -> Interpreter.store_record -> Extract.module0 -> eval_cfg_result Host.host_event
 
 (* A host wrapper for the instantiation function that updates the host export store. *)
-val instantiate_host: Output.verbosity -> host_extern_store -> Interpreter.store_record -> string -> Extract.module0 -> (host_extern_store * Interpreter.store_record) Host.host_event
+val instantiate_host: Output.verbosity -> host_extern_store -> Interpreter.store_record -> string -> Extract.module0 -> (host_extern_store * Interpreter.store_record * eval_cfg_result) Host.host_event
 
 (* Instantiate a sequence of modules with names. *)
 val instantiate_modules: Output.verbosity -> host_extern_store -> Interpreter.store_record -> string list -> Extract.module0 list -> (host_extern_store * Interpreter.store_record) Host.host_event

@@ -138,27 +138,27 @@ let load_wast_module verbosity hs s ovar moddef mod_counter =
       end
     | None -> pure ""
     end in
-    let* (hs', s') = Execute.instantiate_modules verbosity hs s [modname] [m] in
+    let* (hs', s', inst_res) = Execute.instantiate_host verbosity hs s modname m in
     debug_info verbosity stage (fun _ -> "Successfully instantiated module " ^ modname ^ ".\n");
     if varname != "" then
       let (exts, varmap) = hs' in
       let varmap' = StringMap.add varname modname varmap in
         debug_info verbosity stage (fun _ -> "Module registered to module variable " ^ varname ^ ".\n");
-        pure ((exts, varmap'), s', mod_counter+1, modname)
+        pure ((exts, varmap'), s', inst_res, mod_counter+1, modname)
     else 
-      pure (hs', s', mod_counter+1, modname)
+      pure (hs', s', inst_res, mod_counter+1, modname)
   | Encoded (modnamestr, bin_module) -> 
     let* m = Parse.parse_module verbosity false bin_module in
     let modname = if modnamestr = "" then ("default_module_" ^ (string_of_int mod_counter)) else modnamestr in
-    let* (hs', s') = Execute.instantiate_modules verbosity hs s [modname] [m] in
+    let* (hs', s', inst_res) = Execute.instantiate_host verbosity hs s modname m in
       debug_info verbosity stage (fun _ -> "Successfully instantiated module " ^ modname ^ ".\n");
-      pure (hs', s', mod_counter+1, modname)
+      pure (hs', s', inst_res, mod_counter+1, modname)
   | Quoted (modnamestr, text_module) -> 
     let* m = Parse.parse_module verbosity true text_module in
     let modname = if modnamestr = "" then ("default_module_" ^ (string_of_int mod_counter)) else modnamestr in
-    let* (hs', s') = Execute.instantiate_modules verbosity hs s [modname] [m] in
+    let* (hs', s', inst_res) = Execute.instantiate_host verbosity hs s modname m in
       debug_info verbosity stage (fun _ -> "Successfully instantiated module " ^ modname ^ ".\n");
-      pure (hs', s', mod_counter+1, modname)
+      pure (hs', s', inst_res, mod_counter+1, modname)
   with
   | _ -> error "Exception raised in loading module"
   end
@@ -188,6 +188,10 @@ let run_get verbosity act_get hs s default_module_name =
     let extname = wasm_name_to_raw_string extname_utf8 in
       global_get verbosity hs s modname extname
 
+type verdict_detail = 
+  | Verdict_OK
+  | Verdict_inst_trap
+
 let run_wast_command verbosity timeout fuel cmd hs s mod_counter default_module_name test_counter =
   debug_info verbosity stage 
   (fun _ -> 
@@ -196,23 +200,28 @@ let run_wast_command verbosity timeout fuel cmd hs s mod_counter default_module_
  begin try
   begin match cmd.it with
   | Module (ovar, moddef) -> 
-    let* (hs', s', modc, defname) = load_wast_module verbosity hs s ovar moddef mod_counter in
-    pure (hs', s', modc, defname)
+    let* (hs', s', inst_res, modc, defname) = load_wast_module verbosity hs s ovar moddef mod_counter in
+    (* OK with Cfg_trap needs to be counted as an error, but also needs to update the store *)
+      begin match inst_res with
+      | Cfg_trap _ -> pure (hs', s', modc, defname, Verdict_inst_trap)
+      | Cfg_res _ -> pure (hs', s', modc, defname, Verdict_OK)
+      | _ -> error "Post instantiation execution resulted in unexpected error"
+    end
   | Action act ->
     begin match act.it with
     | Invoke (ovar, funcname_utf8, val_args) ->
       let* res = run_invoke verbosity (ovar, funcname_utf8, val_args) hs s default_module_name fuel in 
       begin match res with
       | Cfg_err -> error "Invocation error"
-      | Cfg_trap _ -> error "Unexpecte trap"
+      | Cfg_trap _ -> error "Unexpected trap"
       | Cfg_res (s', _, _) ->
-        pure (hs, s', mod_counter, default_module_name)
+        pure (hs, s', mod_counter, default_module_name, Verdict_OK)
       | Cfg_exhaustion -> error "Unexpected exhaustion"
       end
     | Get (ovar, extname_utf8) ->
         let* _ = run_get verbosity (ovar, extname_utf8) hs s default_module_name in
         debug_info verbosity stage (fun _ -> "Test passed: successfully retrieved the value " ^ wasm_name_to_raw_string extname_utf8);
-        pure (hs, s, mod_counter, default_module_name)
+        pure (hs, s, mod_counter, default_module_name, Verdict_OK)
     end
   | Assertion asrt -> 
     begin match asrt.it with 
@@ -230,7 +239,7 @@ let run_wast_command verbosity timeout fuel cmd hs s mod_counter default_module_
           let assert_result = wasm_assert_rets vs expect_rets in
             if assert_result then
               (debug_info verbosity stage (fun _ -> "Test passed: result matches asserted value\n");
-              pure (hs, s', mod_counter, default_module_name))
+              pure (hs, s', mod_counter, default_module_name, Verdict_OK))
             else 
               error "Result mismatches"
         | Cfg_trap _ -> 
@@ -241,7 +250,7 @@ let run_wast_command verbosity timeout fuel cmd hs s mod_counter default_module_
         let assert_result = wasm_assert_rets [res_v] expect_rets in
           if assert_result then
             (debug_info verbosity stage (fun _ -> "Test passed: result matches asserted value\n");
-              pure (hs, s, mod_counter, default_module_name))
+              pure (hs, s, mod_counter, default_module_name, Verdict_OK))
           else
             error "Result mismatches"
       end
@@ -256,7 +265,7 @@ let run_wast_command verbosity timeout fuel cmd hs s mod_counter default_module_
           error "Unexpected successful execution when trap is expected"
         | Cfg_trap (s', _) -> 
           debug_info verbosity stage (fun _ -> "Test passed: execution trapped as expected\n");
-          pure (hs, s', mod_counter, default_module_name)
+          pure (hs, s', mod_counter, default_module_name, Verdict_OK)
         end
       | Get (_ovar, _funcname) ->
         error "Unsupported wast action: Get"
@@ -278,7 +287,7 @@ let run_wast_command verbosity timeout fuel cmd hs s mod_counter default_module_
           error "Unexpected trap when exhaustion is expected"
         | Cfg_exhaustion ->
           debug_info verbosity stage (fun _ -> "Test passed: correctly exhausted\n");
-          pure (hs, s, mod_counter, default_module_name)
+          pure (hs, s, mod_counter, default_module_name, Verdict_OK)
         end
       | Get (_ovar, _funcname) ->
         error "Unsupported wast action: Get"
@@ -287,11 +296,13 @@ let run_wast_command verbosity timeout fuel cmd hs s mod_counter default_module_
       (* very ugly... *)
       let res = (load_wast_module verbosity hs s None moddef mod_counter) in
       begin match to_out res with
+      (* AssertInvalid shouldn't enter execution stage, so any OK result is counted as a failure *)
       | OK _ -> 
         error "Unexpected successful instantiation of an invalid module"
+      (* Trap still needs to update the store*)
       | Error _ -> 
         debug_info verbosity stage (fun _ -> "Test passed: correctly rejected an invalid module\n");
-        pure (hs, s, mod_counter, default_module_name)
+        pure (hs, s, mod_counter, default_module_name, Verdict_OK)
       end
     (* The following three assertiosn are grouped into one *)
     | AssertMalformed (moddef, _str)
@@ -299,11 +310,23 @@ let run_wast_command verbosity timeout fuel cmd hs s mod_counter default_module_
     | AssertUninstantiable (moddef, _str) ->
       let res = (load_wast_module verbosity hs s None moddef mod_counter) in
       begin match to_out res with
-      | OK _ -> 
-        error "Unexpected successful instantiation of a malformed module"
-      | Error _ -> 
-        debug_info verbosity stage (fun _ -> "Test passed: correctly rejected a malformed module\n");
-        pure (hs, s, mod_counter, default_module_name)
+      | OK _ ->
+        (* This is really stupid. Is there a better way to match on host_event? *)
+        let* res_result = res in 
+        begin match res_result with
+        (* Only an OK with Cfg_res represents a successful instantiation *)
+        | (_, _, Cfg_res _, _, _) -> 
+          error "Unexpected successful instantiation of a malformed module"
+        (* OK with a trap is a failure which passes the test, but the store needs to be updated *)
+        | (_, _, Cfg_trap (s', _), _, _) -> 
+          debug_info verbosity stage (fun _ -> "Test passed: post-instantiation initialisation trapped, leading to instantiation failure correctly\n");
+          pure (hs, s', mod_counter, default_module_name, Verdict_OK)
+        | _ ->
+          error "Unexpected post-instantiation initialisation error"
+        end
+      | _ -> 
+        debug_info verbosity stage (fun _ -> "Test passed: correctly rejected a malformed/unlinkable/uninstantiable module\n");
+        pure (hs, s, mod_counter, default_module_name, Verdict_OK)
       end
     end
   | Register (newname_utf8, ovar) ->
@@ -332,7 +355,7 @@ let run_wast_command verbosity timeout fuel cmd hs s mod_counter default_module_
       exts
     end in
       debug_info verbosity stage (fun _ -> "Test passed: successfully registered module previously named " ^ oldname ^ " with new name: " ^ newname ^ "\n");
-      pure ((exts', varmap'), s, mod_counter, newname)
+      pure ((exts', varmap'), s, mod_counter, newname, Verdict_OK)
   | _ -> error "Unsupported wast command"
   end
   with 
@@ -352,12 +375,22 @@ let rec run_wast_commands verbosity timeout fuel cmds hs s mod_counter default_m
          in
         begin match to_out verdict with
         | OK eve -> 
-          let* (hs', s', mod_counter', default_module_name') = eve in
-          let new_ok = assert_ok + 1 in
-          let new_total = assert_total + 1 in
-            Printf.printf "\rTests passed: %d/%d (%.2f%%) " new_ok new_total (float_of_int new_ok *. 100.0 /. float_of_int new_total);
-            flush stdout;
-            run_wast_commands verbosity timeout fuel cmds' hs' s' mod_counter' default_module_name' new_ok new_total
+          let* (hs', s', mod_counter', default_module_name', vd) = eve in
+          begin match vd with
+          | Verdict_OK ->
+            let new_ok = assert_ok + 1 in
+            let new_total = assert_total + 1 in
+              Printf.printf "\rTests passed: %d/%d (%.2f%%) " new_ok new_total (float_of_int new_ok *. 100.0 /. float_of_int new_total);
+              flush stdout;
+              run_wast_commands verbosity timeout fuel cmds' hs' s' mod_counter' default_module_name' new_ok new_total
+          | Verdict_inst_trap ->
+            let new_ok = assert_ok in
+            let new_total = assert_total + 1 in
+              debug_info verbosity stage (fun _ -> "Successfully loaded module, but post-instantiation initialisation trapped\n");
+              Printf.printf "\rTests failed: %d/%d (%.2f%%) " new_ok new_total (float_of_int new_ok *. 100.0 /. float_of_int new_total);
+              flush stdout;
+              run_wast_commands verbosity timeout fuel cmds' hs' s' mod_counter' default_module_name' new_ok new_total
+          end
         | Error msg ->
             debug_info verbosity stage ~style:red (fun _ -> "Test failed: " ^ msg ^ "\n");
             let new_ok = assert_ok in
