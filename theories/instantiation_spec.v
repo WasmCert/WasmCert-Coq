@@ -470,6 +470,10 @@ Definition module_filter_funcidx (m: module) : list funcidx :=
 Definition export_name_unique (exps: list module_export) : bool :=
   List.nodup name_eq_dec (map modexp_name exps) == (map modexp_name exps).
 
+(* Artificial restriction in and prior to Wasm 2.0 that only one memory is allowed. Drop this condition when a future update allows this. *)
+Definition wasm_2_memory_count_check (ms: list module_mem) (ims: list memory_type) : bool :=
+  (List.length ms) + (List.length ims) <= 1.
+                            
 (* We deliberately omit the artificial restriction on the length of memory here. *)
 Definition module_typing (m : module) (impts : list extern_type) (expts : list extern_type) : Prop :=
   exists fts tts mts gts rts dts,
@@ -520,6 +524,7 @@ Definition module_typing (m : module) (impts : list extern_type) (expts : list e
   List.Forall2 (module_func_typing c) fs fts /\
   List.Forall2 (module_table_typing c') ts tts /\
   List.Forall2 (module_mem_typing c') ms mts /\
+  wasm_2_memory_count_check ms ims /\
   List.Forall2 (module_global_typing c') gs gts /\
   List.Forall2 (module_elem_typing c') els rts /\
   List.Forall2 (module_data_typing c') ds dts /\

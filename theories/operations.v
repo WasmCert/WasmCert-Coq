@@ -127,26 +127,16 @@ Definition load_vec_bounds (lv_arg: load_vec_arg) (m_arg: memarg) : bool :=
 Definition load_vec_lane_bounds (width: width_vec) (m_arg: memarg) (x: laneidx) : bool :=
    (N.leb (N.pow 2 (memarg_align m_arg)) (width_to_n width / 8))%N &&
                          (N.ltb x (128 / width_to_n width)%N). 
-  
+
 (* TODO: We crucially need documentation here. *)
 
-(* Operation for the memory_load instruction. *)
-Definition load (m : meminst) (n : N) (off : static_offset) (l : nat) : option bytes :=
-  if N.leb (N.add n (N.add off (N.of_nat l))) (mem_length m)
+(* Operation for the memory_load instruction.
+   Length is specified in bytes.
+ *)
+Definition load (m : meminst) (n : N) (off : static_offset) (l : N) : option bytes :=
+  if N.leb (N.add n (N.add off l)) (mem_length m)
   then read_bytes m (N.add n off) l
   else None.
-
-(* TODO: implement sign extension. *)
-Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
-  bs.
-(* TODO
-  let: msb := msb (msbyte bytes) in
-  let: byte := (match sx with sx_U => O | sx_S => if msb then -1 else 0) in
-  bytes_takefill byte l bytes
-*)
-
-Definition load_packed (s : sx) (m : meminst) (n : N) (off : static_offset) (lp : nat) (l : nat) : option bytes :=
-  option_map (sign_extend s l) (load m n off lp).
 
 Definition int_of_bytes (bs: list byte) (m: N) : value_num :=
   VAL_int32 int32_minus_one.
@@ -193,6 +183,34 @@ Definition wasm_deserialise (bs : bytes) (vt : number_type) : value_num :=
   | T_i64 => VAL_int64 (Wasm_int.Int64.repr (common.Memdata.decode_int bs))
   | T_f32 => VAL_float32 (Floats.Float32.of_bits (Integers.Int.repr (common.Memdata.decode_int bs)))
   | T_f64 => VAL_float64 (Floats.Float.of_bits (Integers.Int64.repr (common.Memdata.decode_int bs)))
+  end.
+
+(** Sign extension **)
+Definition sign_extend_n (n: N) (bytelen: N) : Z :=
+  let half_intval := N.pow 2 (bytelen * 8 - 1) in
+  let val_z :=
+    if N.ltb n half_intval then
+      BinInt.Z.of_N n
+    else
+      BinInt.Z.sub (BinInt.Z.of_N n) (BinInt.Z.of_N (2 * half_intval)) in
+  val_z.
+
+(* l is the byte length of the target type, therefore can only be 4/8 *)
+Definition sign_extend_bytes (s : sx) (l : N) (bs : bytes) : bytes :=
+  match s with
+  | SX_U => bytes_takefill #00 (N.to_nat l) bs
+  | SX_S =>
+      (* compcert decodes to unsigned *)
+      let val_n := BinInt.Z.to_N (common.Memdata.decode_int bs) in
+      let val_z := sign_extend_n val_n (N.of_nat (List.length bs)) in
+        Memdata.encode_int l val_z
+  end.
+
+(* last argument is in bytes *)
+Definition load_packed (s : sx) (m : meminst) (n : N) (off : static_offset) (lp : N) (l : N) : option bytes :=
+  match load m n off lp with
+  | Some bs => Some (sign_extend_bytes s l bs)
+  | None => None
   end.
 
 Definition bitzero (t : number_type) : value_num :=
@@ -311,7 +329,7 @@ Definition tvec_length (t: vector_type) : N :=
   end.
     
 
-Definition tp_length (tp : packed_type) : nat :=
+Definition tp_length (tp : packed_type) : N :=
   match tp with
   | Tp_i8 => 1
   | Tp_i16 => 2
@@ -362,11 +380,24 @@ Definition app_unop_f {T: Type} (mx : Wasm_float.mixin_of T) (fop : unop_f) : T 
   | UOF_sqrt => Wasm_float.float_sqrt mx
   end.
 
-(* TODO: implement new extendN_s numerics *)
-Definition app_unop_extend (n: N) (v: value_num) :=
-  v.
+Definition app_unop_extend (n: N) (v: value_num) : value_num :=
+  (* wrap to the lowest n bits, then extend *)
+  let val_n :=
+    match v with
+    | VAL_int32 c => Wasm_int.N_of_uint i32m c
+    | VAL_int64 c => Wasm_int.N_of_uint i64m c
+    | _ => 0%N (* Cannot happen *)
+    end in
+  let modulus_n := N.pow 2 (8 * n) in
+  let wrapped_n := N.modulo val_n modulus_n in
+  let val_z := sign_extend_n wrapped_n n in
+  match v with
+  | VAL_int32 _ => VAL_int32 (Wasm_int.int_of_Z i32m val_z)
+  | VAL_int64 _ => VAL_int64 (Wasm_int.int_of_Z i64m val_z)
+  | _ => v (* Cannot happen *)
+  end.
 
-Definition app_unop (op: unop) (v: value_num) :=
+Definition app_unop (op: unop) (v: value_num) : value_num :=
   match op with
   | Unop_i iop =>
     match v with
@@ -380,7 +411,7 @@ Definition app_unop (op: unop) (v: value_num) :=
     | VAL_float64 c => VAL_float64 (app_unop_f f64m fop c)
     | _ => v
     end
-  | Unop_extend n => app_unop_extend n v
+  | Unop_extend n => app_unop_extend (N.div n 8) v
   end.
 
 Definition app_binop_i {T: Type} (mx : Wasm_int.mixin_of T) (iop : binop_i)
@@ -1105,7 +1136,7 @@ Definition result_to_stack (r : result) :=
 Definition load_store_t_bounds (a : alignment_exponent) (tp : option packed_type) (t : number_type) : bool :=
   match tp with
   | None => N.leb (N.pow 2 a) (tnum_length t)
-  | Some tp' => N.leb (N.pow 2 a) (N.of_nat (tp_length tp')) && (tp_length tp' < tnum_length t) && (is_int_t t)
+  | Some tp' => N.leb (N.pow 2 a) (tp_length tp') && (tp_length tp' < tnum_length t) && (is_int_t t)
   end.
 
 Definition cvt_wrap t v : option value_num :=

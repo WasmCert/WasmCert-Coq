@@ -107,8 +107,6 @@ Section MemoryVec.
   Definition mv_update i b v:= @vector_update byte v i b.
   Definition mv_grow n v:= @vector_grow byte v n.
 
-Search array.
-
 Axiom array_neq: forall (mem1 mem2: memory_vec),
     mem1 <> mem2.
 

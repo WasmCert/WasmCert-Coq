@@ -195,6 +195,7 @@ Definition module_type_checker (m : module) : option ((list extern_type) * (list
     if seq.all (module_func_type_checker c) fs &&
        seq.all (module_table_type_checker c) ts &&
        seq.all (module_mem_type_checker c) ms &&
+       wasm_2_memory_count_check ms ims &&  
        seq.all (module_global_type_checker c') gs &&
        seq.all (module_elem_type_checker c') els &&
        seq.all (module_data_type_checker c') ds &&

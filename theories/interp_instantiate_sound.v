@@ -21,13 +21,14 @@ Proof.
                                                                                destruct (module_imports_typer mod_types mod_imports) as [impts | ] eqn:Hmitypes => //.
   destruct (gather_m_e_types (ext_t_tables impts ++ map modtab_type mod_tables) mod_elems) as [ets | ] eqn:Hmetypes => //.
   destruct (gather_m_d_types (ext_t_mems impts ++ map modmem_type mod_mems) mod_datas) as [dts | ] eqn:Hmdtypes => //.
-  destruct (all _ _ && _ && _ && _ && _ && _ && _ && _) eqn:Hallcond => //.
+  destruct (all _ _ && _ && _ && _ && _ && _ && _ && _ && _) eqn:Hallcond => //.
   destruct (module_exports_typer _ mod_exports) eqn:Hmexptypes => //.
   move/andP in Hallcond; destruct Hallcond as [Hallcond Hnameunique].
   move/andP in Hallcond; destruct Hallcond as [Hallcond Hstartcheck].
   move/andP in Hallcond; destruct Hallcond as [Hallcond Hdatacheck].
   move/andP in Hallcond; destruct Hallcond as [Hallcond Helemcheck].
   move/andP in Hallcond; destruct Hallcond as [Hallcond Hglobalcheck].
+  move/andP in Hallcond; destruct Hallcond as [Hallcond Hmemcountcheck].
   move/andP in Hallcond; destruct Hallcond as [Hallcond Hmemcheck].
   move/andP in Hallcond; destruct Hallcond as [Hfunccheck Htablecheck].
   unfold module_typing.

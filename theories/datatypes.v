@@ -549,7 +549,7 @@ Instructions in this group are concerned with linear memory.
   | BI_load_vec : load_vec_arg -> memarg -> basic_instruction
   (* the lane version has a different type signature *)
   | BI_load_vec_lane : width_vec -> memarg -> laneidx -> basic_instruction
-  | BI_store : number_type -> option packed_type -> memarg-> basic_instruction
+  | BI_store : number_type -> option packed_type -> memarg -> basic_instruction
   | BI_store_vec_lane : width_vec -> memarg -> laneidx -> basic_instruction
   | BI_memory_size
   | BI_memory_grow
