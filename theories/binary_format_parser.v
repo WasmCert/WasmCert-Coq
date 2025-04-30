@@ -958,6 +958,47 @@ Definition datacount_agree (len: N) (ocount: option N) : bool :=
   | None => true
   end.
 
+(* If any of the function code contains memory.init or data.drop, then the data count section is required for the module to be valid. This is in order for a single-pass validation to process the module (despite not being the case here). *)
+
+Fixpoint be_datacount_required (be: basic_instruction) :=
+  let bes_datacount_required bes :=
+    List.fold_left orb (List.map be_datacount_required bes) false in
+  match be with
+  | BI_memory_init _
+  | BI_data_drop _ => true
+  | BI_block _ bes => bes_datacount_required bes
+  | BI_loop _ bes => bes_datacount_required bes
+  | BI_if _ bes1 bes2 =>
+      if bes_datacount_required bes1 then true
+      else bes_datacount_required bes2
+  | _ => false
+  end.
+
+Fixpoint bes_datacount_required (bes: expr) :=
+  match bes with
+  | nil => false
+  | cons be bes' =>
+      if be_datacount_required be then true
+      else bes_datacount_required bes'
+  end.
+  
+Definition code_datacount_required (code: module_func_without_type) :=
+  match code with
+  | (_, bes) =>
+      bes_datacount_required bes
+  end.
+
+Definition codes_datacount_required (codes: list module_func_without_type) :=
+  List.fold_left orb (List.map code_datacount_required codes) false.
+
+Definition datacount_presence_agree (codes: list module_func_without_type) (ocount: option N) : bool :=
+  match ocount with
+  | Some _ => true
+  | None =>
+      if codes_datacount_required codes then false
+      else true
+  end.
+
 Definition parse_module_sections_after {n} {A} (f: byte_parser A n) : byte_parser module n :=
   guardM
   (fun results =>
@@ -976,6 +1017,7 @@ Definition parse_module_sections_after {n} {A} (f: byte_parser A n) : byte_parse
    (* Check that the information across different sections are consistent *)
          if (Nat.eqb (List.length fts) (List.length codes)) then
            if (datacount_agree (N.of_nat (List.length datas)) odatacount) then
+             if (datacount_presence_agree codes odatacount) then
              Some {|
                mod_types := types;
                mod_funcs :=
@@ -991,7 +1033,8 @@ Definition parse_module_sections_after {n} {A} (f: byte_parser A n) : byte_parse
                mod_start := ostart;
                mod_imports := imports;
                mod_exports := exports
-             |}
+               |}
+             else None
            else None
          else None
      end
