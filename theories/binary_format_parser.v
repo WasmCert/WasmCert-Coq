@@ -20,7 +20,7 @@ Definition byte_parser A n := Parser Toks byte M A n.
 Definition be_parser n := byte_parser basic_instruction n.
 
 (* Given a parser, produce a new parser that also returns the number of tokens consumed by it. *)
-Definition sized_parser {T: Type} {n} (f: byte_parser T n) : byte_parser (T * nat) n.
+Definition sized_parser {T: Type} {n} (f: byte_parser T n) : byte_parser (T * N) n.
 Proof.
   apply MkParser.
   intros m Hmlen toks.
@@ -28,10 +28,10 @@ Proof.
   refine (_app _ _ _ run_res).
   refine (_pure _ _).
   intros ret; destruct ret as [value size Hsmall leftovers].
-  exact (Success.MkSuccess (value, m - size) Hsmall leftovers).
+  exact (Success.MkSuccess (value, N.of_nat (m - size)) Hsmall leftovers).
 Defined.
 
-Definition assert_sized {T: Type} {n} (f: byte_parser T n) (constraint: nat -> bool) : byte_parser T n :=
+Definition assert_sized {T: Type} {n} (f: byte_parser T n) (constraint: N -> bool) : byte_parser T n :=
   guardM
     (fun '(ret, sz) =>
        if constraint sz then Some ret
@@ -49,7 +49,7 @@ Definition parse_u32_as_N {n} : byte_parser N n :=
   guardM
     (fun n => if (N.leb n 4294967295%N) then Some n
            else None)
-  (assert_sized (extract parse_unsigned n) (fun sz => sz <=? 5)).
+  (assert_sized (extract parse_unsigned n) (fun sz => N.leb sz 5)).
 
 Definition assert_u32 {n} (k: N) : byte_parser N n :=
   guardM
@@ -62,7 +62,7 @@ Definition parse_s32 {n} : byte_parser Wasm_int.Int32.int n :=
                  (Z.leb (-2147483648)%Z x)) then
                   Some (Wasm_int.Int32.repr x)
                 else None)
-  (assert_sized (extract parse_signed n) (fun sz => sz <=? 5)).
+  (assert_sized (extract parse_signed n) (fun sz => N.leb sz 5)).
 
 Definition parse_s64 {n} : byte_parser Wasm_int.Int64.int n :=
   guardM
@@ -70,7 +70,7 @@ Definition parse_s64 {n} : byte_parser Wasm_int.Int64.int n :=
                  (Z.leb (-9223372036854775808)%Z x)) then
                   Some (Wasm_int.Int64.repr x)
                 else None)
-    (assert_sized (extract parse_signed n) (fun sz => sz <=? 10)).
+    (assert_sized (extract parse_signed n) (fun sz => N.leb sz 10)).
 
 Definition parse_vec_length {n} : byte_parser N n :=
   parse_u32_as_N.
@@ -153,7 +153,7 @@ Definition parse_value_type {n} : byte_parser value_type n :=
 Definition parse_block_type {n} : byte_parser block_type n :=
   (exact_byte x40 $> BT_valtype None) <|>
   (fun t => BT_valtype (Some t)) <$> parse_value_type <|>
-  BT_id <$> parse_typeidx. (* TODO: needs to be s33? *)
+  BT_id <$> parse_typeidx.
 
 
 Definition parse_unreachable {n} : byte_parser basic_instruction n :=
@@ -797,7 +797,7 @@ Definition parse_code_func {n} : byte_parser module_func_without_type n :=
     (parse_vec parse_locals <&> parse_expr).
 
 Definition parse_code {n} : byte_parser module_func_without_type n :=
-  parse_u32_as_N >>= (fun sz => assert_sized parse_code_func (fun szn => N.eqb sz (N.of_nat szn))).
+  parse_u32_as_N >>= (fun sz => assert_sized parse_code_func (fun szn => N.eqb sz szn)).
 
 Definition parse_module_table {n} : byte_parser module_table n :=
   (fun tty => {| modtab_type := tty |}) <$> parse_table_type.
@@ -827,19 +827,22 @@ Definition parse_module_data {n} : byte_parser module_data n :=
 
 Definition parse_customsec {n} : byte_parser (name * list byte) n :=
   exact_byte x00 &>
-    ((fun '(name, _, obs) =>
-       match obs with
-       | Some bs => (name, bs)
-       | None => (name, nil)
-       end
-    ) <$>
-    (parse_u32_as_N >>=
+    guardM
+    (fun '(sz_sec, (name, sz_name, obs)) =>
+        if N.ltb sz_sec sz_name then None
+        else
+          Some (match obs with
+          | Some bs => (name, bs)
+          | None => (name, nil)
+          end)
+    )
+    (parse_u32_as_N &>>=
     (fun sz_sec =>
        (sized_parser parse_name) &?>>=
          (fun '(name, sz_name) =>
-            let sz_leftover := (N.sub sz_sec (N.of_nat sz_name)) in
+            let sz_leftover := (N.sub sz_sec sz_name) in
             parse_vec_aux anyTok sz_leftover
-         )))).
+         ))).
          
 (* Low priority: check that the sections have the correct byte sizes? *)
 Definition parse_typesec {n} : byte_parser (list function_type) n :=
