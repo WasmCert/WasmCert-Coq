@@ -47,6 +47,7 @@ The project can be installed using opam.
 Compiling the dependencies and codebase requires having at least 8 GB of RAM on your computer.
 ```bash
 opam repo add coq-released https://coq.inria.fr/opam/released
+opam pin add -y wasm git+https://github.com/WasmCert/spec#interpreter_only
 opam install .
 ```
 

@@ -40,3 +40,6 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/WasmCert/WasmCert-Coq.git"
+pin-depends: [
+  [ "wasm.2.0.1" "git+https://github.com/WasmCert/spec#interpreter_only"]
+]
