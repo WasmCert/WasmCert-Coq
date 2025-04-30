@@ -1,4 +1,4 @@
-(** Common useful definitions **)
+(** Wasm numerics **)
 (* (C) M. Bodin, J. Pichon - see LICENSE.txt *)
 
 Require Import common.
@@ -1518,7 +1518,7 @@ Definition sqrt (z : T) : T :=
   Note that these parameters are used to compute the absolute value of the
   resulting integer. **)
 
-Definition ZofB_param (divP divN : Z -> Z -> Z) (z : T) :=
+Definition ZofB_param (divP divN : Z -> Z -> Z) (z : T) : option Z :=
   match z with
   | Binary.B754_zero _ => Some 0%Z
   | Binary.B754_finite s m 0%Z _ =>
@@ -1800,7 +1800,7 @@ Definition fnearest (z : T) :=
 
 (** The [trunc] operations are undefined if outside their respective range.
   This function thus checks these ranges. **)
-Definition to_int_range t m (min max i : Z) : option t :=
+Definition to_int_range {t} m (min max i : Z) : option t :=
   if (i >=? min)%Z && (i <=? max)%Z then
     Some (Wasm_int.int_of_Z m i)
   else None.
@@ -1812,7 +1812,7 @@ Definition si32_trunc z :=
 Definition ui64_trunc z :=
   Option.bind (to_int_range i64m 0 Wasm_int.Int64.max_unsigned) (trunco z).
 Definition si64_trunc z :=
-  Option.bind (to_int_range i64m Wasm_int.Int64.min_signed Wasm_int.Int32.max_signed) (trunco z).
+  Option.bind (to_int_range i64m Wasm_int.Int64.min_signed Wasm_int.Int64.max_signed) (trunco z).
 
 Definition ui32_trunc_sat z :=
   Wasm_int.int_of_Z i32m (trunc_sat 0 Wasm_int.Int32.max_unsigned z).
