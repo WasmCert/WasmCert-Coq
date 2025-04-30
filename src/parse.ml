@@ -13,8 +13,9 @@ let extract_module_name src =
     else
       name
 
-let binary_of_text textstr = 
-  let wast_def = Wasm.Parse.string_to_module textstr in
+let binary_of_text textstr =
+  let open Wasm.Source in
+  let (_ovar, wast_def) = Wasm.Parse.Module.parse_string textstr in
   match wast_def.it with
   | Wasm.Script.Textual wast_module -> 
       let bin_module = Wasm.Encode.encode wast_module in
@@ -69,4 +70,4 @@ let parse_args args =
   parse_args_acc args []
 
 let parse_wast scriptstr = 
-  Wasm.Parse.string_to_script scriptstr
+  Wasm.Parse.Script.parse_string scriptstr

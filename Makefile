@@ -1,4 +1,5 @@
 default:
+	opam pin add -y wasm git+https://github.com/WasmCert/spec#interpreter_only
 	opam install .
 
 run_wast:
