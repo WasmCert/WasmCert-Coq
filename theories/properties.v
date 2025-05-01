@@ -2680,7 +2680,9 @@ Proof.
     apply: Hreds. }
   all: try by destruct vs.
   all: try by destruct ves.
-  { intros. apply: lfilled_not_nil. exact H1. exact H0. }
+  { intros.
+    by eapply lfilled_not_nil; eauto.
+  }
 Qed.
 
 End Host.

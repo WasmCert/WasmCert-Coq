@@ -20,8 +20,8 @@ module type Host = sig
   val show_host_function : host_function -> string
 end
 
-module DummyHost = struct
-  include Extract.DummyHost
+module Extraction_instance = struct
+  include Extract.Extraction_instance
   let show_host_function _ = assert false
 end
 
@@ -36,11 +36,11 @@ module type InterpreterType = sig
   val ( and+ ) : 'a host_event -> 'b host_event -> ('a * 'b) host_event
   val pure : 'a -> 'a host_event
 
-  type store_record = Extract.DummyHost.store_record
+  type store_record = Extract.Extraction_instance.store_record
   type frame = Extract.frame
   type wasm_config_tuple = Extract.config_tuple
-  type interp_config_tuple = Extract.Interpreter_ctx_extract.cfg_tuple_ctx
-  type res_tuple = Extract.Interpreter_ctx_extract.run_step_ctx_result
+  type interp_config_tuple = Extract.Extraction_instance.cfg_tuple_ctx
+  type res_tuple = Extract.Extraction_instance.run_step_ctx_result
   type basic_instruction = Extract.basic_instruction
   type administrative_instruction = Extract.administrative_instruction
   type moduleinst = Extract.moduleinst
@@ -77,7 +77,7 @@ module type InterpreterType = sig
   val run_parse_arg : string -> value option
 
   val pp_values : value list -> string
-  val pp_store : int -> Dune__exe__Extract.DummyHost.store_record -> string
+  val pp_store : int -> Dune__exe__Extract.Extraction_instance.store_record -> string
   val pp_cfg_tuple_ctx_except_store :
     interp_config_tuple -> string
     
@@ -86,6 +86,10 @@ module type InterpreterType = sig
   val pp_es : Extract.administrative_instruction list -> string
 
   val pp_externval: externval -> string
+
+  val is_canonical_nan: Extract.number_type -> value -> bool
+
+  val is_arithmetic_nan: Extract.number_type -> value -> bool
 
 end
 
@@ -110,49 +114,45 @@ functor (EH : Host) -> struct
     let* b = b in
     pure (a, b)
 
-  module Interpreter = Extract.Interpreter_ctx_extract
-  module Instantiation = Extract.Instantiation_func_extract
-  module PP = Extract.PP
-
-  type store_record = Extract.DummyHost.store_record
+  type store_record = Extract.Extraction_instance.store_record
   type frame = Extract.frame
   type wasm_config_tuple = Extract.config_tuple
-  type interp_config_tuple = Extract.Interpreter_ctx_extract.cfg_tuple_ctx
-  type res_tuple = Extract.Interpreter_ctx_extract.run_step_ctx_result
+  type interp_config_tuple = Extract.Extraction_instance.cfg_tuple_ctx
+  type res_tuple = Extract.Extraction_instance.run_step_ctx_result
   type basic_instruction = Extract.basic_instruction
   type administrative_instruction = Extract.administrative_instruction
   type moduleinst = Extract.moduleinst
   type value = Extract.value0
   type externval = Extract.extern_value
 
-  let empty_store_record = Instantiation.empty_store_record
+  let empty_store_record = Extraction_instance.empty_store_record
 
   (** Run one step of the interpreter. *)
   let run_one_step = 
-    Interpreter.run_one_step
+    Extraction_instance.run_one_step
 
-  let run_v_init = Interpreter.run_v_init
+  let run_v_init = Extraction_instance.run_v_init
 
-  let interp_cfg_of_wasm = Interpreter.interp_cfg_of_wasm
+  let interp_cfg_of_wasm = Extraction_instance.interp_cfg_of_wasm
 
   let wasm_global_get =
-    Instantiation.wasm_global_get
+    Extraction_instance.wasm_global_get
 
   let invoke_extern =
-    Instantiation.invoke_extern
+    Extraction_instance.invoke_extern
 
   let interp_instantiate_wrapper s m extvals =
-    let (res, msg) = Instantiation.interp_instantiate_wrapper s m extvals in
+    let (res, msg) = Extraction_instance.interp_instantiate_wrapper s m extvals in
     (res, Utils.implode msg)
 
   let get_import_path m = 
     let implode_pair p =
       let (m, imp) = p in
       (Utils.implode m, Utils.implode imp) in
-    List.map implode_pair (Instantiation.get_import_path m)
+    List.map implode_pair (Extraction_instance.get_import_path m)
 
   let get_exports f = 
-    let exps = Instantiation.get_exports f in
+    let exps = Extraction_instance.get_exports f in
     List.map (fun exp -> let (n, v) = exp in (Utils.implode n, v)) exps
 
   let run_parse_module m = Extract.run_parse_module (Utils.explode m)
@@ -160,20 +160,26 @@ functor (EH : Host) -> struct
   let run_parse_arg a = Extract.run_parse_arg (Utils.explode a)
 
   let pp_values l =
-    Utils.implode (PP.pp_values l)
+    Utils.implode (Extraction_instance.pp_values l)
 
   let pp_store i st =
-    Utils.implode (PP.pp_store (Convert.to_nat i) st)
+    Utils.implode (Extraction_instance.pp_store (Convert.to_nat i) st)
 
   let pp_cfg_tuple_ctx_except_store r =
-    Utils.implode (PP.pp_cfg_tuple_ctx_except_store r)  
+    Utils.implode (Extraction_instance.pp_cfg_tuple_ctx_except_store r)  
     
   let pp_res_cfg_except_store cfg res =
-    Utils.implode (PP.pp_res_cfg_except_store cfg res)
+    Utils.implode (Extraction_instance.pp_res_cfg_except_store cfg res)
 
   let pp_es es =
-    Utils.implode (PP.pp_administrative_instructions O es)
+    Utils.implode (Extraction_instance.pp_administrative_instructions O es)
 
   let pp_externval extval = 
-    Utils.implode (PP.pp_extern_value extval)
+    Utils.implode (Extraction_instance.pp_extern_value extval)
+
+  let is_canonical_nan =
+    Extraction_instance.is_canonical_nan
+
+  let is_arithmetic_nan =
+    Extraction_instance.is_arithmetic_nan
 end

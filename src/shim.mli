@@ -22,7 +22,7 @@ module type Host = sig
   val show_host_function : host_function -> string
 end
 
-module DummyHost : Host
+module Extraction_instance : Host
 
 module type InterpreterType = sig
 
@@ -36,11 +36,11 @@ module type InterpreterType = sig
   val ( and+ ) : 'a host_event -> 'b host_event -> ('a * 'b) host_event
   val pure : 'a -> 'a host_event
 
-  type store_record = Extract.DummyHost.store_record
+  type store_record = Extract.Extraction_instance.store_record
   type frame = Extract.frame
   type wasm_config_tuple = Extract.config_tuple
-  type interp_config_tuple = Extract.Interpreter_ctx_extract.cfg_tuple_ctx
-  type res_tuple = Extract.Interpreter_ctx_extract.run_step_ctx_result
+  type interp_config_tuple = Extract.Extraction_instance.cfg_tuple_ctx
+  type res_tuple = Extract.Extraction_instance.run_step_ctx_result
   type basic_instruction = Extract.basic_instruction
   type administrative_instruction = Extract.administrative_instruction
   type moduleinst = Extract.moduleinst
@@ -96,6 +96,10 @@ module type InterpreterType = sig
   val pp_es : Extract.administrative_instruction list -> string
 
   val pp_externval: externval -> string
+
+  val is_canonical_nan: Extract.number_type -> value -> bool
+
+  val is_arithmetic_nan: Extract.number_type -> value -> bool
 
 end
 

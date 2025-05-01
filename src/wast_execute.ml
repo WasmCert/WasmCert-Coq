@@ -95,10 +95,10 @@ let wasm_num_to_coq wnum =
 
 let wasm_assert_nanpat ret nanop =
   match nanop.it with
-  | F32 CanonicalNan -> Extract.Wast_interface.is_canonical_nan Extract.T_f32 ret
-  | F64 CanonicalNan -> Extract.Wast_interface.is_canonical_nan Extract.T_f64 ret
-  | F32 ArithmeticNan -> Extract.Wast_interface.is_arithmetic_nan Extract.T_f32 ret
-  | F64 ArithmeticNan -> Extract.Wast_interface.is_arithmetic_nan Extract.T_f64 ret
+  | F32 CanonicalNan -> Interpreter.is_canonical_nan Extract.T_f32 ret
+  | F64 CanonicalNan -> Interpreter.is_canonical_nan Extract.T_f64 ret
+  | F32 ArithmeticNan -> Interpreter.is_arithmetic_nan Extract.T_f32 ret
+  | F64 ArithmeticNan -> Interpreter.is_arithmetic_nan Extract.T_f64 ret
   | _ -> false
 
 let wasm_assert_numpat ret numpat = 
@@ -109,8 +109,8 @@ let wasm_assert_numpat ret numpat =
 let wasm_assert_refpat ret refpat =
   match refpat with
   | RefPat r -> (wasm_val_to_coq ((Ref r.it) @@ no_region) = Some ret)
-  | RefTypePat Wasm.Types.FuncRefType -> Extract.Wast_interface.is_funcref ret
-  | RefTypePat Wasm.Types.ExternRefType -> Extract.Wast_interface.is_externref ret
+  | RefTypePat Wasm.Types.FuncRefType -> Extract.Extraction_instance.is_funcref ret
+  | RefTypePat Wasm.Types.ExternRefType -> Extract.Extraction_instance.is_externref ret
 
 let wasm_assert_ret ret ret_exp = 
   match ret_exp.it with

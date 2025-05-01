@@ -4,7 +4,7 @@ open Output
 module Host = struct
 
     (* We build on top of this host, wrapping it inside the type [out]. *)
-    module Host = Shim.DummyHost
+    module Host = Shim.Extraction_instance
 
     type host_function = Host.host_function
     let host_function_eq_dec = Host.host_function_eq_dec
