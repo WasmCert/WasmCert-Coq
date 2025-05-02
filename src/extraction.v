@@ -26,7 +26,6 @@ Extraction Language OCaml.
 
 Extract Constant lookup_N => "EfficientExtraction.lookup_N_safe".
 
-(*
 Extract Constant PArray.array "'a" => "Parray.t".
 Extraction Inline PArray.array.
 
@@ -36,7 +35,6 @@ Extract Constant PArray.default => "Parray.default".
 Extract Constant PArray.set => "Parray.set".
 Extract Constant PArray.length => "Parray.length".
 Extract Constant PArray.copy => "Parray.copy".
-*)
 
 
 Extraction "extract"
@@ -44,5 +42,4 @@ Extraction "extract"
   run_parse_module
   run_parse_arg
   Extraction_instance
-  empty_frame
   .

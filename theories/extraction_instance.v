@@ -6,14 +6,19 @@ From Wasm Require Import memory host interpreter_ctx instantiation_func pp.
 From ExtLib Require Import Structures.Monad.
 From ExtLib Require Import IdentityMonad.
 
-(* Using a parameterised memory here to be manually realised during extraction for efficient running. *)
-Axiom parameterised_memory : Memory.
+From Wasm Require Import memory_vec.
+
+Module Memory_instance.
+
+  Definition memory_instance := Memory_vec.
+  
+End Memory_instance.
 
 Module Extraction_instance.
 
-Existing Instance parameterised_memory.
-  
 Section DummyHost.
+
+Existing Instance Memory_instance.memory_instance.
   
 Definition host_function := void.
 Definition host_event := ident.
@@ -56,9 +61,12 @@ Defined.
 
 End DummyHost.
 
+
 Section Interpreter_ctx_extract.
 
-Definition store_record : Type := store_record.
+  Definition empty_frame := empty_frame.
+
+  Definition store_record := store_record.
   
 Definition cfg_tuple_ctx : Type := cfg_tuple_ctx.
 
@@ -143,8 +151,8 @@ Definition wasm_global_get (s: store_record) (ext: extern_value) : option value 
 
 End Instantiation_func_extract.
 
-Section Wast_interface.
-
+Section Wast.
+  
   Definition is_canonical_nan (t: number_type) (v: value) : bool :=
     match t, v with
     | Tnum_f32, VAL_num (VAL_float32 c) => Wasm_float.float_is_canonical f32m c
@@ -164,13 +172,13 @@ Section Wast_interface.
     | VAL_ref (VAL_ref_func _) => true
     | _ => false
     end.
-  
+
   Definition is_externref (v: value) : bool :=
     match v with
     | VAL_ref (VAL_ref_extern _) => true
     | _ => false
     end.
   
-End Wast_interface.
+End Wast.
 
 End Extraction_instance.

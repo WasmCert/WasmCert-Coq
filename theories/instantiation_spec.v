@@ -4,7 +4,7 @@
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From Wasm Require Import list_extra datatypes datatypes_properties
                         binary_format_parser operations
-                         typing opsem type_checker memory memory_list.
+                         typing opsem type_checker memory.
 From Coq Require Import BinNat.
 
 (* TODO: Documentation *)
