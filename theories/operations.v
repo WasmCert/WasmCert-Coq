@@ -73,8 +73,8 @@ Definition mem_size (m : meminst) : N :=
 
 Definition mem_grow (m : meminst) (len_delta : N) : option meminst :=
   let new_size := N.add (mem_size m) len_delta in
-  let new_mem_data := mem_grow (N.mul len_delta page_size) m.(meminst_data) in
   if N.leb new_size mem_limit_bound then
+  let new_mem_data := mem_grow (N.mul len_delta page_size) m.(meminst_data) in
   match m.(meminst_type).(lim_max) with
   | Some maxlim =>
     if N.leb new_size maxlim then

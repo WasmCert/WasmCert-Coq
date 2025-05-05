@@ -55,7 +55,7 @@ Section vector.
     if n <? vector_len vec then
       Some (get vec.(v_data) n)
     else None.
-  
+
   Definition vector_update vec n x : option vector :=
     if n <? vector_len vec then
       Some (Build_vector (set vec.(v_data) n x) vec.(v_size) vec.(v_capacity) vec.(v_init))
@@ -90,7 +90,7 @@ Definition copy_vd old_vd new_vd (offset len: N) : array T :=
       Build_vector vec.(v_data) newsize vec.(v_capacity) vec.(v_init)
     else
       let old_vd := vec.(v_data) in
-      let new_capacity := vec.(v_capacity) * 2 in
+      let new_capacity := N.max newsize (vec.(v_capacity) * 2%N) in
       let x := vec.(v_init) in
       let new_vd := make new_capacity x in
       let copied_vd := copy_vd old_vd new_vd 0 vec.(v_capacity) in

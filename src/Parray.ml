@@ -68,7 +68,7 @@
     
     end
     
-    let max_array_length32 = 4194303
+    let max_array_length32 = 2147483647
     
     let max_length = Uint63.of_int max_array_length32
     
