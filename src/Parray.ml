@@ -72,11 +72,11 @@
     
     let max_length = Uint63.of_int max_array_length32
     
-    let length_to_int i = snd (Uint63.to_int2 i)
+    let to_int i = snd (Uint63.to_int2 i)
     
     let trunc_size n =
       if Uint63.le Uint63.zero n && Uint63.lt n (Uint63.of_int max_array_length32) then
-        length_to_int n
+        to_int n
       else max_array_length32
     
     type 'a t = ('a kind) ref
@@ -110,7 +110,7 @@
       let t = reroot p in
       let l = UArray.length t in
       if Uint63.le Uint63.zero n && Uint63.lt n (Uint63.of_int l) then
-        UArray.unsafe_get t (length_to_int n)
+        UArray.unsafe_get t (to_int n)
       else
         match !p with
         | Array (_, def) -> def
@@ -120,7 +120,7 @@
       let a = reroot p in
       let l = Uint63.of_int (UArray.length a) in
       if Uint63.le Uint63.zero n && Uint63.lt n l then
-        let i = length_to_int n in
+        let i = to_int n in
         let v' = UArray.unsafe_get a i in
         UArray.unsafe_set a i e;
         let t = ref !p in (* i.e., Array (a, def) *)
@@ -138,6 +138,19 @@
       ref (Array (UArray.make n def, def))
     
     let make n def = make_int (trunc_size n) def
+
+    let make_init n init arr initlen =
+      if Uint63.le initlen (length arr) then
+        let trunc_n = trunc_size n in
+        if Uint63.le (length arr) (Uint63.of_int trunc_n) then
+          let marr = UArray.make trunc_n init in
+          let initlen_int = to_int initlen in
+          for i = 0 to initlen_int - 1 do
+            UArray.unsafe_set marr i (get arr (Uint63.of_int i))
+          done;
+          ref (Array (marr, init))
+        else assert false
+      else assert false
     
     let uinit n f =
       if Int.equal n 0 then UArray.empty

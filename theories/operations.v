@@ -54,10 +54,6 @@ Definition bits (v : value_num) : bytes :=
   | VAL_float64 c => serialise_f64 c
   end.
 
-Definition page_size : N := 65536%N.
-
-Definition page_limit : N := 65536%N.
-
 Definition ml_valid (m: mem_t) : Prop :=
   N.modulo (mem_length m) page_size = 0%N.
 

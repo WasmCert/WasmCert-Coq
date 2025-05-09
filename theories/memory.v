@@ -79,3 +79,8 @@ Definition eqmemP : Equality.axiom mem_eqb :=
 HB.instance Definition mem_eqMixin := hasDecEq.Build mem_t eqmemP.
   
 End Memory.
+
+(* Some constants regarding Wasm memory *)
+Definition page_size : N := 65536%N.
+
+Definition page_limit : N := 65536%N.

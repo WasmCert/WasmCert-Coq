@@ -1,13 +1,13 @@
 (** an implementation of Wasm memory based on a custom implementation of
  something like std::vector.
 
- Note that Coq's Array is persistent, therefore modifications are not truely
- O(1). As a result, extraction needs to manually extract Array operations to
- OCaml's efficient array.
+ Note that Coq's Array is persistent, therefore modifications and lookups are
+ not truely O(1). As a result, extraction needs to manually extract Array
+ operations to an efficient data structure in OCaml.
  *)
 
 From mathcomp Require Import ssreflect ssrbool eqtype seq ssrnat.
-From Coq Require Import BinInt BinNat NArith Lia PArray.
+From Coq Require Import BinInt BinNat NArith Lia Uint63.
 From Wasm Require Import numerics bytes memory common.
 
 Set Implicit Arguments.
@@ -16,19 +16,103 @@ Unset Printing Implicit Defensive.
 
 Open Scope N_scope.
 
+(* Persistent vector, but removing some functions and relaxing the max_length
+   to 2^32-1. *)
+Section Array.
+
+Context {A: Type}.
+  
+Parameter array : Type -> Type.
+Parameter arr_make : PrimInt63.int -> A -> array A.
+(* The same as make but initialises its prefix with values from
+   the prefix of another array.
+   Does not overflow if the length exceeds the make length.
+   This is used in the vector_grow function.
+ *)
+Parameter arr_make_init: PrimInt63.int -> A -> array A -> PrimInt63.int -> array A.
+Parameter arr_get : array A -> PrimInt63.int -> A.
+Parameter arr_default : array A -> A.
+Parameter arr_set : array A -> PrimInt63.int -> A -> array A.
+Parameter arr_length : array A -> PrimInt63.int.
+Parameter arr_copy : array A -> array A.
+
+Definition max_arr_length : PrimInt63.int := Uint63.of_Z (Zpos 0xffffffff).
+
+Notation " t .[ i ] " := (arr_get t i) (at level 5).
+Notation " t .[ i <- a ] " := (arr_set t i a) (at level 5).
+
+Parameter get_out_of_bounds :
+  forall (t : array A) (i : PrimInt63.int),
+    PrimInt63.ltb i (arr_length t) = false -> t.[i] = arr_default t.
+Parameter get_set_same :
+  forall (t : array A) (i : PrimInt63.int) (a : A),
+    PrimInt63.ltb i (arr_length t) = true -> t.[i<-a].[i] = a.
+Parameter get_set_other :
+  forall (t : array A) (i j : PrimInt63.int) (a : A),
+    i <> j -> t.[i<-a].[j] = t.[j].
+Parameter default_set :
+  forall (t : array A) (i : PrimInt63.int) (a : A),
+    arr_default t.[i<-a] = arr_default t.
+Parameter get_make :
+  forall (a : A) (size i : PrimInt63.int),
+    (arr_make size a).[i] = a.
+Parameter get_make_init:
+  forall (a: A) (size i: PrimInt63.int) (t: array A) (initlen: PrimInt63.int),
+    PrimInt63.ltb i size ->
+    PrimInt63.leb initlen (arr_length t) ->
+    PrimInt63.ltb i (arr_length t) ->
+    (arr_make_init size a t initlen).[i] = t.[i].
+Parameter get_make_init_default:
+  forall (a: A) (size i: PrimInt63.int) (t: array A) (initlen: PrimInt63.int),
+    PrimInt63.ltb i size ->
+    PrimInt63.leb initlen (arr_length t) ->
+    PrimInt63.leb initlen i ->
+    (arr_make_init size a t initlen).[i] = a.
+Parameter leb_length :
+  forall (t : array A),
+    PrimInt63.leb (arr_length t) max_arr_length = true.
+Parameter length_make :
+  forall (size : PrimInt63.int) (a : A),
+    arr_length (arr_make size a) =
+      (if PrimInt63.leb size max_arr_length then size else max_arr_length).
+Parameter length_make_init :
+  forall (size : PrimInt63.int) (a : A) (t: array A) (initlen: PrimInt63.int),
+    arr_length (arr_make_init size a t initlen) =
+      (if PrimInt63.leb size max_arr_length then size else max_arr_length).
+Parameter length_set :
+  forall (t : array A) (i : PrimInt63.int) (a : A),
+    arr_length t.[i<-a] = arr_length t.
+Parameter get_copy :
+  forall (t : array A) (i : PrimInt63.int),
+    (arr_copy t).[i] = t.[i].
+Parameter length_copy :
+  forall (t : array A), arr_length (arr_copy t) = arr_length t.
+Parameter array_ext :
+  forall (t1 t2 : array A),
+    arr_length t1 = arr_length t2 ->
+    (forall i : PrimInt63.int,
+        PrimInt63.ltb i (arr_length t1) = true -> t1.[i] = t2.[i]) ->
+    arr_default t1 = arr_default t2 -> t1 = t2.
+Parameter default_copy :
+  forall (t : array A), arr_default (arr_copy t) = arr_default t.
+Parameter default_make :
+  forall (a : A) (size : PrimInt63.int),
+    arr_default (arr_make size a) = a.
+Parameter get_set_same_default :
+  forall (t : array A) (i : PrimInt63.int),
+    t.[i<-arr_default t].[i] = arr_default t.
+Parameter get_not_default_lt :
+  forall (t : array A) (x : PrimInt63.int),
+    t.[x] <> arr_default t -> PrimInt63.ltb x (arr_length t) = true.
+
+End Array.
+
+(* A slightly modified implementation of growable arrays, given that point
+   update is too slow. *)
 Section vector.
   Context {T: Type}.
 
   Implicit Types x : T.
-
-  Record vector :=
-    { v_data: array T;
-      v_size: N;
-      v_capacity: N;
-      v_init: T;
-(*      v_size_valid: v_size <= v_capacity;
-      v_capacity_eq: v_capacity = length v_data;*)
-    }.
   
   Definition Uint63_of_N n : PrimInt63.int := Uint63.of_Z (Z.of_N n).
   Definition Uint63_to_N z : N := Z.to_N (Uint63.to_Z z).
@@ -36,65 +120,46 @@ Section vector.
   Definition Uint63_of_positive p : PrimInt63.int := Uint63.of_Z (Zpos p).
   Definition Uint63_to_positive z : positive := Z.to_pos (Uint63.to_Z z).
   
+  Record vector :=
+    { v_data: array T;
+      v_size: N;
+      v_capacity: N;
+      v_init: T;
+      (*v_size_valid: v_size <= v_capacity;
+      v_capacity_eq: v_capacity = Uint63_to_N (arr_length v_data);*)
+    }.
+
   Coercion Uint63.of_Z: Z >-> PrimInt63.int.
-  Coercion Uint63.to_Z: PrimInt63.int >-> Z.
 
   Coercion Uint63_of_N: N >-> PrimInt63.int.
-  Coercion Uint63_to_N: PrimInt63.int >-> N.
 
   Coercion Uint63_of_positive: positive >-> PrimInt63.int.
-  Coercion Uint63_to_positive: PrimInt63.int >-> positive.
 
   Definition vector_len vec : N :=
     vec.(v_size).
-  
+
   Definition vector_make (len: N) x : vector :=
-    Build_vector (make len x) len len x.
+    Build_vector (arr_make len x) len len x.
 
   Definition vector_lookup vec n : option T :=
     if n <? vector_len vec then
-      Some (get vec.(v_data) n)
+      Some (arr_get vec.(v_data) n)
     else None.
 
   Definition vector_update vec n x : option vector :=
     if n <? vector_len vec then
-      Some (Build_vector (set vec.(v_data) n x) vec.(v_size) vec.(v_capacity) vec.(v_init))
+      Some (Build_vector (arr_set vec.(v_data) n x) vec.(v_size) vec.(v_capacity) vec.(v_init))
     else None.
-
-Fixpoint copy_vd_positive old_vd new_vd (offset len: positive) : array T :=
-  match len with
-  | xH => set new_vd offset (get old_vd offset)
-  | xO p =>
-      let vd' := copy_vd_positive old_vd new_vd offset p in
-      copy_vd_positive old_vd vd' (offset + p) p
-  | xI p =>
-      let vd' := copy_vd_positive old_vd (set new_vd offset (get old_vd offset)) (offset+1) p in
-      copy_vd_positive old_vd vd' ((offset + p)%positive + 1)%positive p
-  end.
-
-Definition copy_vd old_vd new_vd (offset len: N) : array T :=
-  match len with
-  | N0 => new_vd
-  | Npos xH => set new_vd offset (get old_vd offset)
-  | Npos p =>
-      let copy_1 := (set new_vd offset (get old_vd offset)) in
-      match offset with
-      | N0 => copy_vd_positive old_vd copy_1 1 (p-1)
-      | Npos po => copy_vd_positive old_vd copy_1 po (p-1)
-      end
-  end.
           
   Definition vector_grow vec n : vector :=
     let newsize := vector_len vec + n in
     if newsize <=? vec.(v_capacity) then
       Build_vector vec.(v_data) newsize vec.(v_capacity) vec.(v_init)
     else
-      let old_vd := vec.(v_data) in
       let new_capacity := N.max newsize (vec.(v_capacity) * 2%N) in
       let x := vec.(v_init) in
-      let new_vd := make new_capacity x in
-      let copied_vd := copy_vd old_vd new_vd 0 vec.(v_capacity) in
-      Build_vector copied_vd newsize new_capacity x.
+      let new_vd := arr_make_init new_capacity x vec.(v_data) vec.(v_size) in
+      Build_vector new_vd newsize new_capacity x.
   
 End vector.
 
@@ -129,13 +194,13 @@ Axiom array_neq: forall (mem1 mem2: memory_vec),
     move/negPf in H.
     by rewrite H.
   Qed.
-  
+
   Lemma mv_make_length:
     forall b len, mv_length (mv_make b len) = len.
   Proof.
     done.
   Qed.
-
+    
   Lemma mv_make_lookup:
     forall i len b,
       (i < len)%N ->
@@ -145,6 +210,7 @@ Axiom array_neq: forall (mem1 mem2: memory_vec),
     unfold mv_lookup, vector_lookup.
     setoid_rewrite mv_make_length.
     move/N.ltb_spec0 in Hlen; rewrite Hlen => /=.
+    unfold mv_make => /=.
     by rewrite get_make.
   Qed.
 
