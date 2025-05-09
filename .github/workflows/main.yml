@@ -33,6 +33,8 @@ jobs:
           coq_version: ${{ matrix.coq_version }}
 
           before_install: |
+            startGroup "pin dependencies"
+              opam pin add -y wasm git+https://github.com/WasmCert/spec#interpreter_only
             startGroup "install dependencies"
               sudo apt update
               sudo apt install nano --yes

@@ -275,7 +275,7 @@ Proof.
            a case split on the failure case due to an attempt on using the default values
            of non-defaultable types *)
         { apply <<hs, (s, (Build_frame_ctx vs'' m (Build_frame (rev vs' ++ zs) i) es0, nil) :: (fc, lcs) :: ccs', (nil, nil), Some (AI_label m nil (to_e_list es)))>> => //=.
-          apply (@reduce_focus_pivot _ _ nil ([::(Build_frame_ctx vs'' m _ es0, nil)])) => //=.
+          apply (@reduce_focus_pivot _ _ _ nil ([::(Build_frame_ctx vs'' m _ es0, nil)])) => //=.
           apply (list_label_ctx_eval.(ctx_reduce)) => //=.
           rewrite split_n_is_take_drop in Hsplit; injection Hsplit as <- <-.
           eapply r_label with (lh := LH_base (rev (drop n vs0)) es0) => /=; subst; infer_hole.
@@ -443,7 +443,7 @@ Proof.
             (* Exiting the frame now. Note that this implementation does not 
                attempt to directly construct the next canonical cfg (les can be non-empty) *)
             apply <<hs, (s, cc :: ccs', (vs0 ++ lvs, les), None)>> => //=.
-            apply (@reduce_focus_pivot _ _ [:: (Build_frame_ctx lvs lk lf les, nil)] nil) => //=.
+            apply (@reduce_focus_pivot _ _ _ [:: (Build_frame_ctx lvs lk lf les, nil)] nil) => //=.
             apply (list_label_ctx_eval.(ctx_reduce)) => //=.
             repeat rewrite cats0.
             resolve_reduce_ctx lvs les.
@@ -791,15 +791,16 @@ the condition that all values should live in the operand stack. *)
     (* AI_basic (BI_local_set j) *)
     - destruct vs0 as [|v vs0]; first by no_args.
       (* v :: ves' *)
-      destruct (N.to_nat j < length fc.(FC_frame).(f_locs)) eqn:Hlen.
+      destruct (N.ltb j (N.of_nat (length fc.(FC_frame).(f_locs)))) eqn:Hlen.
       (* true *)
       + apply <<hs, (s, ((Build_frame_ctx (fc.(FC_val)) fc.(FC_arity) (Build_frame (set_nth v fc.(FC_frame).(f_locs) (N.to_nat j) v) fc.(FC_frame).(f_inst)) fc.(FC_post)), lcs) :: ccs', (vs0, es0), None)>> => //.
         resolve_reduce_ctx vs0 es0.
-        by eapply r_local_set with (vd := v). 
+        eapply r_local_set with (vd := v) => //=; by lias.
       (* false *)
       + resolve_invalid_typing.
         unfold_frame_type Hftype.
         erewrite inst_t_context_local_empty in Hconjr; eauto.
+        move/N.ltb_spec0 in Hlen.
         by discriminate_size.
 
     (* AI_basic (BI_local_tee j) *)
@@ -1263,13 +1264,13 @@ the condition that all values should live in the operand stack. *)
       assert_i32 v1.
       destruct (smem s fc.(FC_frame).(f_inst)) as [mem|] eqn:Hsmem.
       (* Some *)
-      + destruct (Z.ltb (Z.of_nat (mem_length mem)) (Z.add ($zou32 v1) ($zou32 v3))) eqn:Hlt; move/Z.ltb_spec0 in Hlt.
+      + destruct (Z.ltb (Z.of_N (mem_length mem)) (Z.add ($zou32 v1) ($zou32 v3))) eqn:Hlt; move/Z.ltb_spec0 in Hlt.
         (* true *)
         * apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>> => //.
           resolve_reduce_ctx vs0 es0.
           by eapply r_memory_fill_bound; eauto; lias.
         (* false *)
-        * destruct (($zou32 v3) == 0)%Z eqn:Heq0; move/eqP in Heq0.
+        * destruct (Z.eqb ($zou32 v3) Z0) eqn:Heq0; move/Z.eqb_spec in Heq0.
           (* Return *)
           { apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), None)>> => //.
             resolve_reduce_ctx vs0 es0.
@@ -1278,9 +1279,9 @@ the condition that all values should live in the operand stack. *)
           (* Step *)
           { apply <<hs, (s, (fc, lcs) :: ccs',
                           ((VAL_num (VAL_int32 v2)) :: (VAL_num (VAL_int32 v1)) :: vs0,
-                            [::$VN (VAL_int32 ($u32oz (Z.add ($zou32 v1) 1)));
+                            [::$VN (VAL_int32 ($u32oz (Z.add ($zou32 v1) 1%Z)));
                              $VN (VAL_int32 v2);
-                             $VN (VAL_int32 ($u32oz (Z.sub ($zou32 v3) 1)));
+                             $VN (VAL_int32 ($u32oz (Z.sub ($zou32 v3) 1%Z)));
                             AI_basic (BI_memory_fill)] ++ es0),
                           Some (AI_basic (BI_store T_i32 (Some Tp_i8) (Build_memarg 0%N 0%N))))>> => //.
             resolve_reduce_ctx vs0 es0.
@@ -1306,20 +1307,20 @@ the condition that all values should live in the operand stack. *)
       assert_i32 dst.
       destruct (smem s fc.(FC_frame).(f_inst)) as [mem|] eqn:Hsmem.
       (* Some *)
-      + destruct (Z.ltb (Z.of_nat (mem_length mem)) (($zou32 src) + ($zou32 n))) eqn:Hboundy; move/Z.ltb_spec0 in Hboundy.
+      + destruct (Z.ltb (Z.of_N (mem_length mem)) (($zou32 src) + ($zou32 n))) eqn:Hboundy; move/Z.ltb_spec0 in Hboundy.
         (* y Out of bound *)
         { apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>> => //.
           resolve_reduce_ctx vs0 es0.
           by eapply r_memory_copy_bound; eauto; lias.
         }
-        destruct (Z.ltb (Z.of_nat (mem_length mem)) (($zou32 dst) + ($zou32 n))) eqn:Hboundx; move/Z.ltb_spec0 in Hboundx.
+        destruct (Z.ltb (Z.of_N (mem_length mem)) (($zou32 dst) + ($zou32 n))) eqn:Hboundx; move/Z.ltb_spec0 in Hboundx.
         (* x Out of bound *)
         { apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>> => //.
           resolve_reduce_ctx vs0 es0.
           by eapply r_memory_copy_bound; eauto; lias.
         }
         (* In bound for both memories *)
-        { destruct (($zou32 n) == 0)%Z eqn:Hn0; move/eqP in Hn0; simpl in *; subst.
+        { destruct (Z.eqb ($zou32 n) Z0)%Z eqn:Hn0; move/Z.eqb_spec in Hn0; simpl in *; subst.
           (* Return *)
           { apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), None)>> => //.
             resolve_reduce_ctx vs0 es0.
@@ -1329,7 +1330,7 @@ the condition that all values should live in the operand stack. *)
           (* copy -- forward *)
           { apply <<hs, (s, (fc, lcs) :: ccs',
                           ((VAL_num (VAL_int32 src)) :: (VAL_num (VAL_int32 dst)) :: vs0,
-                            [::(AI_basic (BI_store T_i32 (Some Tp_i8) (Build_memarg 0%N 0%N))); $VN (VAL_int32 ($u32oz (Z.add ($zou32 dst) 1))); $VN (VAL_int32 ($u32oz (Z.add ($zou32 src) 1))); $VN (VAL_int32 ($u32oz (Z.sub ($zou32 n) 1))); AI_basic (BI_memory_copy)] ++ es0),
+                            [::(AI_basic (BI_store T_i32 (Some Tp_i8) (Build_memarg 0%N 0%N))); $VN (VAL_int32 ($u32oz (Z.add ($zou32 dst) 1))); $VN (VAL_int32 ($u32oz (Z.add ($zou32 src) 1%Z))); $VN (VAL_int32 ($u32oz (Z.sub ($zou32 n) 1))); AI_basic (BI_memory_copy)] ++ es0),
                           Some (AI_basic (BI_load T_i32 (Some (Tp_i8, SX_U)) (Build_memarg 0%N 0%N))))>> => //.
             resolve_reduce_ctx vs0 es0.
             by eapply r_memory_copy_forward; eauto; simpl in *; lias.
@@ -1339,7 +1340,7 @@ the condition that all values should live in the operand stack. *)
                           ((VAL_num (VAL_int32 ($u32oz (Z.add ($zou32 src) (Z.sub ($zou32 n) 1))))) ::
                              (VAL_num (VAL_int32 ($u32oz (Z.add ($zou32 dst) (Z.sub ($zou32 n) 1))))) ::
                              vs0,
-                            [::(AI_basic (BI_store T_i32 (Some Tp_i8) (Build_memarg 0%N 0%N))); $VN (VAL_int32 dst); $VN (VAL_int32 src); $VN (VAL_int32 ($u32oz (Z.sub ($zou32 n) 1))); AI_basic (BI_memory_copy)] ++ es0),
+                            [::(AI_basic (BI_store T_i32 (Some Tp_i8) (Build_memarg 0%N 0%N))); $VN (VAL_int32 dst); $VN (VAL_int32 src); $VN (VAL_int32 ($u32oz (Z.sub ($zou32 n) 1%Z))); AI_basic (BI_memory_copy)] ++ es0),
                           Some (AI_basic (BI_load T_i32 (Some (Tp_i8, SX_U)) (Build_memarg 0%N 0%N))))>> => //.
             resolve_reduce_ctx vs0 es0.
             eapply r_memory_copy_backward; eauto; simpl in *; try by lias.
@@ -1373,14 +1374,14 @@ the condition that all values should live in the operand stack. *)
             resolve_reduce_ctx vs0 es0.
             by eapply r_memory_init_bound; eauto; lias.
           }
-          destruct (Z.ltb (Z.of_nat (mem_length mem)) (($zou32 dst) + ($zou32 n))) eqn:Hboundx; move/Z.ltb_spec0 in Hboundx.
+          destruct (Z.ltb (Z.of_N (mem_length mem)) (($zou32 dst) + ($zou32 n))) eqn:Hboundx; move/Z.ltb_spec0 in Hboundx.
           (* x Out of bound *)
           { apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap)>> => //.
             resolve_reduce_ctx vs0 es0.
             by eapply r_memory_init_bound; eauto; lias.
           }
           (* In bound for both table and elem *)
-          { destruct (($zou32 n) == 0)%Z eqn:Hn0; move/eqP in Hn0; simpl in *; subst.
+          { destruct (Z.eqb ($zou32 n) Z0) eqn:Hn0; move/Z.eqb_spec in Hn0; simpl in *; subst.
             (* Return *)
             { apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), None)>> => //.
               resolve_reduce_ctx vs0 es0.
@@ -1806,42 +1807,3 @@ Definition run_multi_step_raw (hs: host_state) (fuel: nat) (s: store_record) (f:
   end.
 
 End Host.
-
-(** Extraction **)
-Module Interpreter_ctx_extract.
-
-Export DummyHost.
-
-#[export]
-Instance host_instance : host.
-Proof.
-  by refine {|
-      host_state := unit;
-      host_application _ _ _ _ _ _ _ := False
-    |}.
-Defined.
-
-Definition host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value ->
-                                   (host_state * option (store_record * result)).
-Proof.
-  move => ??? hf.
-  by refine ((of_void _) hf).
-Defined.
-
-Definition host_application_impl_correct :
-  (forall hs s ft hf vs hs' hres, (host_application_impl hs s ft hf vs = (hs', hres)) -> host_application hs s ft hf vs hs' hres).
-Proof.
-  move => ??? hf; by inversion hf.
-Defined.
-
-Definition cfg_tuple_ctx : Type := cfg_tuple_ctx.
-
-Definition run_step_ctx_result : host_state -> cfg_tuple_ctx -> Type := run_step_ctx_result.
-
-Definition run_one_step (cfg: cfg_tuple_ctx) : run_step_ctx_result tt cfg := run_one_step host_application_impl_correct tt cfg.
-
-Definition run_v_init : store_record -> list administrative_instruction -> option cfg_tuple_ctx := run_v_init.
-
-Definition interp_cfg_of_wasm := interp_cfg_of_wasm.
-
-End Interpreter_ctx_extract.

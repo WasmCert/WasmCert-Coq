@@ -1,5 +1,5 @@
 From Wasm Require Import datatypes_properties.
-From mathcomp Require Import eqtype ssrbool seq.
+From mathcomp Require Import ssreflect eqtype ssrbool seq ssrnat.
 
 (** The mechanisation implements a restricted version of the subtyping system
 from the upcoming GC proposal to the current set of Wasm 2.0 types.
@@ -45,3 +45,23 @@ Notation "t1 <t: t2" := (value_subtyping t1 t2) (at level 30).
 Notation "ts1 <ts: ts2" := (values_subtyping ts1 ts2) (at level 60).
 Notation "tf1 <ti: tf2" := (instr_subtyping tf1 tf2) (at level 60).
 Notation "tf1 <tf: tf2" := (func_subtyping tf1 tf2) (at level 60).
+
+(* Type lattice of Wasm 2.0 is quite trivial *)
+Section Lattice.
+  
+  Definition t_inf (t1 t2: value_type) : value_type :=
+    if (t1 == t2) then t1 else T_bot.
+
+  Definition t_sup (t1 t2: value_type) : option value_type :=
+    if (t1 == T_bot) then Some t2
+    else if (t2 == T_bot) then Some t1
+         else if (t1 == t2) then Some t1
+              else None.
+
+  Definition ts_inf (ts1 ts2: list value_type) : option (list value_type) :=
+    if (List.length ts1 == List.length ts2) then
+      Some (map (fun '(t1, t2) => t_inf t1 t2) (List.combine ts1 ts2))
+    else
+      None.
+  
+End Lattice.

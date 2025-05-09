@@ -1,11 +1,10 @@
 (** Relational instantiation in the spec **)
 (* see https://webassembly.github.io/spec/core/exec/modules.html#exec-instantiation *)
-(* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From Wasm Require Import list_extra datatypes datatypes_properties
                         binary_format_parser operations
-                         typing opsem type_checker memory memory_list.
+                         typing opsem type_checker memory.
 From Coq Require Import BinNat.
 
 (* TODO: Documentation *)
@@ -56,7 +55,7 @@ Definition gen_func_instance mf inst : funcinst :=
                 
 Definition alloc_func (s : store_record) (m_f : module_func) (mi : moduleinst) : store_record * funcaddr :=
   let funcaddr := N.of_nat (List.length s.(s_funcs)) in
-  (* Spec didn't say what if this is out of bound; but it cannot happen to valid modules *)
+  (* Spec didn't say what if this is out of bound; but it cannot happen to valid modules, and instantiate performs a type checking first *)
   let funcinst := gen_func_instance m_f mi in
   let S' := add_func s funcinst in
   (S', funcaddr).
@@ -402,7 +401,7 @@ Definition module_export_typing (c: t_context) (exp: module_export) (e: extern_t
 
 Definition nlist_nodup : list N -> list N := List.nodup N.eq_dec.
 
-(* This filters duplicate using the most native method. The spec is ambiguous on what a 'set' is to be fair. *)
+(* This filters duplicate using the most native method. The spec is ambiguous on how a 'set' should be implemented to be fair. *)
 Fixpoint be_get_funcidx (be: basic_instruction) : list funcidx :=
   match be with
   | BI_ref_func x => [:: x]
@@ -429,20 +428,52 @@ Definition module_elem_get_funcidx (el: module_element) :=
 Definition module_elems_get_funcidx (els: list module_element) :=
   nlist_nodup (List.concat (List.map module_elem_get_funcidx els)).
 
+Definition module_data_get_funcidx (d: module_data) :=
+    match d.(moddata_mode) with
+    | MD_active _ es => expr_get_funcidx es
+    | _ => nil
+    end.
+
+Definition module_datas_get_funcidx (ds: list module_data) :=
+  nlist_nodup (List.concat (List.map module_data_get_funcidx ds)).
+
+Definition module_export_get_funcidx (exp: module_export) : list funcidx :=
+  match exp.(modexp_desc) with
+  | MED_func fid => [::fid]
+  | _ => nil
+  end.
+
+Definition module_exports_get_funcidx (exps: list module_export) :=
+  nlist_nodup (List.concat (List.map module_export_get_funcidx exps)).
+
 (** std-doc: the set of function indices occurring in the module, except in its
   functions or start function.
 
   Used in generating the refs components.
+
+  What this actually includes is quite difficult to find. In conclusion,
+  funcrefs can only appear in globals/elems/datas/exports with the above excluded.
+
+  The reference interpreter has an implementation that collects all 'free' variables:
+  https://github.com/WebAssembly/spec/blob/main/interpreter/syntax/free.ml
+
+  Check in particular all the entries that could produce the `funcs` field.
  **)
-(* But then, what is left -- just the global initialisers and elems? *)
 Definition module_filter_funcidx (m: module) : list funcidx :=
   nlist_nodup
-    (module_globals_get_funcidx m.(mod_globals) ++
-     module_elems_get_funcidx m.(mod_elems)).
+    ((module_globals_get_funcidx m.(mod_globals)) ++
+       (module_elems_get_funcidx m.(mod_elems)) ++
+       (module_datas_get_funcidx m.(mod_datas)) ++
+       (module_exports_get_funcidx m.(mod_exports))
+    ).
 
 Definition export_name_unique (exps: list module_export) : bool :=
   List.nodup name_eq_dec (map modexp_name exps) == (map modexp_name exps).
 
+(* Artificial restriction in and prior to Wasm 2.0 that only one memory is allowed. Drop this condition when a future update allows this. *)
+Definition wasm_2_memory_count_check (ms: list module_mem) (ims: list memory_type) : bool :=
+  (List.length ms) + (List.length ims) <= 1.
+                            
 (* We deliberately omit the artificial restriction on the length of memory here. *)
 Definition module_typing (m : module) (impts : list extern_type) (expts : list extern_type) : Prop :=
   exists fts tts mts gts rts dts,
@@ -493,6 +524,7 @@ Definition module_typing (m : module) (impts : list extern_type) (expts : list e
   List.Forall2 (module_func_typing c) fs fts /\
   List.Forall2 (module_table_typing c') ts tts /\
   List.Forall2 (module_mem_typing c') ms mts /\
+  wasm_2_memory_count_check ms ims /\
   List.Forall2 (module_global_typing c') gs gts /\
   List.Forall2 (module_elem_typing c') els rts /\
   List.Forall2 (module_data_typing c') ds dts /\
@@ -528,7 +560,11 @@ Definition get_init_expr_elem (i: nat) (elem: module_element) : list basic_instr
   match elem.(modelem_mode) with
   | ME_passive => nil
   | ME_active tidx bes =>
-      bes ++ [::BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m Z0)); BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m (BinInt.Z.of_nat (length elem.(modelem_init))))); BI_table_init tidx (N.of_nat i); BI_elem_drop (N.of_nat i)]
+      bes ++
+        [::BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m Z0));
+         BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m (BinInt.Z.of_nat (length elem.(modelem_init)))));
+         BI_table_init tidx (N.of_nat i);
+         BI_elem_drop (N.of_nat i)]
   | ME_declarative => [::BI_elem_drop (N.of_nat i)]
   end.
 

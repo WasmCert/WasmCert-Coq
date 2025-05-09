@@ -22,22 +22,17 @@ Definition eqbyteP : Equality.axiom byte_eqb :=
 HB.instance Definition byte_eqMixin := hasDecEq.Build byte eqbyteP.
 
 Definition bytes := seq byte.
-  
-Fixpoint bytes_takefill (a : byte) (n : nat) (aas : bytes) : bytes :=
-  match n with
-  | O => nil
-  | S n' =>
-    match aas with
-    | nil => cons a (bytes_takefill a n' aas)
-    | cons a' aas' => cons a' (bytes_takefill a n' aas')
-    end
-  end.
 
-Fixpoint bytes_replicate (n : nat) (b : byte) : bytes :=
-  match n with
-  | 0 => [::]
-  | n'.+1 => b :: bytes_replicate n' b
-  end.
+(* Take the first n bytes if aas is overlong, otherwise fill it to n bytes with a. *)
+Definition bytes_takefill (b : byte) (n : nat) (bs: bytes) : bytes :=
+  let len := List.length bs in
+  if Nat.ltb len n then
+    bs ++ List.repeat b (n-len)
+  else
+    List.firstn n bs.
+
+Definition bytes_replicate (n : nat) (b : byte) : bytes :=
+  List.repeat b n.
 
 Definition msbyte (bs : bytes) : option byte :=
   last_error bs.

@@ -10,7 +10,7 @@ Unset Printing Implicit Defensive.
 
 Section Host.
 
-Context `{hfc: host_function_class}.
+Context `{hfc: host_function_class} `{memory: Memory}.
 
 (** std-doc:
 For the purpose of checking external values against imports, such values are classified by external types. The following auxiliary typing rules specify this typing relation relative to a store S in which the referenced instances live.
@@ -265,7 +265,7 @@ Inductive be_typing : t_context -> seq basic_instruction -> instr_type -> Prop :
   lookup_N C.(tc_labels) i = Some ts ->
   be_typing C [::BI_br_if i] (Tf (ts ++ [::T_num T_i32]) ts)
 | bet_br_table : forall C i ins ts t1s t2s,
-  List.Forall (fun i => (lookup_N C.(tc_labels) i) = Some ts) (ins ++ [::i]) ->
+  List.Forall (fun i => (exists ts', lookup_N C.(tc_labels) i = Some ts' /\ ts <ts: ts')) (ins ++ [::i]) ->
   be_typing C [::BI_br_table ins i] (Tf (t1s ++ (ts ++ [::T_num T_i32])) t2s)
 | bet_return : forall C ts t1s t2s,
   tc_return C = Some ts ->
@@ -425,7 +425,7 @@ Definition tableinst_typing (s: store_record) (ti: tableinst) : option table_typ
 Definition meminst_typing (s: store_record) (mi: meminst) : option memory_type :=
   let '{| meminst_type := mi_type; meminst_data := ds |} := mi in
   if memtype_valid mi_type then
-    if memory_list.mem_length ds == N.mul (mi_type.(lim_min)) page_size then
+    if mem_length mi == N.mul (mi_type.(lim_min)) page_size then
       Some mi_type
     else None
   else None.

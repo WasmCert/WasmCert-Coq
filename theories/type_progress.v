@@ -25,7 +25,7 @@ Proof.
   (* initialise an interpreter cfg tuple *)
   destruct (interp_cfg_of_wasm (s, (f, es))) as [[[[s0 ccs] sc] oe] [Hfill Hvalid]].
   (* run the interpreter *)
-  remember (@run_one_step_ctx _ _ host_application_impl host_application_impl_correct hs (s0, ccs, sc, oe)) as res.
+  remember (@run_one_step_ctx _ _ _ host_application_impl host_application_impl_correct hs (s0, ccs, sc, oe)) as res.
   destruct res as [hs' [[[s' ccs'] sc'] oe'] Hred Hvalid' | s' f' vs Hvalfill | s' f' Htrapfill | Hcontra | Hcontra]; clear Heqres.
   (* step *)
   - unfold reduce_ctx in Hred.

@@ -107,7 +107,7 @@ Proof.
   }
 
   destruct m; unfold module_typing in Hmodtype; simpl in *.
-  destruct Hmodtype as [fts [tts [mts [gts [rts [dts [Hmtypes [Hmfunctype [Hmtabletype [Hmmemtype [Hmglobaltype [Hmelemtype [Hmdatatype [Hstarttype [Hmimptype [Hmexptype Hexpunique]]]]]]]]]]]]]]]].
+  destruct Hmodtype as [fts [tts [mts [gts [rts [dts [Hmtypes [Hmfunctype [Hmtabletype [Hmmemtype [Hmemcount [Hmglobaltype [Hmelemtype [Hmdatatype [Hstarttype [Hmimptype [Hmexptype Hexpunique]]]]]]]]]]]]]]]]].
 
   remember (Build_t_context mod_types (ext_t_funcs t_imps ++ fts) (ext_t_tables t_imps ++ tts) (ext_t_mems t_imps ++ mts) (ext_t_globals t_imps ++ gts) rts dts nil nil None (iota_N 0 (length inst.(inst_funcs)))) as C.
 
@@ -499,10 +499,11 @@ Proof.
         apply nth_error_map in Hnth as [mm [Hnth <-]].
         eapply Forall2_nth_impl in Hmmemtype as [mt [Hnthmt Hmemtype]]; eauto.
         unfold module_mem_typing in Hmemtype.
-        unfold meminst_typing, gen_mem_instance, memory_list.mem_make, memory_list.mem_length.
+        unfold meminst_typing, gen_mem_instance, mem_length.
         remove_bools_options.
-        rewrite H List.repeat_length N2Nat.id N.mul_comm eq_refl.
-        by eexists.
+        rewrite H mem_make_length.
+        resolve_if_true_eq; last by eexists; eauto.
+        by lias.
       }
     }
     (* Globals *)

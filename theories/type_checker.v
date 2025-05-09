@@ -1,7 +1,7 @@
 (** Wasm type checker **)
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From HB Require Import structures.
-From Wasm Require Export typing datatypes_properties operations.
+From Wasm Require Export typing datatypes_properties operations subtyping_properties.
 From Coq Require Import BinNat.
 
 Set Implicit Arguments.
@@ -110,28 +110,28 @@ Definition type_update_drop (ct : checker_type) : option checker_type :=
       Some <<ts', ct.(CT_unr)>>
   end.
 
-Fixpoint same_lab_h (iss : seq tableidx) (lab_c : seq (seq value_type)) (ts : seq value_type) : option (seq value_type) :=
+(** With subtyping in Wasm 2.0, br_table now needs to find the common subtype to be consumed. **)
+
+Fixpoint common_lab_h (iss : seq tableidx) (lab_c : seq (seq value_type)) (ts : seq value_type) : option (seq value_type) :=
   match iss with
   | [::] => Some ts
   | i :: iss' =>
       match lookup_N lab_c i with
       | None => None
       | Some xx =>
-          if xx == ts then same_lab_h iss' lab_c xx
-          else None
+          match ts_inf xx ts with
+          | Some ts' => common_lab_h iss' lab_c ts'
+          | None => None
+          end
       end
   end.
 
-(**
-   Br_table iss i needs to make sure that Br (each element in iss) and Br i would 
-     consume the same type. See section 3.3.5.8 in the official spec.
-**)
-Definition same_lab (iss : seq tableidx) (lab_c : seq (seq value_type)) : option (seq value_type) :=
+Definition common_lab (iss : seq tableidx) (lab_c : seq (seq value_type)) : option (seq value_type) :=
   match iss with
   | [::] => None
   | i :: iss' =>
       match lookup_N lab_c i with
-      | Some xx => same_lab_h iss' lab_c xx
+      | Some xx => common_lab_h iss' lab_c xx
       | None => None
       end
   end.
@@ -250,7 +250,7 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
           | None => None 
           end
       | BI_br_table iss i =>
-          match same_lab (iss ++ [::i]) (tc_labels C) with
+          match common_lab (iss ++ [::i]) (tc_labels C) with
           | None => None
           | Some tls => type_update_top ts ((T_num T_i32 :: tls)) nil
           end
