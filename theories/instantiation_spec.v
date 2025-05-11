@@ -253,7 +253,7 @@ Definition get_exportinst (inst: moduleinst) (m_exp: module_export) : exportinst
   Build_exportinst m_exp.(modexp_name) extern_value.
 
 Definition alloc_module (s : store_record) (m : module) (imps : list extern_value) (gvs : list value) (rvs: list (list value_ref))
-    (s'_inst : store_record * moduleinst) : bool :=
+    (s'_inst : store_record * moduleinst) : Prop :=
   let '(s'_goal, inst) := s'_inst in
   let '(s1, i_fs) := alloc_funcs s m.(mod_funcs) inst in
   let '(s2, i_ts) := alloc_tabs s1 (map modtab_type m.(mod_tables)) in
@@ -261,15 +261,15 @@ Definition alloc_module (s : store_record) (m : module) (imps : list extern_valu
   let '(s4, i_gs) := alloc_globs s3 m.(mod_globals) gvs in
   let '(s5, i_es) := alloc_elems s4 m.(mod_elems) rvs in
   let '(s', i_ds) := alloc_datas s5 m.(mod_datas) in
-  (s'_goal == s') &&
-  (inst.(inst_types) == m.(mod_types)) &&
-  (inst.(inst_funcs) == ((ext_funcs imps) ++ i_fs)) &&
-  (inst.(inst_tables) == ((ext_tables imps) ++ i_ts)) &&
-  (inst.(inst_mems) == ((ext_mems imps) ++ i_ms)) &&
-  (inst.(inst_globals) == ((ext_globals imps) ++ i_gs)) &&
-  (inst.(inst_elems) == i_es) &&
-  (inst.(inst_datas) == i_ds) &&
-  (inst.(inst_exports) == (map (get_exportinst inst) m.(mod_exports))).
+  (s'_goal = s') /\
+  (inst.(inst_types) = m.(mod_types)) /\
+  (inst.(inst_funcs) = ((ext_funcs imps) ++ i_fs)) /\
+  (inst.(inst_tables) = ((ext_tables imps) ++ i_ts)) /\
+  (inst.(inst_mems) = ((ext_mems imps) ++ i_ms)) /\
+  (inst.(inst_globals) = ((ext_globals imps) ++ i_gs)) /\
+  (inst.(inst_elems) = i_es) /\
+  (inst.(inst_datas) = i_ds) /\
+  (inst.(inst_exports) = (map (get_exportinst inst) m.(mod_exports))).
 
 Definition dummy_table : tableinst := {| tableinst_elem := nil; tableinst_type := Build_table_type (Build_limits N0 None) T_funcref |}.
 

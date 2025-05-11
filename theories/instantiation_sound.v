@@ -439,12 +439,13 @@ Proof.
         destruct Hmftype as [Hnthmf [Hbet Hdefaultable]].
         unfold gen_func_instance => /=.
         rewrite Hnthmf; split => //.
-        rewrite HIT /= Hnthmf H6 Hfunclen; repeat split => //=.
+        rewrite HIT /= Hconjl1 Hnthmf Hfunclen; repeat split => //=.
         unfold upd_local_label_return in *; simpl in *.
         eapply bet_import_subtyping; eauto.
         eapply bet_skip_refcheck => /=; eauto.
         unfold upd_refs => /=.
         repeat rewrite List.length_app.
+        f_equal.
         rewrite iota_N_length.
         repeat f_equal.
         apply vt_imps_comp_len in Himptype.
@@ -503,6 +504,15 @@ Proof.
         remove_bools_options.
         rewrite H mem_make_length.
         resolve_if_true_eq; last by eexists; eauto.
+        assert (N.le (page_size * lim_min (modmem_type mm)) byte_limit) as Hbound.
+        {
+          unfold memtype_valid, limit_valid_range in H.
+          move/andP in H; destruct H as [H _].
+          unfold mem_limit_bound in H.
+          unfold byte_limit, page_size, page_limit.
+          (* 65536 * 65536 *)
+          by lias.
+        }
         by lias.
       }
     }
@@ -536,7 +546,7 @@ Proof.
         eapply init_value_typing; eauto; simpl in *.
         { move => m addr Hnthaddr.
           rewrite List.length_app List.length_map.
-          rewrite H6 in Hnthaddr.
+          rewrite Hconjl1 in Hnthaddr.
           apply cat_lookup in Hnthaddr as [Hnth' | Hnth'].
           - apply ext_funcs_lookup_exist in Hnth' as [k Hnthaddr].
             eapply Forall2_nth_impl in Himptype as [et [Hnthext Hext]]; last by apply Hnthaddr.
@@ -599,7 +609,7 @@ Proof.
         eapply init_value_typing; eauto; simpl in *.
         { move => n' addr Hnthaddr.
           rewrite List.length_app List.length_map.
-          rewrite H6 in Hnthaddr.
+          rewrite Hconjl1 in Hnthaddr.
           apply cat_lookup in Hnthaddr as [Hnth' | Hnth'].
           - apply ext_funcs_lookup_exist in Hnth' as [k Hnthaddr].
             eapply Forall2_nth_impl in Himptype as [et [Hnthext Hext]]; last by apply Hnthaddr.

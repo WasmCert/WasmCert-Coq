@@ -70,22 +70,25 @@ Definition mem_size (m : meminst) : N :=
 Definition mem_grow (m : meminst) (len_delta : N) : option meminst :=
   let new_size := N.add (mem_size m) len_delta in
   if N.leb new_size mem_limit_bound then
-  let new_mem_data := mem_grow (N.mul len_delta page_size) m.(meminst_data) in
-  match m.(meminst_type).(lim_max) with
-  | Some maxlim =>
-    if N.leb new_size maxlim then
-        Some {|
-          meminst_data := new_mem_data;
-            meminst_type :=
-              Build_limits new_size m.(meminst_type).(lim_max);
-          |}
-    else None
-  | None =>
-    Some {|
-      meminst_data := new_mem_data;
-      meminst_type := Build_limits new_size m.(meminst_type).(lim_max);
-      |}
-  end
+    match mem_grow (N.mul len_delta page_size) m.(meminst_data) with
+    | Some new_mem_data =>
+        match m.(meminst_type).(lim_max) with
+        | Some maxlim =>
+            if N.leb new_size maxlim then
+              Some {|
+                  meminst_data := new_mem_data;
+                  meminst_type :=
+                    Build_limits new_size m.(meminst_type).(lim_max);
+                |}
+            else None
+        | None =>
+            Some {|
+                meminst_data := new_mem_data;
+                meminst_type := Build_limits new_size m.(meminst_type).(lim_max);
+              |}
+        end
+    | None => None
+    end
   else None.
 
 Definition ptv_to_nm (ptv: packed_type_vec) : N * N :=

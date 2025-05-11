@@ -30,7 +30,7 @@ Extract Constant memory_vec.array "'a" => "Parray.t".
 Extraction Inline memory_vec.array.
 
 Extract Constant memory_vec.arr_make => "Parray.make".
-Extract Constant memory_vec.arr_make_init => "Parray.make_init".
+Extract Constant memory_vec.arr_make_copy => "Parray.make_copy".
 Extract Constant memory_vec.arr_get => "Parray.get".
 Extract Constant memory_vec.arr_default => "Parray.default".
 Extract Constant memory_vec.arr_set => "Parray.set".

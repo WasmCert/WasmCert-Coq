@@ -1,7 +1,7 @@
 (** an implementation of Wasm memory based on a list *)
 
 From mathcomp Require Import ssreflect ssrbool eqtype seq ssrnat.
-From Coq Require Import BinNums ZArith Lia.
+From Coq Require Import BinNums ZArith NArith Lia.
 From Wasm Require Import numerics bytes memory common.
 
 Set Implicit Arguments.
@@ -16,17 +16,22 @@ Section MemoryList.
     }.
 
   Definition ml_make :=
-    fun v len => {| ml_init := v; ml_data := mkseq (fun _ => v) (N.to_nat len) |}.
+    fun v len =>
+      let capped_len := N.min len byte_limit in
+      {| ml_init := v; ml_data := mkseq (fun _ => v) (N.to_nat capped_len) |}.
 
   Definition ml_length :=
     fun ml => N.of_nat (size ml.(ml_data)).
 
   Definition ml_grow :=
     fun len_delta ml =>
-      {|
+      let new_length := N.add len_delta (N.of_nat (length ml.(ml_data))) in
+      if new_length <=? byte_limit then
+      Some {|
           ml_init := ml.(ml_init);
           ml_data := ml.(ml_data) ++ mkseq (fun _ => ml.(ml_init)) (N.to_nat len_delta)
-        |}.
+        |}
+      else None.
 
   Definition ml_lookup :=
     fun i ml =>
@@ -57,37 +62,27 @@ Section MemoryList.
   Qed.
   
   Lemma ml_make_length:
-    forall b len, ml_length (ml_make b len) = len.
+    forall b len,
+      ml_length (ml_make b len) = N.min len byte_limit.
   Proof.
-    move => mem i => /=.
+    move => b len => /=.
     unfold ml_length, ml_make.
     rewrite size_mkseq.
-    lia.
+    by rewrite N2Nat.id.
   Qed.
 
   Lemma ml_make_lookup:
     forall i len b,
-      (i < len)%N ->
+      (i < N.min len byte_limit)%N ->
       ml_lookup i (ml_make b len) = Some b.
   Proof.
     move => i len b Hlen /=.
     unfold ml_lookup.
-    rewrite ml_make_length.
+    erewrite ml_make_length; eauto.
     move/N.ltb_spec0 in Hlen; rewrite Hlen => /=.
     rewrite nth_mkseq => //.
     by lias.
   Qed.
-
-Lemma ml_update_exists:
-  forall mem i b,
-    (i < ml_length mem)%N ->
-    {mem' : memory_list | ml_update i b mem = Some mem'}.
-Proof.
-  move => mem i b Hlen.
-  unfold ml_update.
-  move/N.ltb_spec0 in Hlen; rewrite Hlen => /=.
-  by eexists; eauto.
-Qed.
 
 Lemma ml_update_length :
   forall mem mem' i b,
@@ -144,12 +139,14 @@ Qed.
 
 Lemma ml_grow_length :
   forall n mem mem',
-    ml_grow n mem = mem' ->
+    ml_grow n mem = Some mem' ->
     ml_length mem' = (ml_length mem + n)%N.
 Proof.
   move => n mem mem' Hgrow.
   unfold ml_grow in Hgrow; subst.
-  unfold ml_length => /=.
+  unfold ml_length.
+  remove_bools_options => /=.
+  move/Nat.leb_spec0 in Hif.
   rewrite size_cat size_mkseq.
   by lias.
 Qed.
@@ -157,7 +154,7 @@ Qed.
 Lemma ml_grow_lookup :
   forall i n mem mem',
     (i < ml_length mem)%N ->
-    ml_grow n mem = mem' ->
+    ml_grow n mem = Some mem' ->
     ml_lookup i mem' = ml_lookup i mem.
 Proof.
   move => i n mem mem' Hlen Hgrow.
@@ -167,7 +164,7 @@ Proof.
   erewrite ml_grow_length; eauto.
   replace (i <? ml_length mem + n)%N with true; last by lias.
   f_equal.
-  unfold ml_grow in Hgrow; subst => /=.
+  unfold ml_grow in Hgrow; remove_bools_options.
   rewrite nth_cat.
   unfold ml_length in Hlen.
   replace (N.to_nat i < size (ml_data mem)) with true; by lias.
@@ -177,11 +174,9 @@ Qed.
   Instance Memory_list: Memory.
 Proof.
   apply (@Build_Memory memory_list ml_make ml_length ml_lookup ml_grow ml_update).
-  - by decidable_equality.
   - exact ml_lookup_oob.
   - exact ml_make_length.
   - exact ml_make_lookup.
-(*  - exact ml_update_exists. *)
   - exact ml_update_lookup.
   - exact ml_update_lookup_ne.
   - by intros; eapply ml_update_length; eauto.

@@ -295,17 +295,6 @@ Definition eqexportinstP : Equality.axiom exportinst_eqb :=
 
 HB.instance Definition exportinst_eqMixin := hasDecEq.Build exportinst eqexportinstP.
 
-Context `{Memory}.
-
-Definition store_record_eq_dec : forall v1 v2 : store_record, {v1 = v2} + {v1 <> v2}.
-Proof. decidable_equality. Defined.
-
-Definition store_record_eqb v1 v2 : bool := store_record_eq_dec v1 v2.
-Definition eqstore_recordP : Equality.axiom store_record_eqb :=
-  eq_dec_Equality_axiom store_record_eq_dec.
-
-HB.instance Definition store_record_eqMixin := hasDecEq.Build store_record eqstore_recordP.
-
 Definition frame_eq_dec : forall v1 v2 : frame, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
 

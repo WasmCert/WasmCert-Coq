@@ -68,16 +68,16 @@
     
     end
     
-    let max_array_length32 = 2147483647
+    let max_array_length = 4294967296
     
-    let max_length = Uint63.of_int max_array_length32
+    let max_length = Uint63.of_int max_array_length
     
     let to_int i = snd (Uint63.to_int2 i)
     
     let trunc_size n =
-      if Uint63.le Uint63.zero n && Uint63.lt n (Uint63.of_int max_array_length32) then
+      if Uint63.le Uint63.zero n && Uint63.lt n (Uint63.of_int max_array_length) then
         to_int n
-      else max_array_length32
+      else max_array_length
     
     type 'a t = ('a kind) ref
     and 'a kind =
@@ -139,7 +139,7 @@
     
     let make n def = make_int (trunc_size n) def
 
-    let make_init n init arr initlen =
+    let make_copy n init arr initlen =
       if Uint63.le initlen (length arr) then
         let trunc_n = trunc_size n in
         if Uint63.le (length arr) (Uint63.of_int trunc_n) then
