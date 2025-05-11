@@ -127,7 +127,29 @@ Proof.
   - by eapply common_lab_h_spec in Hcommon; eauto.
 Qed.
 
+Lemma common_lab_h_cond: forall iss lab_c tx ts,
+    List.Forall
+      (fun i : N =>
+         exists ts' : result_type,
+           lookup_N lab_c i = Some ts' /\ tx <ts: ts')
+      iss ->
+    tx <ts: ts ->
+    exists ty, common_lab_h iss lab_c ts = Some ty /\
+            tx <ts: ty.
+Proof.
+  induction iss; move => lab_c tx ts Hforall Hsub => //=; remove_bools_options.
+  - by exists ts.
+  - inversion Hforall as [ | ?? Hlookup Hrest]; subst; clear Hforall.
+    destruct Hlookup as [ts' [Hlablookup Hsubts']].
+    rewrite Hlablookup.
+    specialize (ts_inf_exists Hsubts' Hsub) as [tsinf Hinfeq].
+    rewrite Hinfeq.
+    apply IHiss => //.
+    by apply (ts_inf_strict Hsubts' Hsub).
+Qed.
+    
 Lemma common_lab_cond: forall iss lab_c tx,
+    iss <> nil ->
     List.Forall
       (fun i : N =>
          exists ts' : result_type,
@@ -136,9 +158,14 @@ Lemma common_lab_cond: forall iss lab_c tx,
     exists ty, common_lab iss lab_c = Some ty /\
             tx <ts: ty.
 Proof.
-Admitted.
-    
-
+  move => iss lab_c ts Hnotnil Hforall.
+  unfold common_lab; destruct iss => //.
+  inversion Hforall as [ | ?? Hlookup Hrest]; subst; clear Hforall.
+  destruct Hlookup as [ts' [Hlablookup Hsubts']].
+  rewrite Hlablookup.
+  by eapply common_lab_h_cond in Hrest; eauto.
+Qed.
+  
 Lemma common_lab_h_rev: forall iss lab_c tx ts,
     common_lab_h iss lab_c tx = Some ts ->
     common_lab_h iss (map rev lab_c) (rev tx) = Some (rev ts).
@@ -1533,7 +1560,7 @@ Proof.
       unfold c_types_agree.
       by simplify_tc_goal.
     (* Br_table *)
-    + apply common_lab_cond in H as [ty [Hcommon Hsub]].
+    + apply common_lab_cond in H as [ty [Hcommon Hsub]]; last by destruct ins.
       apply common_lab_rev in Hcommon.
       rewrite Hcommon.
       apply values_subtyping_rev in Hsub.

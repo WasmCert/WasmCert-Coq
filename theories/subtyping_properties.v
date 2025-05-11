@@ -946,13 +946,24 @@ Section Lattice_properties.
     by total_destruction.
   Qed.
 
-  Lemma t_sup_strict t1 t2 t3 tsup:
+  Lemma t_sup_strict t1 t2 t3:
     t1 <t: t3 ->
     t2 <t: t3 ->
-    t_sup t1 t2 = Some tsup ->
+    exists tsup, t_sup t1 t2 = Some tsup /\
     tsup <t: t3.
   Proof.
-    by total_destruction.
+    total_destruction; by eexists.
+  Qed.
+
+  Lemma ts_inf_length ts1 ts2 tsinf:
+    ts_inf ts1 ts2 = Some tsinf ->
+    length ts1 = length ts2.
+  Proof.
+    move: ts2; induction ts1; destruct ts2 => //=.
+    move => Hlen.
+    unfold ts_inf in *.
+    remove_bools_options.
+    by lias.
   Qed.
   
   Lemma ts_inf_comm ts1 ts2:
@@ -988,22 +999,34 @@ Section Lattice_properties.
     by eapply t_inf_sub; eauto.
   Qed.
 
+  Lemma ts_inf_exists ts1 ts2 ts3:
+    ts3 <ts: ts1 ->
+    ts3 <ts: ts2 ->
+    exists tsinf, ts_inf ts1 ts2 = Some tsinf.
+  Proof.
+    move : ts2 ts3.
+    induction ts1; destruct ts2, ts3 => //=; intros; remove_bools_options.
+    - by exists nil => //.
+    - specialize (IHts1 ts2 ts3 H2 H1) as [tsinf Hinfeq].
+      exists ((t_inf a v) :: tsinf) => /=.
+      unfold ts_inf in * => /=.
+      remove_bools_options.
+      move/eqP in Hif.
+      by rewrite Hif eq_refl.
+  Qed.
+
   Lemma ts_inf_strict ts1 ts2 ts3 tsinf:
     ts3 <ts: ts1 ->
     ts3 <ts: ts2 ->
-    ts_inf ts1 ts2 = Some tsinf ->                  
+    ts_inf ts1 ts2 = Some tsinf ->
     ts3 <ts: tsinf.
   Proof.
     move : ts2 ts3 tsinf.
-    induction ts1; destruct ts2, ts3, tsinf => //=; unfold ts_inf; intros; remove_bools_options.
-    apply/andP; split.
-    - by apply t_inf_strict => //.
-    - specialize (IHts1 ts2 ts3).
-      unfold ts_inf in IHts1.
-      simpl in Hif.
-      move/eqP in Hif; injection Hif as Hlen.
-      rewrite Hlen eq_refl in IHts1.
-      by apply IHts1.
+    induction ts1; destruct ts2, ts3, tsinf => //=; intros; unfold ts_inf in *; remove_bools_options.
+    move/eqP in Hif; simpl in Hif; injection Hif as Hif.
+    apply/andP; split; first by apply t_inf_strict.
+    eapply (IHts1 ts2 ts3); eauto.
+    by rewrite Hif eq_refl.
   Qed.
     
 End Lattice_properties.
