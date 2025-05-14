@@ -787,9 +787,9 @@ Definition pp_cfg_tuple_ctx_except_store (cfg: cfg_tuple_ctx) : string :=
   let '(s, ccs, sc, oe) := cfg in
   pp_administrative_instructions_hint_empty 0 (ccs ⦃ sc ⦃ olist oe ⦄ ⦄).
 
-Definition pp_res_cfg_except_store {hs: host_state} {cfg: cfg_tuple_ctx} (res: run_step_ctx_result hs cfg) : string :=
+Definition pp_res_cfg_except_store {hs: host_state} {cfg: cfg_tuple_ctx} {d: N} (res: run_step_ctx_result hs cfg d) : string :=
   match res with
-  | RSC_normal hs' cfg' _ _ =>
+  | RSC_normal _ cfg' _ _ _ =>
       pp_cfg_tuple_ctx_except_store cfg' ++ newline
   | RSC_value _ _ vs _ =>
       "Value:" ++ newline ++ pp_values_hint_empty vs ++ newline

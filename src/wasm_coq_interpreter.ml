@@ -1,7 +1,7 @@
 (** Main file for the Wasm interpreter **)
 
 (** Main function *)
-let process_args_and_run verbosity text no_exec fuel srcs func_name src_module_name arg_strings =
+let process_args_and_run verbosity text no_exec max_call_depth srcs func_name src_module_name arg_strings =
   let open Execute.Host in
   let open Execute.Interpreter in
   let open Parse in
@@ -35,13 +35,13 @@ let process_args_and_run verbosity text no_exec fuel srcs func_name src_module_n
         (if src_module_name = "" then 
           List.hd (List.rev mnames) 
         else src_module_name) in
-      let* ret = Execute.invoke_func verbosity exts (s, Extract.empty_frame) args running_module_name func_name fuel in 
+      let* ret = Execute.invoke_func verbosity exts (s, Extract.empty_frame) args running_module_name func_name max_call_depth in 
         Execute.print_invoke_result verbosity ret;
       pure ()
   with Invalid_argument msg -> error msg
 
 (** Similar to [process_args_and_run], but differs in the output type. *)
-let process_args_and_run_out verbosity text no_exec wast_mode wast_timeout fuel srcs func_name src_module_name args =
+let process_args_and_run_out verbosity text no_exec wast_mode wast_timeout max_call_depth srcs func_name src_module_name args =
   (if wast_mode then 
     let files =
       List.map (fun dest ->
@@ -55,11 +55,11 @@ let process_args_and_run_out verbosity text no_exec wast_mode wast_timeout fuel 
     match files with
     | [] -> Execute.Host.error "No wast file provided"
     | [scriptstr] -> 
-      let real_fuel = if fuel = -1 then 10000000 else fuel in
-        Wast_execute.run_wast_string verbosity wast_timeout real_fuel scriptstr
+      let wast_max_call_depth = if max_call_depth = -1 then 1048576 else max_call_depth in
+        Wast_execute.run_wast_string verbosity wast_timeout wast_max_call_depth scriptstr
     | _ -> Execute.Host.error "Wast mode does not support multiple files"
 else
-  process_args_and_run verbosity text no_exec fuel srcs func_name src_module_name args)
+  process_args_and_run verbosity text no_exec max_call_depth srcs func_name src_module_name args)
   |> Execute.Host.to_out |> Output.Out.convert
 
 (** Command line interface *)
@@ -92,9 +92,9 @@ let interactive =
   Arg.(value & flag & info ["i"; "interactive"] ~doc)
 *)
   (*
-let fuel =
+let max_call_depth =
   let doc = "Specify maximum amount of steps to run." in
-  Arg.(value & opt (some int) None & info ["f"; "fuel"] ~doc)
+  Arg.(value & opt (some int) None & info ["f"; "max_call_depth"] ~doc)
 *)
 
 let func_name =
@@ -117,8 +117,8 @@ let wast_timeout =
   let doc = "Set the timeout for running .wast test suites" in
   Arg.(value & opt int 10 & info ["t"] ~docv:"ARG" ~doc)
 
-let fuel = 
-  let doc = "Set the maximum number of evaluation steps taken by the interpreter (-1 for unlimited)" in
+let max_call_depth = 
+  let doc = "Set the maximum depths of call stack allowed in the interpreter (-1 for unlimited)" in
   Arg.(value & opt int (-1) & info ["f"] ~docv:"FUEL" ~doc)
 
 let srcs =
@@ -138,7 +138,7 @@ let cmd =
   in
   Cmd.v 
      (Cmd.info "wasm_interpreter" ~version:"c9b010d-dirty" ~doc ~exits ~man ~man_xrefs)
-     Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ wast $ wast_timeout $ fuel $ srcs $ func_name $ module_name $ args ))
+     Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ wast $ wast_timeout $ max_call_depth $ srcs $ func_name $ module_name $ args ))
 
   
 let () = Stdlib.exit @@ 

@@ -51,7 +51,7 @@ module type InterpreterType = sig
 
   (** Run one step of the interpreter. *)
   val run_one_step :
-    interp_config_tuple -> res_tuple
+    interp_config_tuple -> int -> res_tuple
 
   val run_v_init : 
     store_record -> administrative_instruction list -> interp_config_tuple option

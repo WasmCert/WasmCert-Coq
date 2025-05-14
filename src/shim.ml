@@ -51,7 +51,7 @@ module type InterpreterType = sig
 
   (** Run one step of the interpreter. *)
   val run_one_step :
-    interp_config_tuple -> res_tuple
+    interp_config_tuple -> int -> res_tuple
 
   val run_v_init : 
     store_record -> administrative_instruction list -> interp_config_tuple option
@@ -128,8 +128,8 @@ functor (EH : Host) -> struct
   let empty_store_record = Extraction_instance.empty_store_record
 
   (** Run one step of the interpreter. *)
-  let run_one_step = 
-    Extraction_instance.run_one_step
+  let run_one_step cfg d = 
+    Extraction_instance.run_one_step cfg (Convert.to_n d)
 
   let run_v_init = Extraction_instance.run_v_init
 
@@ -168,8 +168,9 @@ functor (EH : Host) -> struct
   let pp_cfg_tuple_ctx_except_store r =
     Utils.implode (Extraction_instance.pp_cfg_tuple_ctx_except_store r)  
     
+(* Depth doesn't matter for pretty printing cfg *)
   let pp_res_cfg_except_store cfg res =
-    Utils.implode (Extraction_instance.pp_res_cfg_except_store cfg res)
+    Utils.implode (Extraction_instance.pp_res_cfg_except_store cfg Extract.N0 res)
 
   let pp_es es =
     Utils.implode (Extraction_instance.pp_administrative_instructions O es)

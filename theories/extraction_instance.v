@@ -70,9 +70,9 @@ Section Interpreter_ctx_extract.
   
 Definition cfg_tuple_ctx : Type := cfg_tuple_ctx.
 
-Definition run_step_ctx_result : host_state -> cfg_tuple_ctx -> Type := run_step_ctx_result.
+Definition run_step_ctx_result : host_state -> cfg_tuple_ctx -> BinNums.N -> Type := run_step_ctx_result.
 
-Definition run_one_step (cfg: cfg_tuple_ctx) : run_step_ctx_result tt cfg := run_one_step host_application_impl_correct tt cfg.
+Definition run_one_step (cfg: cfg_tuple_ctx) (d: BinNums.N) : run_step_ctx_result tt cfg d := run_one_step host_application_impl_correct tt cfg d.
 
 Definition run_v_init : store_record -> list administrative_instruction -> option cfg_tuple_ctx := run_v_init.
 
@@ -89,7 +89,7 @@ Definition pp_store := pp_store.
 
 Definition pp_cfg_tuple_ctx_except_store := pp_cfg_tuple_ctx_except_store.
 
-Definition pp_res_cfg_except_store {cfg: cfg_tuple_ctx} (res: run_step_ctx_result tt cfg) := pp_res_cfg_except_store res.
+Definition pp_res_cfg_except_store {cfg: cfg_tuple_ctx} {d: BinNums.N} (res: run_step_ctx_result tt cfg d) := pp_res_cfg_except_store res.
 
 Definition pp_administrative_instructions := pp_administrative_instructions.
 
