@@ -21,10 +21,8 @@ The current master branch formalises Wasm version 2.0, plus additional subtyping
 - [x] Interpreter with optimised context representations.
 
 ## Merged
-- [x] Updates for Wasm 2.0 (except SIMD and new numerics ops) + subtyping systems.
-
-## Ongoing
-- [ ] Validate WasmRef-Coq (conformance tests).
+- [x] Updates for Wasm 2.0 (except SIMD) + subtyping systems.
+- [x] Validate WasmRef-Coq (conformance tests).
 
 # Program Logic
 
@@ -51,12 +49,23 @@ opam pin add -y wasm git+https://github.com/WasmCert/spec#interpreter_only
 opam install .
 ```
 
-## Testing the Installation
+## Testing and Conformance
 
-The project comes with a small set of tests for the extracted interpreter:
+The project comes with a small set of tests for the extracted interpreter. To run these tests:
 ```bash
 dune test
 ```
+
+The project also includes the official test suite as a submodule under `wast_testsuite`. To run the interpreter against the test suite:
+```bash`
+make run_wast
+```
+All SIMD tests are skipped since the project does not implement SIMD yet. The interpreter is expected to pass all the other tests (last tested on 14th May 2025):
+```bash
+Total passed: 28018/28018 (100.00%)
+```
+Running the test suite takes around 1-2 minutes.
+
 
 ## Using the project
 
