@@ -40,6 +40,11 @@ let process_args_and_run verbosity text no_exec max_call_depth srcs func_name sr
       pure ()
   with Invalid_argument msg -> error msg
 
+(* Reference interpreter allows only 256 nested calls:
+https://github.com/WebAssembly/spec/blob/main/interpreter/main/flags.ml
+ *)
+let wast_budget = 256
+
 (** Similar to [process_args_and_run], but differs in the output type. *)
 let process_args_and_run_out verbosity text no_exec wast_mode wast_timeout max_call_depth srcs func_name src_module_name args =
   (if wast_mode then 
@@ -55,7 +60,7 @@ let process_args_and_run_out verbosity text no_exec wast_mode wast_timeout max_c
     match files with
     | [] -> Execute.Host.error "No wast file provided"
     | [scriptstr] -> 
-      let wast_max_call_depth = if max_call_depth = -1 then 1048576 else max_call_depth in
+      let wast_max_call_depth = if max_call_depth = -1 then wast_budget else max_call_depth in
         Wast_execute.run_wast_string verbosity wast_timeout wast_max_call_depth scriptstr
     | _ -> Execute.Host.error "Wast mode does not support multiple files"
 else
