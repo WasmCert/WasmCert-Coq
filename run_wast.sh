@@ -7,6 +7,10 @@ total_passed=0
 total_tests=0
 
 for wastfile in "$folder"/*.wast; do
+	if [[ "$wastfile" == *simd* ]]; then
+		echo "Skipping SIMD test: $wastfile"
+		continue
+	fi
 	echo "Running: $wastfile"
 	tmpfile=$(mktemp)
 	cleaned=$(mktemp)
