@@ -58,36 +58,31 @@ let rec eval_interp_cfg verbosity gen max_call_depth cfg d =
   let print_step_header gen =
     debug_info verbosity intermediate ~style:bold
       (fun () -> Printf.sprintf "step %d:\n" gen) in
-  if (max_call_depth >= 0) && (gen >= max_call_depth) then begin
-    debug_info verbosity stage ~style:red (fun _ -> "Fuel exhaustion\n");
-    Cfg_exhaustion
-  end
-  else
-    let cfg_res = run_one_step cfg d in
-      print_step_header gen;
-      debug_info verbosity intermediate
-        (fun _ -> pp_res_cfg_except_store cfg cfg_res);
-      match cfg_res with
-      | RSC_normal (_hs', cfg', d') ->
-        let d_int = Convert.from_n d' in
-        if (d_int > max_call_depth) && (max_call_depth != -1) then begin
-          debug_info verbosity stage ~style:red (fun _ -> "Call stack exhaustion\n");
-          Cfg_exhaustion
-        end
-        else
-          eval_interp_cfg verbosity (gen+1) max_call_depth cfg' d_int
-      | RSC_value (s, f, vs) ->
-        debug_info verbosity stage ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n");
-        (Cfg_res (s, f, vs))
-      | RSC_trap (s, f) ->
-        debug_info verbosity stage ~style:red (fun _ -> "trap after " ^ string_of_int gen ^ " steps\n");
-        Cfg_trap (s, f)
-      | RSC_invalid ->
-        debug_info verbosity stage ~style:red (fun _ -> "Invalid cfg\n");
-        Cfg_err
-      | RSC_error ->
-        debug_info verbosity stage ~style:red (fun _ -> "Ill-typed input\n");
-        Cfg_err
+  let cfg_res = run_one_step cfg d in
+    print_step_header gen;
+    debug_info verbosity intermediate
+      (fun _ -> pp_res_cfg_except_store cfg cfg_res);
+    match cfg_res with
+    | RSC_normal (_hs', cfg', d') ->
+      let d_int = Convert.from_n d' in
+      if (d_int > max_call_depth) && (max_call_depth != -1) then begin
+        debug_info verbosity stage ~style:red (fun _ -> "Call stack exhaustion\n");
+        Cfg_exhaustion
+      end
+      else
+        eval_interp_cfg verbosity (gen+1) max_call_depth cfg' d_int
+    | RSC_value (s, f, vs) ->
+      debug_info verbosity stage ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n");
+      (Cfg_res (s, f, vs))
+    | RSC_trap (s, f) ->
+      debug_info verbosity stage ~style:red (fun _ -> "trap after " ^ string_of_int gen ^ " steps\n");
+      Cfg_trap (s, f)
+    | RSC_invalid ->
+      debug_info verbosity stage ~style:red (fun _ -> "Invalid cfg\n");
+      Cfg_err
+    | RSC_error ->
+      debug_info verbosity stage ~style:red (fun _ -> "Ill-typed input\n");
+      Cfg_err
   
 let eval_wasm_cfg verbosity max_call_depth cfg =
   let interp_cfg_inst = interp_cfg_of_wasm cfg in

@@ -1658,7 +1658,7 @@ the condition that all values should live in the operand stack. *)
         * destruct fc as [fvs ? ? fes].
           destruct ccs' as [ | cc0 ccs']; first by eapply RSC_trap; eauto.
           (* Otherwise, exit from the innermost frame. *)
-          apply <<hs, (s, cc0 :: ccs', (fvs, fes), Some AI_trap), d>> => //=.
+          apply <<hs, (s, cc0 :: ccs', (fvs, fes), Some AI_trap), N.sub d 1>> => //=.
           (* pivot at cc0 *)
           replace (cc0 :: ccs') with (nil ++ cc0 :: ccs') at 2 => //.
           rewrite - cat1s.
