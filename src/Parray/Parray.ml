@@ -7,6 +7,11 @@
 (*         *     GNU Lesser General Public License Version 2.1          *)
 (*         *     (see LICENSE file for the text of the license)         *)
 (************************************************************************)
+(*  Modified by Xiaojia Rao                                                                            *)
+(*  Summary of changes:                                                                                *)
+(*  - Maximum array length changed to 2^32 to comply with Wasm's limit (may not work on 32-bit OCaml)  *)
+(*  - Added a different make function `make_copy` that uses an initialiser array                       *)
+(*******************************************************************************************************)
 
 (** Uniform Arrays: non-flat arrays (even floats are boxed, i.e., doesn't use
     {!Obj.double_array_tag}) *)
@@ -68,6 +73,7 @@
     
     end
     
+    (* Changed to full 32 bit to match Wasm's memory limit *)
     let max_array_length = 4294967296
     
     let max_length = Uint63.of_int max_array_length
@@ -139,6 +145,7 @@
     
     let make n def = make_int (trunc_size n) def
 
+    (* An addition to the kernel Parray extraction that initialises with another array acting as an initialiser *)
     let make_copy n init arr initlen =
       if Uint63.le initlen (length arr) then
         let trunc_n = trunc_size n in

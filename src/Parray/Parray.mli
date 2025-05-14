@@ -7,6 +7,11 @@
 (*         *     GNU Lesser General Public License Version 2.1          *)
 (*         *     (see LICENSE file for the text of the license)         *)
 (************************************************************************)
+(*  Modified by Xiaojia Rao                                                                            *)
+(*  Summary of changes:                                                                                *)
+(*  - Maximum array length changed to 2^32 to comply with Wasm's limit (may not work on 32-bit OCaml)  *)
+(*  - Added a different make function `make_copy` that uses an initialiser array                       *)
+(*******************************************************************************************************)
 
 val max_length : Uint63.t
 

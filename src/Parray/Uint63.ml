@@ -7,6 +7,7 @@
 (*         *     GNU Lesser General Public License Version 2.1          *)
 (*         *     (see LICENSE file for the text of the license)         *)
 (************************************************************************)
+(*  This file has been included without modification from the original. *)
 
 type t = int
 
