@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-folder="${1:-./wast}"  # Use argument, or fallback to default
+folder="${1:-./wast_testsuite}"  # Use argument, or fallback to default
 
 total_passed=0
 total_tests=0
