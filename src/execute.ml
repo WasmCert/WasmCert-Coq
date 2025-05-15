@@ -1,4 +1,3 @@
-
 open Output
 
 module Host = struct
@@ -83,7 +82,7 @@ let rec eval_interp_cfg verbosity gen max_call_depth cfg d =
     | RSC_error ->
       debug_info verbosity stage ~style:red (fun _ -> "Ill-typed input\n");
       Cfg_err
-  
+
 let eval_wasm_cfg verbosity max_call_depth cfg =
   let interp_cfg_inst = interp_cfg_of_wasm cfg in
   debug_info verbosity intermediate (fun _ ->
@@ -95,7 +94,7 @@ module StringMap = Map.Make(String);;
 
 type host_extern_store = ((Interpreter.externval StringMap.t) StringMap.t) * (string StringMap.t)
 
-let global_get verbosity hs s modname extname = 
+let global_get hs s modname extname = 
   let (exts, _) = hs in 
   match StringMap.find_opt modname exts with
   | Some mmap ->
@@ -197,18 +196,3 @@ let rec instantiate_modules verbosity hs s names modules =
     let* (hs', s', inst_res) = instantiate_host verbosity hs s name m in
       instantiate_modules verbosity hs' s' names' modules'
   | _ -> TopHost.error "Invalid module name parsing results"
-
-  (*
-let instantiate_interpret verbosity error_code_on_crash exts s m args name =
-  let* sf =
-    let* inst_result = instantiate verbosity empty_store_record m [] in
-    TopHost.from_out (
-      ovpending verbosity stage "instantiation" (fun _ ->
-        match inst_result with
-        | Cfg_err -> Error "instantiation error"
-        | Cfg_trap _ -> Error "instantiation error: initialisers resulted in a trap"
-        | Cfg_res (s, f, _vs) -> OK (s, f))
-  ) in
-    debug_info verbosity intermediate (fun _ -> Printf.sprintf "\nInstantiation success\n");
-    invocation_interpret verbosity error_code_on_crash sf args name
-*)

@@ -181,18 +181,18 @@ let run_invoke verbosity act_invoke hs s default_module_name max_call_depth =
       debug_info verbosity stage (fun _ -> "Successfully executed function " ^ funcname ^ " of module: " ^ modname ^ ".\n");
       pure res
 
-let run_get verbosity act_get hs s default_module_name = 
+let run_get act_get hs s default_module_name = 
   match act_get with
   | (ovar, extname_utf8) ->
     let* modname = ovar_to_name default_module_name hs ovar in
     let extname = wasm_name_to_raw_string extname_utf8 in
-      global_get verbosity hs s modname extname
+      global_get hs s modname extname
 
 type verdict_detail = 
   | Verdict_OK
   | Verdict_inst_trap
 
-let run_wast_command verbosity timeout max_call_depth cmd hs s mod_counter default_module_name test_counter =
+let run_wast_command verbosity max_call_depth cmd hs s mod_counter default_module_name test_counter =
   debug_info verbosity stage 
   (fun _ -> 
     "\n\n----------\nTest " ^ string_of_int test_counter ^ "\n----------\n" ^ print_wast_command cmd ^ "\n"
@@ -219,7 +219,7 @@ let run_wast_command verbosity timeout max_call_depth cmd hs s mod_counter defau
       | Cfg_exhaustion -> error "Unexpected exhaustion"
       end
     | Get (ovar, extname_utf8) ->
-        let* _ = run_get verbosity (ovar, extname_utf8) hs s default_module_name in
+        let* _ = run_get (ovar, extname_utf8) hs s default_module_name in
         debug_info verbosity stage (fun _ -> "Test passed: successfully retrieved the value " ^ wasm_name_to_raw_string extname_utf8);
         pure (hs, s, mod_counter, default_module_name, Verdict_OK)
     end
@@ -246,7 +246,7 @@ let run_wast_command verbosity timeout max_call_depth cmd hs s mod_counter defau
               error "Unexpected trap"
         end
       | Get (ovar, extname_utf8) ->
-        let* res_v = run_get verbosity (ovar, extname_utf8) hs s default_module_name in
+        let* res_v = run_get (ovar, extname_utf8) hs s default_module_name in
         let assert_result = wasm_assert_rets [res_v] expect_rets in
           if assert_result then
             (debug_info verbosity stage (fun _ -> "Test passed: result matches asserted value\n");
@@ -365,8 +365,8 @@ let rec run_wast_commands verbosity timeout max_call_depth cmds hs s mod_counter
   | cmd :: cmds' ->
       let verdict = 
         try
-          (with_timeout timeout (fun _ -> run_wast_command verbosity timeout max_call_depth cmd hs s mod_counter default_module_name (assert_total+1))) with
-          | Timeout -> error "Execution was timed out"
+          (with_timeout timeout (fun _ -> run_wast_command verbosity max_call_depth cmd hs s mod_counter default_module_name (assert_total+1))) with
+          | Timeout -> error "Execution exceeded time limit"
          in
         begin match to_out verdict with
         | OK eve -> 
@@ -394,8 +394,6 @@ let rec run_wast_commands verbosity timeout max_call_depth cmds hs s mod_counter
             flush stdout;
             run_wast_commands verbosity timeout max_call_depth cmds' hs s mod_counter default_module_name new_ok new_total
           end
-      
-
 
 let spectest_host_str = 
   "(module

@@ -2,7 +2,7 @@
 (using coq 0.2)
 (using mdx 0.2)
 (name coq-wasm)
-(version 2.0.3)
+(version 2.1.0)
 
 (generate_opam_files true)
 (license MIT)
@@ -24,7 +24,6 @@
     (linenoise (>= 1.4.0))
     (mdx (>= 1.9.0))
     (wasm (and (>= 2.0.1) (<= 2.0.1)))
-    (containers (>= 3.15))
   )
   (maintainers
     "Xiaojia Rao"
