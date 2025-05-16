@@ -1,1 +1,2 @@
 -R _build/default/theories Wasm
+-w overwriting-delimiting-key

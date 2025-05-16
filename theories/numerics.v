@@ -1,7 +1,7 @@
 (** Wasm numerics **)
 (* (C) M. Bodin, J. Pichon - see LICENSE.txt *)
 
-Require Import common.
+From Wasm Require Export common.
 From Coq Require ZArith ZArith.Int ZArith.BinInt ZArith.Zpower.
 From compcert Require Integers Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.

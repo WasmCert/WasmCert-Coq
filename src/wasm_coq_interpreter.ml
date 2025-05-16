@@ -124,7 +124,7 @@ let wast_timeout =
 
 let max_call_depth = 
   let doc = "Set the maximum depths of call stack allowed in the interpreter (-1 for unlimited)" in
-  Arg.(value & opt int (-1) & info ["f"] ~docv:"FUEL" ~doc)
+  Arg.(value & opt int (-1) & info ["d"] ~docv:"MAXDEPTH" ~doc)
 
 let srcs =
   let doc = "Source file(s) to interpret." in

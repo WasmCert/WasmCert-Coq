@@ -1,9 +1,10 @@
 # wasm_coq
-A WebAssembly (aka Wasm) formalisation in Coq, based on the [official specification](https://webassembly.github.io/spec/core/).
+A WebAssembly (aka Wasm) formalisation in Coq(Rocq), based on the [official specification](https://webassembly.github.io/spec/core/).
 
 (C) M. Bodin, P. Gardner, J. Pichon, C. Watt, X. Rao 2019-2025 - see LICENSE.txt
 
-The quotes from the WebAssembly standard (starting with `std-doc`) are (C) their respective authors.
+The quotes from the WebAssembly standard (starting with `std-doc`) are (C) their respective authors. 
+The files located in `src/Parray` are adapted from the Rocq kernel and therefore licensed under GNU LPGL 2.1 - see `src/Parray/LICENSE.LGPL`.
 
 The current master branch formalises Wasm version 2.0, plus additional subtyping systems from the future funcref/GC extension proposals. A large part of the old Wasm 1.0 formalisation has been published at [FM'21](https://link.springer.com/chapter/10.1007/978-3-030-90870-6_4), with many additions to the repository since then.
 
@@ -84,6 +85,16 @@ would produce
 ```bash
 i32.const 42
 ```
+
+Modules in text format can be run with the `--text` flag. For example:
+```bash
+dune exec -- wasm_coq_interpreter tests/add2.wat -r main -a "i32.const 6" -a "i32.const 36" --text
+```
+would produce
+```bash
+i32.const 42
+```
+
 
 The interpreter can also display intermediate states of the operational semantics:
 ```bash

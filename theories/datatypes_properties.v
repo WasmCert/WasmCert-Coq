@@ -459,7 +459,6 @@ HB.instance Definition lholed_eqMixin {k} := hasDecEq.Build (lholed k) (@eqlhole
 
 End lholed_eqdec.
 
-
 Definition limits_eq_dec : forall v1 v2 : limits, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
 Definition limits_eqb v1 v2 : bool := limits_eq_dec v1 v2.

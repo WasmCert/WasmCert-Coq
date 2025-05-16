@@ -356,7 +356,6 @@ let run_wast_command verbosity max_call_depth cmd hs s mod_counter default_modul
   with 
   | _ -> error "Unknown exception"
 end
-    
 
 let rec run_wast_commands verbosity timeout max_call_depth cmds hs s mod_counter default_module_name assert_ok assert_total =
   match cmds with

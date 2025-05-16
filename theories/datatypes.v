@@ -3,9 +3,7 @@
     and https://webassembly.github.io/spec/core/exec/index.html **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
-From Wasm Require array.
 From Wasm Require Export common numerics bytes memory.
-From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From compcert Require common.Memdata.
 Require Import BinNat.
 
