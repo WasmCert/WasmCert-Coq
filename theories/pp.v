@@ -298,31 +298,29 @@ Definition pp_exponent32 (bs: list bool) : string :=
   nan. Find a sensible representation here *)
 Definition pp_f32 (f: float32) : string :=
   let bits_f := bits_of_f32 f in
-(*  (* nan has no sign in the wast format. *)
-  if is_nan_canon bits_f then "nan:canonical"
-  else
-    if is_nan_arith bits_f then "nan:arithmetic"*)
   (pp_sign (get_sign bits_f)) ++
-    if is_nan_canon bits_f then "nan"
-    else
+(*    if is_nan_canon bits_f then "nan"
+    else*)
+      if is_inf bits_f then "inf"
+       else
       (* As nans chooses its payload and sign non-det, it is difficult to
          use mdx to test this bit. Also, since the current implementation
          in numerics.v always returns the canonical nan (made opaque),
          this clause will never be entered *)
-      if is_nan bits_f then "nan:0x" ++ pp_nanpl (get_mantissa bits_f)
-      else
-        (if is_inf bits_f then "inf"
-         else
-           "0x" ++
-             (if is_zero bits_f then "0" else
-                (if is_subnormal bits_f then
-                   "1." ++ pp_subnormal_mantissa (get_mantissa bits_f) 127
-                 else
-                   ("1." ++ pp_mantissa (get_mantissa bits_f)) ++ "p" ++
-                     (pp_exponent32 (get_exponent bits_f)))))
+        if is_nan bits_f then "nan:0x" ++ pp_nanpl (get_mantissa bits_f)
+        else
+          "0x" ++
+            (if is_zero bits_f then "0" else
+               (if is_subnormal bits_f then
+                  "1." ++ pp_subnormal_mantissa (get_mantissa bits_f) 127
+                else
+                  ("1." ++ pp_mantissa (get_mantissa bits_f)) ++ "p" ++
+                    (pp_exponent32 (get_exponent bits_f))))
 .
 
 End f32_Printer.
+
+
 
 Section f64_Printer.
 
@@ -345,24 +343,19 @@ Definition pp_exponent64 (bs: list bool) : string :=
 Definition pp_f64 (f: float) : string :=
   let bits_f := bits_of_f64 f in
   (pp_sign (get_sign bits_f)) ++
-                              (*
-  if is_nan_canon bits_f then "nan:canonical"
-  else
-    if is_nan_arith bits_f then "nan:arithmetic"
-    else*)
     if is_nan_canon bits_f then "nan"
     else
-      if is_nan bits_f then "nan:0x" ++ pp_nanpl (get_mantissa bits_f)
+      if is_inf bits_f then "inf"
       else
-        (if is_inf bits_f then "inf"
-         else
-           "0x" ++
-             (if is_zero bits_f then "0" else
-                (if is_subnormal bits_f then
-                   "1." ++ pp_subnormal_mantissa (get_mantissa bits_f) 1023
-                 else
-                   ("1." ++ pp_mantissa (get_mantissa bits_f)) ++ "p" ++
-                     (pp_exponent64 (get_exponent bits_f)))))
+        if is_nan bits_f then "nan:0x" ++ pp_nanpl (get_mantissa bits_f)
+        else
+          "0x" ++
+            (if is_zero bits_f then "0" else
+               (if is_subnormal bits_f then
+                  "1." ++ pp_subnormal_mantissa (get_mantissa bits_f) 1023
+                else
+                  ("1." ++ pp_mantissa (get_mantissa bits_f)) ++ "p" ++
+                    (pp_exponent64 (get_exponent bits_f))))
 .
 
 End f64_Printer.
@@ -794,9 +787,9 @@ Definition pp_cfg_tuple_ctx_except_store (cfg: cfg_tuple_ctx) : string :=
   let '(s, ccs, sc, oe) := cfg in
   pp_administrative_instructions_hint_empty 0 (ccs ⦃ sc ⦃ olist oe ⦄ ⦄).
 
-Definition pp_res_cfg_except_store {hs: host_state} {cfg: cfg_tuple_ctx} (res: run_step_ctx_result hs cfg) : string :=
+Definition pp_res_cfg_except_store {hs: host_state} {cfg: cfg_tuple_ctx} {d: N} (res: run_step_ctx_result hs cfg d) : string :=
   match res with
-  | RSC_normal hs' cfg' _ _ =>
+  | RSC_normal _ cfg' _ _ _ =>
       pp_cfg_tuple_ctx_except_store cfg' ++ newline
   | RSC_value _ _ vs _ =>
       "Value:" ++ newline ++ pp_values_hint_empty vs ++ newline
@@ -809,27 +802,3 @@ Definition pp_res_cfg_except_store {hs: host_state} {cfg: cfg_tuple_ctx} (res: r
   end.
 
 End Host.
-
-(** As-is, [eqType] tends not to extract well.
-  This section provides alternative definitions for better extraction. **)
-Module PP.
-
-Import DummyHost.
-  
-Section Show.
-
-Definition pp_values := pp_values.
-
-Definition pp_store := pp_store.
-
-Definition pp_cfg_tuple_ctx_except_store := pp_cfg_tuple_ctx_except_store.
-
-Definition pp_res_cfg_except_store {cfg: cfg_tuple_ctx} (res: run_step_ctx_result tt cfg) := pp_res_cfg_except_store res.
-
-Definition pp_administrative_instructions := pp_administrative_instructions.
-
-Definition pp_extern_value := pp_extern_value.
-
-End Show.
-
-End PP.

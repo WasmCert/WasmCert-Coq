@@ -1,0 +1,5 @@
+(library
+ (name parray)
+ (modules :standard)
+ (wrapped false)
+ )

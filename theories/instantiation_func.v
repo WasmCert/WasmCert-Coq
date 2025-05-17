@@ -1,8 +1,11 @@
 (** Executable instantiation **)
 
+From Coq Require Import BinNat String List.
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From Wasm Require Export opsem interpreter_ctx instantiation_spec.
-From Coq Require Import BinNat.
+
+Open Scope string_scope.
+Open Scope seq_scope.
 
 Section Instantiation_func.
 
@@ -138,7 +141,7 @@ Definition module_data_type_checker (c : t_context) (d : module_data) : bool :=
 Definition module_start_type_checker (c : t_context) (ms : module_start) : bool :=
   module_start_typing c ms.
 
-Definition module_type_checker (m : module) : option ((list extern_type) * (list extern_type)) :=
+Definition module_type_checker (m : module) : option ((list extern_type) * (list extern_type)) * string :=
   let '{|
     mod_types := tfs;
     mod_funcs := fs;
@@ -192,6 +195,7 @@ Definition module_type_checker (m : module) : option ((list extern_type) * (list
     if seq.all (module_func_type_checker c) fs &&
        seq.all (module_table_type_checker c) ts &&
        seq.all (module_mem_type_checker c) ms &&
+       wasm_2_memory_count_check ms ims &&  
        seq.all (module_global_type_checker c') gs &&
        seq.all (module_elem_type_checker c') els &&
        seq.all (module_data_type_checker c') ds &&
@@ -199,13 +203,13 @@ Definition module_type_checker (m : module) : option ((list extern_type) * (list
        export_name_unique exps
       then
        match module_exports_typer c exps with
-       | Some expts => Some (impts, expts)
-       | None => None
+       | Some expts => (Some (impts, expts), "ok")
+       | None => (None, "invalid module export type")
        end
-    else None
-    | _ => None
+    else (None, "invalid module components")
+    | _ => (None, "invalid module elem or data types")
     end
-  | (Some _, None) | (None, Some _) | (None, None) => None
+  | (Some _, None) | (None, Some _) | (None, None) => (None, "invalid module function or import references")
   end.
 
 Definition external_type_checker (s : store_record) (v : extern_value): option extern_type :=
@@ -270,10 +274,11 @@ Definition interp_alloc_module (s : store_record) (m : module) (imps : list exte
   let '(s', i_ds) := alloc_datas s5 m.(mod_datas) in
   (s', inst).
 
-Definition interp_instantiate (hs: host_state) (s : store_record) (m : module) (v_imps : list extern_value) : option (host_state * store_record * frame * list basic_instruction) :=
+(* Use a monad for error reporting at some point? *)
+Definition interp_instantiate (hs: host_state) (s : store_record) (m : module) (v_imps : list extern_value) : option (host_state * store_record * frame * list basic_instruction) * string :=
   match module_type_checker m with
-  | None => None
-  | Some (t_imps_mod, t_exps) =>
+  | (None, str) => (None, ("Module type checking failure:" ++ str)%string)
+  | (Some (t_imps_mod, t_exps), _) =>
       match those (map (external_type_checker s) v_imps) with
       | Some t_imps =>
           if all2 import_subtyping t_imps t_imps_mod then
@@ -290,68 +295,19 @@ Definition interp_instantiate (hs: host_state) (s : store_record) (m : module) (
               |} in
             let f_init := Build_frame nil inst_init in
             match get_global_inits s f_init m.(mod_globals) with
-            | None => None
+            | None => (None, "Error in evaluating global initialisers")
             | Some g_inits =>
                 match get_elem_inits s f_init m.(mod_elems) with
                 | Some r_inits =>
                     let '(s', inst_final) := interp_alloc_module s m v_imps g_inits r_inits in
                     let f_final := Build_frame nil inst_final in
-                    Some (hs, s', f_final, get_init_expr_elems m.(mod_elems) ++ get_init_expr_datas m.(mod_datas) ++ get_init_expr_start m.(mod_start))
-                | None => None
+                    (Some (hs, s', f_final, get_init_expr_elems m.(mod_elems) ++ get_init_expr_datas m.(mod_datas) ++ get_init_expr_start m.(mod_start)), "")
+                | None => (None, "Error in evaluating elem initialisers")
                 end
             end
-          else None
-      | None => None
+          else (None, "Import type checking failure")
+      | None => (None, "Bad external values for imports")
       end
   end.
 
 End Instantiation_func.
-
-(** Extraction **)
-
-Require Import Coq.Strings.String.
-
-Module Instantiation_func_extract.
-
-Import Interpreter_ctx_extract.
-
-Definition empty_store_record : store_record := {|
-    s_funcs := nil;
-    s_tables := nil;
-    s_mems := nil;
-    s_globals := nil;
-    s_elems := nil;
-    s_datas := nil;
-  |}.
-
-(* Provide a unit host state and convert the starting expression to administrative *)
-Definition interp_instantiate_wrapper (s: store_record) (m : module) (v_imps: list extern_value) : option config_tuple :=
-  match interp_instantiate tt s m v_imps with
-  | Some (hs', s', f, bes) => Some (s', (f, to_e_list bes))
-  | None => None
-  end.
-
-Definition string_of_name (n: name) : string :=
-  string_of_list_byte n.
-
-Definition get_import_path (m: module) : list (string * string) :=
-  map (fun imp => (string_of_name (imp_module imp), string_of_name (imp_name imp))) m.(mod_imports).
-
-Definition get_exports (f: frame) : list (string * extern_value) :=
-  map (fun exp_inst => (string_of_name (exportinst_name exp_inst), exportinst_val exp_inst)) f.(f_inst).(inst_exports).
-
-(* Provide the instruction for invoking an external function under a given store *)
-Definition invoke_extern (s: store_record) (ext: extern_value) (args: list value) : option (list administrative_instruction) :=
-  match ext with
-  | EV_func fi =>
-      match lookup_N s.(s_funcs) fi with
-      | Some (FC_func_native (Tf ts1 ts2) _ _) =>
-          if (those (map (typeof_value s) args) == Some ts1) then
-            Some (v_to_e_list args ++ [::AI_invoke fi])
-          else None
-      | _ => None
-      end
-  | _ => None
-  end.
-
-End Instantiation_func_extract.

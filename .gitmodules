@@ -1,0 +1,3 @@
+[submodule "wast_testsuite"]
+	path = wast_testsuite
+	url = https://github.com/WasmCert/testsuite
