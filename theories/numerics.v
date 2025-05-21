@@ -2,7 +2,7 @@
 (* (C) M. Bodin, J. Pichon - see LICENSE.txt *)
 
 From Wasm Require Export common.
-From Coq Require ZArith ZArith.Int ZArith.BinInt ZArith.Zpower.
+From Coq Require Import ZArith ZArith.Int ZArith.BinInt ZArith.Zpower.
 From compcert Require Integers Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From HB Require Import structures.
@@ -19,8 +19,6 @@ Unset Printing Implicit Defensive.
 (** * Integers **)
 
 Module Wasm_int.
-
-Import ZArith.BinInt.
 
 Coercion Z.of_nat : nat >-> Z.
 

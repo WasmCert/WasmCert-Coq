@@ -21,7 +21,12 @@ module Host : sig
 
 module Interpreter : Shim.InterpreterType with type 'a host_event = 'a Host.host_event
 
-(* Type of the interpreter evaluation result *)
+(* Type of the interpreter evaluation result.
+   Exhaustion is modelled by the interpreter recording the current stack depth. The depth should not be computed 
+during run-time due to the interpreter config using a linked-list representation of the frame stack (due to extraction) which 
+would have led to a linear complexity per length computation. The OCaml host then returns an exhaustion when the current depth
+exceeds the maximum allowed depth.
+ *)
 type eval_cfg_result =
   | Cfg_res of Interpreter.store_record * Extract.frame * Extract.value0 list
   | Cfg_trap of Interpreter.store_record * Extract.frame

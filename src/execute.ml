@@ -146,6 +146,7 @@ let instantiate_imps verbosity s m imps =
         match interp_instantiate_wrapper s m imps with
         | (None, errmsg) -> Error ("instantiation error: " ^ errmsg)
         | (Some cfg, _) -> OK cfg)) in
+  (* No max stack limit for instantiation -- doesn't matter anyway due to initalisers being const exprs *)
   pure (eval_wasm_cfg verbosity (-1) wasm_cfg)
 
 let get_ext_import hs path = 

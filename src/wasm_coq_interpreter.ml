@@ -91,17 +91,6 @@ let no_exec =
   let doc = "Stop before executing (only go up to typechecking)." in
   Arg.(value & flag & info ["no-exec"] ~doc)
 
-  (*
-let interactive =
-  let doc = "Interactive execution." in
-  Arg.(value & flag & info ["i"; "interactive"] ~doc)
-*)
-  (*
-let max_call_depth =
-  let doc = "Specify maximum amount of steps to run." in
-  Arg.(value & opt (some int) None & info ["f"; "max_call_depth"] ~doc)
-*)
-
 let func_name =
   let doc = "Name of the Wasm function to run." in
   Arg.(value & opt string "" & info ["r"; "run"] ~docv:"NAME" ~doc)

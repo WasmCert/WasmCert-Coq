@@ -15,7 +15,8 @@ val parse_modules: Output.verbosity -> bool -> string list -> (Extract.module0 l
 (* Parsing the arguments of a function call in text format. *)
 val parse_arg: string -> (Execute.Interpreter.value) option
 
+(* Parsing a list of arguments from text format string. *)
 val parse_args: string list -> (Execute.Interpreter.value list) Execute.Host.host_event
 
-(* Parsing a wast script. *)
+(* Parsing a wast script from a string. *)
 val parse_wast: string -> Wasm.Script.script

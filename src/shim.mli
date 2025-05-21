@@ -53,12 +53,15 @@ module type InterpreterType = sig
   val run_one_step :
     interp_config_tuple -> int -> res_tuple
 
+  (* Given a store and an admin instruction list to run, construct the corresponding interpreter configuration to run. *)
   val run_v_init : 
     store_record -> administrative_instruction list -> interp_config_tuple option
 
+  (* Convert a Wasm configuration tuple (s; f; es) to an interpreter configuration (in theories/interpreter_ctx.v). *)
   val interp_cfg_of_wasm : 
     wasm_config_tuple -> interp_config_tuple
 
+  (* Get a global variable from the Wasm store by its address (externval). *)
   val wasm_global_get :
     store_record -> externval -> value option
 
@@ -77,7 +80,6 @@ module type InterpreterType = sig
   val get_exports : frame -> (string * externval) list
 
   (** Parsing. *)
-
   val run_parse_module : string -> Extract.module0 option
 
   val run_parse_arg : string -> Extract.value0 option

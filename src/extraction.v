@@ -4,7 +4,7 @@ From Coq Require Extraction.
 From Coq Require PArray.
 
 From Wasm Require Import
-  efficient
+  efficient_extraction
   datatypes_properties
   binary_format_parser
   text_format_parser

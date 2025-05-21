@@ -35,7 +35,6 @@ let ovar_to_name default hs ovar =
 let wasm_num_to_hexstring num = 
   (* This somehow doesn't include the type signature. *)
   let val_string = hex_string_of_num num in
-  (*Printf.printf "%s\n" val_string;*)
     Wasm.Types.string_of_num_type (type_of_num num) ^ ".const " ^ val_string
 
 let wasm_ref_to_string = function
@@ -48,10 +47,6 @@ let wasm_val_to_string wval =
   | Num num -> Some (wasm_num_to_hexstring num)
   | Ref ref -> Some (wasm_ref_to_string ref)
   | _-> Some (string_of_value wval.it)
-(*
-let wasm_vals_to_string wvals = 
-  String.concat "" (List.filter_map (function | Some x -> Some x | _ -> None) (List.map wasm_val_to_string wvals))
-*)
 
 let wasm_numpat_to_string numpat =
   match numpat with
@@ -394,6 +389,7 @@ let rec run_wast_commands verbosity timeout max_call_depth cmds hs s mod_counter
             run_wast_commands verbosity timeout max_call_depth cmds' hs s mod_counter default_module_name new_ok new_total
           end
 
+(* SpecTest host module for Wast test suite *)
 let spectest_host_str = 
   "(module
   (global (export \"global_i32\") i32 (i32.const 666))      ;; value 666
@@ -437,6 +433,3 @@ let run_wast_script verbosity timeout max_call_depth script =
 let run_wast_string verbosity timeout max_call_depth scriptstr = 
   let script = Parse.parse_wast scriptstr in
   run_wast_script verbosity timeout max_call_depth script
-
-
-  

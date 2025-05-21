@@ -482,4 +482,3 @@ Definition eqmemory_typeP : Equality.axiom memory_type_eqb :=
   eq_dec_Equality_axiom memory_type_eq_dec.
 
 HB.instance Definition memory_type_eqMixin := hasDecEq.Build memory_type eqmemory_typeP.
-
