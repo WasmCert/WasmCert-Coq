@@ -2571,7 +2571,7 @@ Proof.
     apply const_list_split in Hconst as [_ Hconst].
     simpl in Hconst.
     move/andP in Hconst; destruct Hconst as [? Hconst].
-    destruct e as [b | | | | | | ] => //; try destruct b => //;
+    destruct e as [b | | | | | | | ] => //; try destruct b => //;
     exists lvs, les, (Logic.eq_refl 0); by split => //.
   - move => e lf Hconst Hlf. subst.
     exfalso.
@@ -2588,7 +2588,7 @@ Proof.
   - subst.
     left; by exists nil, ves'.
   - destruct (e_to_v_opt e) as [v | ] eqn:Hconst.
-    { destruct e as [ b | | | | | |] => //; first destruct b => //.
+    { destruct e as [ b | | | | | | |] => //; first destruct b => //.
       all: apply ve_inv in Hconst; destruct (IHves' fe) as [[vs [es ->]] | Hcontra]; first by (left; exists (v :: vs), es); rewrite - Hconst.
       all: right; move => vs es Heq;
       destruct vs as [| v' vs'] => //; simpl in *; first by inversion Heq.
@@ -2630,8 +2630,8 @@ Proof.
     by apply Hcontra in Heq.
   - specialize (split_vals_nconst Hsplit) as Hnconst.
     apply split_vals_inv in Hsplit as ->.
-    destruct e as [ | | | | | j lvs les |].
-    6: {
+    destruct e as [ | | | | | | j lvs les |].
+    7: {
       destruct (Hrec (fun n => fe (S n)) les) as [IH | IH] => /=.
       (* measure *)
       {
