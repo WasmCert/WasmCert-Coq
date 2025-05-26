@@ -13,6 +13,7 @@
 \#*\#
 *.swp
 
+*.log
 *.vo
 *.vio
 *.vos
@@ -26,6 +27,8 @@
 
 .saves
 .DS_Store
+
+/wast/
 
 /wasm_interpreter
 /wasm_coq_interpreter.exe

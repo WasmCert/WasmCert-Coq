@@ -9,6 +9,8 @@ Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
 Section Typing_inversion_be.
+
+Context `{memory: Memory}.
   
 (* Some quality of life lemmas *)
 (* Upd: these lemmas are deprecated; it is encouraged to directly use subtyping rule. *)
@@ -152,7 +154,7 @@ Definition be_principal_typing (C: t_context) (be: basic_instruction) (tf: instr
   | BI_br_table ins k =>
       exists tx ty ts,
       tf = (Tf (tx ++ (ts ++ [::T_num T_i32])) ty) /\
-        List.Forall (fun i => (lookup_N C.(tc_labels) i) = Some ts) (ins ++ [::k])
+        List.Forall (fun i => (exists ts', lookup_N C.(tc_labels) i = Some ts' /\ ts <ts: ts')) (ins ++ [::k])
   | BI_return =>
       exists tx ty ts,
       tf = (Tf (tx ++ ts) ty) /\
@@ -451,7 +453,7 @@ Ltac e_typing_ind HType :=
 
 Section Typing_inversion_e.
              
-Context {hfc: host_function_class}.
+Context `{hfc: host_function_class} `{memory: Memory}.
 
 (** Typing lemmas **)
 
@@ -811,7 +813,7 @@ Ltac invert_e_typing :=
 (* Some more complicated lemmas *)
 Section Typing_inversion_e.
 
-Context `{hfc: host_function_class}.
+Context `{hfc: host_function_class} `{memory: Memory}.
   
 (* inst_typing inversion *)
 Lemma inst_t_context_local_empty: forall s i C,

@@ -10,24 +10,25 @@ Section Host.
 
 Context `{ho: host}.
   
-Lemma module_type_checker_sound: forall m t_imps t_exps,
-  module_type_checker m = Some (t_imps, t_exps) ->
+Lemma module_type_checker_sound: forall m t_imps t_exps str,
+  module_type_checker m = (Some (t_imps, t_exps), str) ->
   module_typing m t_imps t_exps.
 Proof.
-  move => m t_imps t_exps Hmodcheck.
+  move => m t_imps t_exps str Hmodcheck.
   unfold module_type_checker in Hmodcheck.
   destruct m.
   destruct (gather_m_f_types mod_types mod_funcs) as [fts | ] eqn:Hmftypes => //;
-  destruct (module_imports_typer mod_types mod_imports) as [impts | ] eqn:Hmitypes => //.
+                                                                               destruct (module_imports_typer mod_types mod_imports) as [impts | ] eqn:Hmitypes => //.
   destruct (gather_m_e_types (ext_t_tables impts ++ map modtab_type mod_tables) mod_elems) as [ets | ] eqn:Hmetypes => //.
   destruct (gather_m_d_types (ext_t_mems impts ++ map modmem_type mod_mems) mod_datas) as [dts | ] eqn:Hmdtypes => //.
-  destruct (all _ _ && _ && _ && _ && _ && _ && _ && _) eqn:Hallcond => //.
+  destruct (all _ _ && _ && _ && _ && _ && _ && _ && _ && _) eqn:Hallcond => //.
   destruct (module_exports_typer _ mod_exports) eqn:Hmexptypes => //.
   move/andP in Hallcond; destruct Hallcond as [Hallcond Hnameunique].
   move/andP in Hallcond; destruct Hallcond as [Hallcond Hstartcheck].
   move/andP in Hallcond; destruct Hallcond as [Hallcond Hdatacheck].
   move/andP in Hallcond; destruct Hallcond as [Hallcond Helemcheck].
   move/andP in Hallcond; destruct Hallcond as [Hallcond Hglobalcheck].
+  move/andP in Hallcond; destruct Hallcond as [Hallcond Hmemcountcheck].
   move/andP in Hallcond; destruct Hallcond as [Hallcond Hmemcheck].
   move/andP in Hallcond; destruct Hallcond as [Hfunccheck Htablecheck].
   unfold module_typing.
@@ -213,11 +214,11 @@ Qed.
 
 (* Breaking circularity: the global initialisers need to be well-typed under a
    context with only the imported globals added. *)
-Lemma module_typecheck_glob_aux: forall m t_imps t_exps,
-    module_type_checker m = Some (t_imps, t_exps) ->
+Lemma module_typecheck_glob_aux: forall m t_imps t_exps str,
+    module_type_checker m = (Some (t_imps, t_exps), str) ->
     exists c, all (module_global_type_checker c) m.(mod_globals).
 Proof.
-  move => m t_imps t_exps.
+  move => m t_imps t_exps str.
   unfold module_type_checker.
   move => Hmodcheck.
   destruct m.
@@ -226,11 +227,11 @@ Proof.
   by eexists; eauto.
 Qed.
 
-Lemma module_typecheck_elem_aux: forall m t_imps t_exps,
-    module_type_checker m = Some (t_imps, t_exps) ->
+Lemma module_typecheck_elem_aux: forall m t_imps t_exps str,
+    module_type_checker m = (Some (t_imps, t_exps), str) ->
     exists c, all (module_elem_type_checker c) m.(mod_elems).
 Proof.
-  move => m t_imps t_exps.
+  move => m t_imps t_exps str.
   unfold module_type_checker.
   move => Hmodcheck.
   destruct m.
@@ -239,14 +240,14 @@ Proof.
   by eexists; eauto.
 Qed.
 
-Lemma interp_instantiate_imp_instantiate : forall hs hs' s m v_imps s_end f bes,
-  interp_instantiate hs s m v_imps = Some (hs', s_end, f, bes) ->
+Lemma interp_instantiate_imp_instantiate : forall hs hs' s m v_imps s_end f bes str,
+  interp_instantiate hs s m v_imps = (Some (hs', s_end, f, bes), str) ->
   instantiate s m v_imps (s_end, f, bes).
 Proof.
-  move => hs hs' s m v_imps s_end f bes.
+  move => hs hs' s m v_imps s_end f bes str.
   unfold interp_instantiate, instantiate.
   move => Hinterp.
-  destruct (module_type_checker m) as [[t_imps_mod t_exps] |] eqn:Hmodcheck => //.
+  destruct (module_type_checker m) as [[[t_imps_mod t_exps]|] str'] eqn:Hmodcheck => //.
   destruct (those _) as [t_imps | ] eqn:Hextcheck => //.
   destruct (all2 import_subtyping _ _) eqn:Hextsubtyping => //.
   destruct (get_global_inits _ _ (mod_globals m)) as [g_inits |] eqn:Hglobinit => //.
@@ -257,7 +258,7 @@ Proof.
   exists t_imps_mod, t_imps, t_exps, hs, inst', g_inits, r_inits.
 
   (* Proving these first so they can be used in the reasoning for initialisers later *)
-  assert (module_typing m t_imps_mod t_exps) as Hmodtype; first by apply module_type_checker_sound.
+  assert (module_typing m t_imps_mod t_exps) as Hmodtype; first by eapply module_type_checker_sound; eauto.
   
   assert (alloc_module s m v_imps g_inits r_inits (s', inst')) as Hallocmodule.
   { apply interp_alloc_sound => //.

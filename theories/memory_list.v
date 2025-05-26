@@ -1,192 +1,187 @@
 (** an implementation of Wasm memory based on a list *)
-(* (C) J. Pichon - see LICENSE.txt *)
 
-From mathcomp Require Import ssreflect ssrbool eqtype seq.
-Require Import BinNat Lia.
-From Wasm Require Import numerics bytes memory.
+From mathcomp Require Import ssreflect ssrbool eqtype seq ssrnat.
+From Coq Require Import BinNums ZArith NArith Lia.
+From Wasm Require Import numerics bytes memory common.
 
-Record memory_list : Type := {
-  ml_init : byte;
-  ml_data : list byte;
-}.
+Set Implicit Arguments.
+Unset Strict Implicit.
+Unset Printing Implicit Defensive.
 
-Definition mem_make : Memory.mem_make_t memory_list :=
-  fun v len => {| ml_init := v; ml_data := List.repeat v (N.to_nat len) |}.
+Section MemoryList.
 
-Definition mem_length : Memory.mem_length_t memory_list :=
-    fun ml => N.of_nat (List.length ml.(ml_data)).
+  Record memory_list : Type := {
+      ml_init : byte;
+      ml_data : list byte;
+    }.
 
-Definition mem_grow : Memory.mem_grow_t memory_list :=
-  fun len_delta ml =>
-    {|
-      ml_init := ml.(ml_init);
-      ml_data := ml.(ml_data) ++ List.repeat ml.(ml_init) (N.to_nat len_delta)
-    |}.
+  Definition ml_make :=
+    fun v len =>
+      let capped_len := N.min len byte_limit in
+      {| ml_init := v; ml_data := mkseq (fun _ => v) (N.to_nat capped_len) |}.
 
-Definition mem_lookup : Memory.mem_lookup_t memory_list :=
-  fun i ml => List.nth_error ml.(ml_data) (N.to_nat i).
+  Definition ml_length :=
+    fun ml => N.of_nat (size ml.(ml_data)).
 
-Definition mem_update : Memory.mem_update_t memory_list :=
-  fun i v ml =>
-    if N.ltb i (N.of_nat (List.length ml.(ml_data)))
-    then Some {| ml_init := ml.(ml_init);
-                ml_data := take (N.to_nat i) ml.(ml_data) ++ [::v] ++ drop (N.to_nat i+1) ml.(ml_data) |}
-    else None.
+  Definition ml_grow :=
+    fun len_delta ml =>
+      let new_length := N.add len_delta (N.of_nat (length ml.(ml_data))) in
+      if new_length <=? byte_limit then
+      Some {|
+          ml_init := ml.(ml_init);
+          ml_data := ml.(ml_data) ++ mkseq (fun _ => ml.(ml_init)) (N.to_nat len_delta)
+        |}
+      else None.
 
-Lemma memory_list_ax_lookup_out_of_bounds :
-  Memory.mem_ax_lookup_out_of_bounds memory_list mem_make mem_length mem_grow mem_lookup mem_update.
-Proof.
-  move => mem i.
-  rewrite /mem_length /mem_lookup.
-  move => H.
-  apply (List.nth_error_None mem.(ml_data) (N.to_nat i)).
-  apply N.ge_le in H.
-  move: H.
-  set x := (length (ml_data mem)).
-  move => H.
-  lia.
-Qed.
+  Definition ml_lookup :=
+    fun i ml =>
+      if N.ltb i (ml_length ml) then
+        Some (seq.nth ml.(ml_init) ml.(ml_data) (N.to_nat i))
+      else None.
+
+  Definition ml_update :=
+    fun i v ml =>
+      if N.ltb i (ml_length ml)
+      then Some {| ml_init := ml.(ml_init);
+                  ml_data := set_nth ml.(ml_init) ml.(ml_data) (N.to_nat i) v
+                |}
+      else None.
+
+  Lemma ml_lookup_oob:
+    forall mem i,
+      (i >= ml_length mem)%N ->
+      ml_lookup i mem = None.
+  Proof.
+    move => mem i => /=.
+    rewrite /ml_length /ml_lookup.
+    move => H.
+    apply N.ge_le in H; move/N.leb_spec0 in H.
+    rewrite N.leb_antisym in H.
+    move/negPf in H.
+    by rewrite H.
+  Qed.
   
-Lemma nth_repeat :
-forall A b i len, i < len ->
-@List.nth_error A (List.repeat b len) i = Some b.
-Proof.
-  move => A b.
-  elim => [|i].
-  { case => [|len]; first by lia.
-    by move => _. }
-  { move => IH len.
-    case: len => [|len'].
-    { move => Hctr.
-      exfalso.
-      lia. }
-    { move => Hlen /=.
-      apply: IH.
-      lia. } }
-Qed.
-  
-Lemma lookup_split : forall A (l : list A) i b,
-  i < List.length l ->
-  List.nth_error (take i l ++ b :: drop (i+1) l) i = Some b.
-Proof.
-  move => A.
-  elim => [|x l].
-  { move => i b /= Hlen.
-    exfalso.
-    lia. }
-  { move => IH.
-    case => [|i]; first by reflexivity.
-    move => b /= Hlen.
-    have Hlen': i < length l by lia.
-    by apply: IH. }
-Qed.
-  
-Lemma bar : forall A n n' (l : list A) v,
-  n <> n' -> n' < List.length l ->
-  List.nth_error (take n' l ++ v :: drop (n' + 1) l) n =
-  List.nth_error l n.
-Proof.
-  move => A.
-  induction n; move => n' l v; destruct n', l => //=; try lia; move => Hneq Hlen; first by rewrite drop0.
-  apply IHn => //; lia.
-Qed.
-  
-Lemma length_is_size: forall {X:Type} (l: list X),
-  length l = size l.
-Proof.
-  move => X l. by elim: l.
-Qed.
+  Lemma ml_make_length:
+    forall b len,
+      ml_length (ml_make b len) = N.min len byte_limit.
+  Proof.
+    move => b len => /=.
+    unfold ml_length, ml_make.
+    rewrite size_mkseq.
+    by rewrite N2Nat.id.
+  Qed.
 
-Lemma split_preserves_length : forall A i b (l : list A),
-  i < List.length l ->
-  List.length (take i l ++ b :: drop (i + 1) l) = List.length l.
-Proof.
-  move => A i b l Hlen.
-  repeat rewrite length_is_size.
-  rewrite size_cat => /=.
-  rewrite size_take size_drop.
-  rewrite length_is_size in Hlen.
-  move/ssrnat.ltP in Hlen.
-  rewrite Hlen.
-  rewrite PeanoNat.Nat.add_1_r.
-  rewrite ssrnat.subnSK => //.
-  rewrite ssrnat.subnKC => //.
-  move/ssrnat.ltP in Hlen.
-  apply/ssrnat.leP.
-  (* lia come on? *)
-  by apply PeanoNat.Nat.lt_le_incl.
-Qed.
+  Lemma ml_make_lookup:
+    forall i len b,
+      (i < N.min len byte_limit)%N ->
+      ml_lookup i (ml_make b len) = Some b.
+  Proof.
+    move => i len b Hlen /=.
+    unfold ml_lookup.
+    erewrite ml_make_length; eauto.
+    move/N.ltb_spec0 in Hlen; rewrite Hlen => /=.
+    rewrite nth_mkseq => //.
+    by lias.
+  Qed.
 
-Lemma memory_list_ax_lookup_make : Memory.mem_ax_lookup_make memory_list mem_make mem_length mem_grow mem_lookup mem_update.
+Lemma ml_update_length :
+  forall mem mem' i b,
+    ml_update i b mem = Some mem' ->
+    ml_length mem' = ml_length mem.
 Proof.
-  move => i len b mem.
-  apply: nth_repeat.
-  lia.
-Qed.
-
-Lemma memory_list_ax_lookup_update :
-  Memory.mem_ax_lookup_update memory_list mem_make mem_length mem_grow mem_lookup mem_update.
-Proof.
-  move => mem mem' i b H H0.
-  rewrite /mem_update in H0.
-  apply N.ltb_lt in H.
-  rewrite /mem_length in H.
-  rewrite H in H0.
-  case: mem' H0 => init_ data_ [Hinit Hdata].
-  rewrite Hinit Hdata /= {init_ data_ Hinit Hdata}.
-  set nn := N.to_nat i.
-  have Hx: nn < length (ml_data mem).
-  apply N.ltb_lt in H.
-  lia.
-  by apply: lookup_split.
-Qed.
-
-Lemma memory_list_ax_lookup_skip :
-  Memory.mem_ax_lookup_skip memory_list mem_make mem_length mem_grow mem_lookup mem_update.
-Proof.
-  move => mem mem' i i' b Hii' H0.
-  case: mem' H0 => init_ data_.
-  rewrite /mem_update /mem_lookup.
-  case_eq (N.ltb i' (N.of_nat (length (ml_data mem)))); last by discriminate.
-  move => Hlen [Hinit Hdata] /=.
-  rewrite Hdata => {Hdata}.
-  apply: bar.
-  lia.
-  apply N.ltb_lt in Hlen.
-  lia.
-Qed.
-
-Lemma memory_list_ax_length_constant_update :
-  Memory.mem_ax_length_constant_update memory_list mem_make mem_length mem_grow mem_lookup mem_update.
-Proof.
-  move => i b [dv_init1 dv_list1] [dv_init2 dv_list2].
-  rewrite /mem_update /mem_length /=.
-  case_eq (N.ltb i (N.of_nat (length dv_list1))); last by discriminate.
-  move => Hlen [Hinit Hlist].
-  apply N.ltb_lt in Hlen.
-  rewrite Hlist.
+  move => mem mem' i b Hupdate.
+  unfold ml_update in Hupdate.
+  remove_bools_options.
+  unfold ml_length in * => /=.
+  rewrite size_set_nth.
   f_equal.
-  apply: (split_preserves_length _ (N.to_nat i) b dv_list1).
-  lia.
+  apply/ssrnat.maxn_idPr.
+  by lias.
 Qed.
 
-Require Import bytes common.
-From HB Require Import structures.
+  Lemma Nat2N_inj_le: forall n m,
+      n <= m ->
+      (N.of_nat n <= N.of_nat m)%N.
+  Proof.
+    by lias.
+  Qed.
+  
+  Lemma ml_update_lookup :
+    forall mem mem' i b,
+      ml_update i b mem = Some mem' ->
+      ml_lookup i mem' = Some b.
+  Proof.
+    move => mem mem' i b Hupdate.
+    unfold ml_lookup.
+    erewrite ml_update_length; eauto.
+    unfold ml_update in *.
+    remove_bools_options => /=.
+    by rewrite nth_set_nth /= eq_refl.
+  Qed.
 
-Definition memory_list_eq_dec : forall (i1 i2 : memory_list), {i1 = i2} + {i1 <> i2}.
-Proof. decidable_equality. Defined.
+Lemma ml_update_lookup_ne:
+  forall mem mem' i j b,
+    i <> j ->
+    ml_update j b mem = Some mem' ->
+    ml_lookup i mem' = ml_lookup i mem.
+Proof.
+  move => mem mem' i j b Hneq Hupdate.
+  unfold ml_lookup.
+  erewrite ml_update_length; eauto.
+  unfold ml_update in *.
+  remove_bools_options => /=.
+  destruct (i <? ml_length mem)%N eqn:Hlt => //.
+  f_equal.
+  rewrite nth_set_nth => /=.
+  replace ((N.to_nat i) == (N.to_nat j)) with false => //.
+  by lias.
+Qed.
 
-Definition memory_list_eqb i1 i2 : bool := memory_list_eq_dec i1 i2.
+Lemma ml_grow_length :
+  forall n mem mem',
+    ml_grow n mem = Some mem' ->
+    ml_length mem' = (ml_length mem + n)%N.
+Proof.
+  move => n mem mem' Hgrow.
+  unfold ml_grow in Hgrow; subst.
+  unfold ml_length.
+  remove_bools_options => /=.
+  move/Nat.leb_spec0 in Hif.
+  rewrite size_cat size_mkseq.
+  by lias.
+Qed.
 
-Definition eqmemory_listP : Equality.axiom memory_list_eqb :=
-  eq_dec_Equality_axiom memory_list_eq_dec.
+Lemma ml_grow_lookup :
+  forall i n mem mem',
+    (i < ml_length mem)%N ->
+    ml_grow n mem = Some mem' ->
+    ml_lookup i mem' = ml_lookup i mem.
+Proof.
+  move => i n mem mem' Hlen Hgrow.
+  unfold ml_lookup.
+  move/N.ltb_spec0 in Hlen.
+  rewrite Hlen.
+  erewrite ml_grow_length; eauto.
+  replace (i <? ml_length mem + n)%N with true; last by lias.
+  f_equal.
+  unfold ml_grow in Hgrow; remove_bools_options.
+  rewrite nth_cat.
+  unfold ml_length in Hlen.
+  replace (N.to_nat i < size (ml_data mem)) with true; by lias.
+Qed.
+  
+#[export]
+  Instance Memory_list: Memory.
+Proof.
+  apply (@Build_Memory memory_list ml_make ml_length ml_lookup ml_grow ml_update).
+  - exact ml_lookup_oob.
+  - exact ml_make_length.
+  - exact ml_make_lookup.
+  - exact ml_update_lookup.
+  - exact ml_update_lookup_ne.
+  - by intros; eapply ml_update_length; eauto.
+  - exact ml_grow_lookup.
+  - exact ml_grow_length.
+Qed.
 
-HB.instance Definition memory_list_eqMixin := hasDecEq.Build memory_list eqmemory_listP.
-
-Definition list_memoryMixin :=
-  Memory.Mixin
-    memory_list_ax_lookup_out_of_bounds
-    memory_list_ax_lookup_make
-    memory_list_ax_lookup_update
-    memory_list_ax_lookup_skip
-    memory_list_ax_length_constant_update.
+End MemoryList.

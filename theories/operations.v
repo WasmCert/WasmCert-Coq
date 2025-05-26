@@ -3,14 +3,17 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From compcert Require Floats.
-From Wasm Require Export common memory_list datatypes_properties list_extra.
+From Wasm Require Export common memory datatypes_properties list_extra.
 From Coq Require Import BinNat.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* Placeholder for better array lookup in the future *)
+Section Operations.
+  Context `{memory: Memory} `{hfc: host_function_class}.
+
+(* Placeholder for better array lookup in the future. *)
 Definition lookup_N {T: Type} (l: list T) (n: N) : option T :=
   List.nth_error l (N.to_nat n).
 
@@ -26,20 +29,20 @@ Definition read_bytes (m : meminst) (start_idx : N) (len : nat) : option bytes :
     (iota 0 len)).
 
 (** write bytes `bs` to `m` starting at `start_idx` *)
-Definition write_bytes (m : meminst) (start_idx : N) (bs : bytes) : option meminst :=
-  let x :=
-    list_extra.fold_lefti
-      (fun off dat_o b =>
-        match dat_o with
-        | None => None
-        | Some dat =>
-          let idx := N.add start_idx (N.of_nat off) in
-          mem_update idx b dat
-        end)
-      bs
-      (Some m.(meminst_data)) in
-  match x with
-  | Some dat => Some {| meminst_data := dat; meminst_type := m.(meminst_type); |}
+Fixpoint write_bytes (m : mem_t) (start_idx : N) (bs : bytes) : option mem_t :=
+  match bs with
+  | nil => Some m
+  | b :: bs' =>
+      match mem_update start_idx b m with
+      | Some m' => write_bytes m' (N.add start_idx 1%N) bs'
+      | None => None
+      end
+  end.
+
+Definition write_bytes_meminst (m: meminst) (start_idx : N) (bs: bytes) : option meminst :=
+  match write_bytes m.(meminst_data) start_idx bs with
+  | Some md' =>
+      Some (Build_meminst m.(meminst_type) md')
   | None => None
   end.
 
@@ -51,12 +54,8 @@ Definition bits (v : value_num) : bytes :=
   | VAL_float64 c => serialise_f64 c
   end.
 
-Definition page_size : N := 65536%N.
-
-Definition page_limit : N := 65536%N.
-
-Definition ml_valid (m: memory_list) : Prop :=
-  N.modulo (memory_list.mem_length m) page_size = 0%N.
+Definition ml_valid (m: mem_t) : Prop :=
+  N.modulo (mem_length m) page_size = 0%N.
 
 Definition mem_length (m : meminst) : N :=
   mem_length m.(meminst_data).
@@ -70,23 +69,26 @@ Definition mem_size (m : meminst) : N :=
 
 Definition mem_grow (m : meminst) (len_delta : N) : option meminst :=
   let new_size := N.add (mem_size m) len_delta in
-  let new_mem_data := mem_grow (N.mul len_delta page_size) m.(meminst_data) in
   if N.leb new_size mem_limit_bound then
-  match m.(meminst_type).(lim_max) with
-  | Some maxlim =>
-    if N.leb new_size maxlim then
-        Some {|
-          meminst_data := new_mem_data;
-            meminst_type :=
-              Build_limits new_size m.(meminst_type).(lim_max);
-          |}
-    else None
-  | None =>
-    Some {|
-      meminst_data := new_mem_data;
-      meminst_type := Build_limits new_size m.(meminst_type).(lim_max);
-      |}
-  end
+    match mem_grow (N.mul len_delta page_size) m.(meminst_data) with
+    | Some new_mem_data =>
+        match m.(meminst_type).(lim_max) with
+        | Some maxlim =>
+            if N.leb new_size maxlim then
+              Some {|
+                  meminst_data := new_mem_data;
+                  meminst_type :=
+                    Build_limits new_size m.(meminst_type).(lim_max);
+                |}
+            else None
+        | None =>
+            Some {|
+                meminst_data := new_mem_data;
+                meminst_type := Build_limits new_size m.(meminst_type).(lim_max);
+              |}
+        end
+    | None => None
+    end
   else None.
 
 Definition ptv_to_nm (ptv: packed_type_vec) : N * N :=
@@ -124,26 +126,16 @@ Definition load_vec_bounds (lv_arg: load_vec_arg) (m_arg: memarg) : bool :=
 Definition load_vec_lane_bounds (width: width_vec) (m_arg: memarg) (x: laneidx) : bool :=
    (N.leb (N.pow 2 (memarg_align m_arg)) (width_to_n width / 8))%N &&
                          (N.ltb x (128 / width_to_n width)%N). 
-  
+
 (* TODO: We crucially need documentation here. *)
 
-(* Operation for the memory_load instruction. *)
-Definition load (m : meminst) (n : N) (off : static_offset) (l : nat) : option bytes :=
-  if N.leb (N.add n (N.add off (N.of_nat l))) (mem_length m)
+(* Operation for the memory_load instruction.
+   Length is specified in bytes.
+ *)
+Definition load (m : meminst) (n : N) (off : static_offset) (l : N) : option bytes :=
+  if N.leb (N.add n (N.add off l)) (mem_length m)
   then read_bytes m (N.add n off) l
   else None.
-
-(* TODO: implement sign extension. *)
-Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
-  bs.
-(* TODO
-  let: msb := msb (msbyte bytes) in
-  let: byte := (match sx with sx_U => O | sx_S => if msb then -1 else 0) in
-  bytes_takefill byte l bytes
-*)
-
-Definition load_packed (s : sx) (m : meminst) (n : N) (off : static_offset) (lp : nat) (l : nat) : option bytes :=
-  option_map (sign_extend s l) (load m n off lp).
 
 Definition int_of_bytes (bs: list byte) (m: N) : value_num :=
   VAL_int32 int32_minus_one.
@@ -171,9 +163,11 @@ Definition load_vec_lane (m: meminst) (i: N) (v: value_vec) (width: width_vec) (
 
 Definition store (m : meminst) (n : N) (off : static_offset) (bs : bytes) (l : nat) : option meminst :=
   if N.leb (n + off + N.of_nat l) (mem_length m)
-  then write_bytes m (n + off) (bytes_takefill #00 l bs)
+  then write_bytes_meminst m (n + off) (bytes_takefill #00 l bs)
   else None.
 
+(* The first argument of wrap doesn't affect the opsem at all, so this is fine.
+Might need a change in the future if this behaviour changes. *)
 Definition store_packed := store.
 
 Definition store_vec_lane (m: meminst) (n: N) (v: value_vec) (width: width_vec) (marg: memarg) (x: laneidx) : option meminst :=
@@ -188,6 +182,34 @@ Definition wasm_deserialise (bs : bytes) (vt : number_type) : value_num :=
   | T_i64 => VAL_int64 (Wasm_int.Int64.repr (common.Memdata.decode_int bs))
   | T_f32 => VAL_float32 (Floats.Float32.of_bits (Integers.Int.repr (common.Memdata.decode_int bs)))
   | T_f64 => VAL_float64 (Floats.Float.of_bits (Integers.Int64.repr (common.Memdata.decode_int bs)))
+  end.
+
+(** Sign extension **)
+Definition sign_extend_n (n: N) (bytelen: N) : Z :=
+  let half_intval := N.pow 2 (bytelen * 8 - 1) in
+  let val_z :=
+    if N.ltb n half_intval then
+      BinInt.Z.of_N n
+    else
+      BinInt.Z.sub (BinInt.Z.of_N n) (BinInt.Z.of_N (2 * half_intval)) in
+  val_z.
+
+(* l is the byte length of the target type, therefore can only be 4/8 *)
+Definition sign_extend_bytes (s : sx) (l : N) (bs : bytes) : bytes :=
+  match s with
+  | SX_U => bytes_takefill #00 (N.to_nat l) bs
+  | SX_S =>
+      (* compcert decodes to unsigned *)
+      let val_n := BinInt.Z.to_N (common.Memdata.decode_int bs) in
+      let val_z := sign_extend_n val_n (N.of_nat (List.length bs)) in
+        Memdata.encode_int l val_z
+  end.
+
+(* last argument is in bytes *)
+Definition load_packed (s : sx) (m : meminst) (n : N) (off : static_offset) (lp : N) (l : N) : option bytes :=
+  match load m n off lp with
+  | Some bs => Some (sign_extend_bytes s l bs)
+  | None => None
   end.
 
 Definition bitzero (t : number_type) : value_num :=
@@ -306,7 +328,7 @@ Definition tvec_length (t: vector_type) : N :=
   end.
     
 
-Definition tp_length (tp : packed_type) : nat :=
+Definition tp_length (tp : packed_type) : N :=
   match tp with
   | Tp_i8 => 1
   | Tp_i16 => 2
@@ -357,11 +379,24 @@ Definition app_unop_f {T: Type} (mx : Wasm_float.mixin_of T) (fop : unop_f) : T 
   | UOF_sqrt => Wasm_float.float_sqrt mx
   end.
 
-(* TODO: implement new extendN_s numerics *)
-Definition app_unop_extend (n: N) (v: value_num) :=
-  v.
+Definition app_unop_extend (n: N) (v: value_num) : value_num :=
+  (* wrap to the lowest n bits, then extend *)
+  let val_n :=
+    match v with
+    | VAL_int32 c => Wasm_int.N_of_uint i32m c
+    | VAL_int64 c => Wasm_int.N_of_uint i64m c
+    | _ => 0%N (* Cannot happen *)
+    end in
+  let modulus_n := N.pow 2 (8 * n) in
+  let wrapped_n := N.modulo val_n modulus_n in
+  let val_z := sign_extend_n wrapped_n n in
+  match v with
+  | VAL_int32 _ => VAL_int32 (Wasm_int.int_of_Z i32m val_z)
+  | VAL_int64 _ => VAL_int64 (Wasm_int.int_of_Z i64m val_z)
+  | _ => v (* Cannot happen *)
+  end.
 
-Definition app_unop (op: unop) (v: value_num) :=
+Definition app_unop (op: unop) (v: value_num) : value_num :=
   match op with
   | Unop_i iop =>
     match v with
@@ -375,7 +410,7 @@ Definition app_unop (op: unop) (v: value_num) :=
     | VAL_float64 c => VAL_float64 (app_unop_f f64m fop c)
     | _ => v
     end
-  | Unop_extend n => app_unop_extend n v
+  | Unop_extend n => app_unop_extend (N.div n 8) v
   end.
 
 Definition app_binop_i {T: Type} (mx : Wasm_int.mixin_of T) (iop : binop_i)
@@ -566,10 +601,6 @@ Definition option_bind (A B : Type) (f : A -> option B) (x : option A) :=
   | None => None
   | Some y => f y
   end.
-
-Section Host.
-
-Context `{hfc: host_function_class}.
 
 Definition cl_type (cl : funcinst) : function_type :=
   match cl with
@@ -869,7 +900,7 @@ Definition limits_extension (l1 l2: limits) : bool :=
 Definition table_type_extension (t1 t2: table_type) : bool :=
   (t1.(tt_elem_type) == t2.(tt_elem_type)) &&
   (limits_extension t1.(tt_limits) t2.(tt_limits)).
-  
+
 (* Spec has an error here -- same for mem extension *)
 Definition table_extension (t1 t2 : tableinst) : bool :=
   (table_type_extension t1.(tableinst_type) t2.(tableinst_type)) &&
@@ -877,7 +908,7 @@ Definition table_extension (t1 t2 : tableinst) : bool :=
 
 Definition mem_extension (m1 m2 : meminst) : bool :=
   (limits_extension m1.(meminst_type) m2.(meminst_type)) &&
-  (mem_length m1 <= mem_length m2).
+  (N.leb (mem_length m1) (mem_length m2)).
 
 Definition global_extension (g1 g2: globalinst) : bool :=
   (g_type g1 == g_type g2) &&
@@ -1103,8 +1134,8 @@ Definition result_to_stack (r : result) :=
 
 Definition load_store_t_bounds (a : alignment_exponent) (tp : option packed_type) (t : number_type) : bool :=
   match tp with
-  | None => N.pow 2 a <= tnum_length t
-  | Some tp' => (N.pow 2 a <= tp_length tp') && (tp_length tp' < tnum_length t) && (is_int_t t)
+  | None => N.leb (N.pow 2 a) (tnum_length t)
+  | Some tp' => N.leb (N.pow 2 a) (tp_length tp') && (tp_length tp' < tnum_length t) && (is_int_t t)
   end.
 
 Definition cvt_wrap t v : option value_num :=
@@ -1294,7 +1325,7 @@ Definition cvtop_valid (t2: number_type) (op: cvtop) (t1: number_type) (s: optio
   ((op == CVO_promote) && (t2 == T_f64) && (t1 == T_f32) && (s == None)) ||
   ((op == CVO_reinterpret) && ((is_int_t t2 && is_float_t t1) || (is_float_t t2 && is_int_t t1)) && (s == None)).
 
-End Host.
+End Operations.
 
 #[export]
 Hint Unfold v_to_e: core.

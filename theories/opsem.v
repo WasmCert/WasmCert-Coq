@@ -526,7 +526,7 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
     let n_z := Wasm_int.Z_of_uint i32m n in
     let d_z := Wasm_int.Z_of_uint i32m d in
     smem s f.(f_inst) = Some mem ->
-    (Z.add n_z d_z > Z.of_nat (mem_length mem))%Z ->
+    (Z.add n_z d_z > Z.of_N (mem_length mem))%Z ->
     reduce hs s f [::$VN (VAL_int32 d); $VN (VAL_int32 v); $VN (VAL_int32 n); AI_basic (BI_memory_fill)]
            hs s f [::AI_trap]
 | r_memory_fill_return:
@@ -534,7 +534,7 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
     let n_z := Wasm_int.Z_of_uint i32m n in
     let d_z := Wasm_int.Z_of_uint i32m d in
     smem s f.(f_inst) = Some mem ->
-    (Z.add n_z d_z <= Z.of_nat (mem_length mem))%Z ->
+    (Z.add n_z d_z <= Z.of_N (mem_length mem))%Z ->
     (n_z = 0)%Z ->
     reduce hs s f [::$VN (VAL_int32 d); $VN (VAL_int32 v); $VN (VAL_int32 n); AI_basic (BI_memory_fill)]
            hs s f [::]
@@ -543,7 +543,7 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
     let n_z := Wasm_int.Z_of_uint i32m n in
     let d_z := Wasm_int.Z_of_uint i32m d in
     smem s f.(f_inst) = Some mem ->
-    (Z.add n_z d_z <= Z.of_nat (mem_length mem))%Z ->
+    (Z.add n_z d_z <= Z.of_N (mem_length mem))%Z ->
     (n_z <> 0)%Z ->
     n' = Wasm_int.int_of_Z i32m (Z.sub n_z 1) ->
     d' = Wasm_int.int_of_Z i32m (Z.add d_z 1) ->
@@ -556,8 +556,8 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
     let src_z := Wasm_int.Z_of_uint i32m src in
     let dst_z := Wasm_int.Z_of_uint i32m dst in
     smem s f.(f_inst) = Some mem ->
-    ((Z.add src_z n_z > Z.of_nat (mem_length mem))%Z \/
-     (Z.add dst_z n_z > Z.of_nat (mem_length mem))%Z) ->
+    ((Z.add src_z n_z > Z.of_N (mem_length mem))%Z \/
+     (Z.add dst_z n_z > Z.of_N (mem_length mem))%Z) ->
     reduce hs s f [::$VN (VAL_int32 dst); $VN (VAL_int32 src); $VN (VAL_int32 n); AI_basic (BI_memory_copy)]
       hs s f [::AI_trap]
 | r_memory_copy_return :
@@ -566,8 +566,8 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
     let src_z := Wasm_int.Z_of_uint i32m src in
     let dst_z := Wasm_int.Z_of_uint i32m dst in
     smem s f.(f_inst) = Some mem ->
-    (Z.add src_z n_z <= Z.of_nat (mem_length mem))%Z ->
-    (Z.add dst_z n_z <= Z.of_nat (mem_length mem))%Z ->
+    (Z.add src_z n_z <= Z.of_N (mem_length mem))%Z ->
+    (Z.add dst_z n_z <= Z.of_N (mem_length mem))%Z ->
     (n_z = 0)%Z ->
     reduce hs s f [::$VN (VAL_int32 dst); $VN (VAL_int32 src); $VN (VAL_int32 n); AI_basic (BI_memory_copy)]
       hs s f [::]
@@ -577,8 +577,8 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
     let src_z := Wasm_int.Z_of_uint i32m src in
     let dst_z := Wasm_int.Z_of_uint i32m dst in
     smem s f.(f_inst) = Some mem ->
-    (Z.add src_z n_z <= Z.of_nat (mem_length mem))%Z ->
-    (Z.add dst_z n_z <= Z.of_nat (mem_length mem))%Z ->
+    (Z.add src_z n_z <= Z.of_N (mem_length mem))%Z ->
+    (Z.add dst_z n_z <= Z.of_N (mem_length mem))%Z ->
     (n_z <> 0)%Z ->
     (dst_z <= src_z)%Z ->
     n' = Wasm_int.int_of_Z i32m (Z.sub n_z 1) ->
@@ -593,8 +593,8 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
     let src_z := Wasm_int.Z_of_uint i32m src in
     let dst_z := Wasm_int.Z_of_uint i32m dst in
     smem s f.(f_inst) = Some mem ->
-    (Z.add src_z n_z <= Z.of_nat (mem_length mem))%Z ->
-    (Z.add dst_z n_z <= Z.of_nat (mem_length mem))%Z ->
+    (Z.add src_z n_z <= Z.of_N (mem_length mem))%Z ->
+    (Z.add dst_z n_z <= Z.of_N (mem_length mem))%Z ->
     (n_z <> 0)%Z ->
     (dst_z > src_z)%Z ->
     n' = Wasm_int.int_of_Z i32m (Z.sub n_z 1) ->
@@ -611,7 +611,7 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
     smem s f.(f_inst) = Some mem ->
     sdata s f.(f_inst) x = Some data ->
     ((Z.add src_z n_z > Z.of_nat (data_size data))%Z \/
-     (Z.add dst_z n_z > Z.of_nat (mem_length mem))%Z) ->
+     (Z.add dst_z n_z > Z.of_N (mem_length mem))%Z) ->
     reduce hs s f [::$VN (VAL_int32 dst); $VN (VAL_int32 src); $VN (VAL_int32 n); AI_basic (BI_memory_init x)]
       hs s f [::AI_trap]
 | r_memory_init_return :
@@ -622,7 +622,7 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
     smem s f.(f_inst) = Some mem ->
     sdata s f.(f_inst) x = Some data ->
     (Z.add src_z n_z <= Z.of_nat (data_size data))%Z ->
-    (Z.add dst_z n_z <= Z.of_nat (mem_length mem))%Z ->
+    (Z.add dst_z n_z <= Z.of_N (mem_length mem))%Z ->
     (n_z = 0)%Z ->
     reduce hs s f [::$VN (VAL_int32 dst); $VN (VAL_int32 src); $VN (VAL_int32 n); AI_basic (BI_memory_init x)]
       hs s f [::]
@@ -634,7 +634,7 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
     smem s f.(f_inst) = Some mem ->
     sdata s f.(f_inst) x = Some data ->
     (Z.add src_z n_z <= Z.of_nat (data_size data))%Z ->
-    (Z.add dst_z n_z <= Z.of_nat (mem_length mem))%Z ->
+    (Z.add dst_z n_z <= Z.of_N (mem_length mem))%Z ->
     (n_z <> 0)%Z ->
     lookup_N data.(datainst_data) (Wasm_int.N_of_uint i32m src) = Some b ->
     n' = Wasm_int.int_of_Z i32m (Z.sub n_z 1) ->

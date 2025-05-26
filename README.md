@@ -1,9 +1,10 @@
 # wasm_coq
-A WebAssembly (aka Wasm) formalisation in Coq, based on the [official specification](https://webassembly.github.io/spec/core/).
+A WebAssembly (aka Wasm) formalisation in Coq(Rocq), based on the [official specification](https://webassembly.github.io/spec/core/).
 
 (C) M. Bodin, P. Gardner, J. Pichon, C. Watt, X. Rao 2019-2025 - see LICENSE.txt
 
-The quotes from the WebAssembly standard (starting with `std-doc`) are (C) their respective authors.
+The quotes from the WebAssembly standard (starting with `std-doc`) are (C) their respective authors. 
+The files located in `src/Parray` are adapted from the Rocq kernel and therefore licensed under GNU LPGL 2.1 - see `src/Parray/LICENSE.LGPL`.
 
 The current master branch formalises Wasm version 2.0, plus additional subtyping systems from the future funcref/GC extension proposals. A large part of the old Wasm 1.0 formalisation has been published at [FM'21](https://link.springer.com/chapter/10.1007/978-3-030-90870-6_4), with many additions to the repository since then.
 
@@ -21,10 +22,8 @@ The current master branch formalises Wasm version 2.0, plus additional subtyping
 - [x] Interpreter with optimised context representations.
 
 ## Merged
-- [x] Updates for Wasm 2.0 (except SIMD and new numerics ops) + subtyping systems.
-
-## Ongoing
-- [ ] Validate WasmRef-Coq (conformance tests).
+- [x] Updates for Wasm 2.0 (except SIMD) + subtyping systems.
+- [x] Validate WasmRef-Coq (conformance tests).
 
 # Program Logic
 
@@ -47,15 +46,27 @@ The project can be installed using opam.
 Compiling the dependencies and codebase requires having at least 8 GB of RAM on your computer.
 ```bash
 opam repo add coq-released https://coq.inria.fr/opam/released
+opam pin add -y wasm git+https://github.com/WasmCert/spec#interpreter_only
 opam install .
 ```
 
-## Testing the Installation
+## Testing and Conformance
 
-The project comes with a small set of tests for the extracted interpreter:
+The project comes with a small set of tests for the extracted interpreter. To run these tests:
 ```bash
 dune test
 ```
+
+The project also includes the official test suite as a submodule under `wast_testsuite`. To run the interpreter against the test suite:
+```bash`
+make run_wast
+```
+All SIMD tests are skipped since the project does not implement SIMD yet. The interpreter is expected to pass all the other tests (last tested on 14th May 2025):
+```bash
+Total passed: 28018/28018 (100.00%)
+```
+Running the test suite takes around 1-2 minutes.
+
 
 ## Using the project
 
@@ -74,6 +85,16 @@ would produce
 ```bash
 i32.const 42
 ```
+
+Modules in text format can be run with the `--text` flag. For example:
+```bash
+dune exec -- wasm_coq_interpreter tests/add2.wat -r main -a "i32.const 6" -a "i32.const 36" --text
+```
+would produce
+```bash
+i32.const 42
+```
+
 
 The interpreter can also display intermediate states of the operational semantics:
 ```bash

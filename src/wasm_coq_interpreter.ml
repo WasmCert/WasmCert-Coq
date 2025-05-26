@@ -1,68 +1,10 @@
 (** Main file for the Wasm interpreter **)
-open Execute.Interpreter
-open Output
-
-(** Trying to guess the module name by the file name provided for the module. *)
-let extract_module_name src =
-  let name = Filename.basename src in
-  if (String.length name >= 5 && String.sub name (String.length name - 5) 5 = ".wasm") then
-      String.sub name 0 (String.length name - 5)
-  else name
-
-(** Parse a module given the module string. The text flag specifies whether the argument is in binary format or text format. *)
-let parse_module verbosity text mstr =
-  (** Parsing. *)
-  Execute.Host.from_out (
-    let open Output in
-    ovpending verbosity stage "parsing" (fun _ ->
-      if text then
-        Error "Text mode not yet implemented."
-      else
-        match Execute.Interpreter.run_parse_module mstr with
-        | None -> Error "error in parsing module"
-        | Some m -> OK m
-    ))
-
-(* Parse a list of modules. *)
-let rec parse_modules_acc verbosity text files acc =
-  match files with
-  | [] -> pure acc
-  | f :: files' ->
-    let* m = parse_module verbosity text f in
-    parse_modules_acc verbosity text files' (acc @ [m])
-
-let parse_modules verbosity text files =
-  parse_modules_acc verbosity text files []
-
-
-(* Parsing the arguments of a function call in text format. *)
-let rec parse_args_acc args acc = 
-  (match args with
-  | [] -> pure acc
-  | a :: args' -> 
-    (match Execute.Interpreter.run_parse_arg a with
-    | Some a' -> parse_args_acc args' (acc @ [a'])
-    | None -> Execute.Host.from_out (Error ("Invalid argument: " ^ a))
-    )
-  )
- 
-let parse_args args = 
-  parse_args_acc args []
-
-(* Instantiate a sequence of modules with names. *)
-let rec instantiate_modules verbosity exts s names modules =
-  match (names, modules) with
-  | ([], _) -> pure (exts, s)
-  | (name :: names', m :: modules') -> 
-    debug_info verbosity stage (fun () -> "Processing module: " ^ name ^ "\n");
-    let* (exts', s') = Execute.instantiate_host verbosity exts s name m in
-      instantiate_modules verbosity exts' s' names' modules'
-  | _ -> Execute.Host.from_out (Error ("Invalid module name parsing results"))
 
 (** Main function *)
-let process_args_and_run verbosity text no_exec (srcs: string list) func_name src_module_name arg_strings =
+let process_args_and_run verbosity text no_exec max_call_depth srcs func_name src_module_name arg_strings =
   let open Execute.Host in
   let open Execute.Interpreter in
+  let open Parse in
   try
     (** Preparing the files. *)
     (** Each file should contain a single Wasm module binary. The modules will be instantiated by their order. *)
@@ -77,37 +19,52 @@ let process_args_and_run verbosity text no_exec (srcs: string list) func_name sr
           s) srcs in
     let mnames = List.map extract_module_name srcs in
     let* modules = parse_modules verbosity text files in
-    let starting_host_store = Execute.StringMap.empty in
-    let starting_store = Execute.Interpreter.empty_store_record in
-    let* (exts, s) = instantiate_modules verbosity starting_host_store starting_store mnames modules in
+    let starting_host_store = (Execute.StringMap.empty, Execute.StringMap.empty) in
+    let starting_store = empty_store_record in
+    let* (exts, s) = Execute.instantiate_modules verbosity starting_host_store starting_store mnames modules in
     let* args = parse_args arg_strings in
     (** Running. *)
     if no_exec then
       Output.(
         debug_info verbosity stage (fun _ ->
           "skipping interpretation because of --no-exec.\n") ;
-        Execute.Interpreter.pure ()
+        pure ()
       )
     else 
       let running_module_name = 
         (if src_module_name = "" then 
           List.hd (List.rev mnames) 
         else src_module_name) in
-      let* _ = Execute.invoke_func verbosity exts (s, Extract.empty_frame) args running_module_name func_name in 
-    pure ()
+      let* ret = Execute.invoke_func verbosity exts (s, Extract.empty_frame) args running_module_name func_name max_call_depth in 
+        Execute.print_invoke_result verbosity ret;
+      pure ()
   with Invalid_argument msg -> error msg
 
+(* Reference interpreter allows only 256 nested calls:
+https://github.com/WebAssembly/spec/blob/main/interpreter/main/flags.ml
+ *)
+let wast_budget = 256
+
 (** Similar to [process_args_and_run], but differs in the output type. *)
-let process_args_and_run_out verbosity text no_exec wast_mode srcs func_name src_module_name args =
+let process_args_and_run_out verbosity text no_exec wast_mode wast_timeout max_call_depth srcs func_name src_module_name args =
   (if wast_mode then 
-    (*Output.(
-        debug_info verbosity stage (fun _ ->
-          "Wast mode not yet implemented .\n") ;
-        Execute.Interpreter.pure ()
-      )*)
-      Execute.Host.error "Wast mode not yet implemented"
+    let files =
+      List.map (fun dest ->
+        if not (Sys.file_exists dest) || Sys.is_directory dest then
+          invalid_arg (Printf.sprintf "No file %s found." dest)
+        else
+          let in_channel = open_in_bin dest in
+          let s = really_input_string in_channel (in_channel_length in_channel) in
+          close_in in_channel;
+          s) srcs in
+    match files with
+    | [] -> Execute.Host.error "No wast file provided"
+    | [scriptstr] -> 
+      let wast_max_call_depth = if max_call_depth = -1 then wast_budget else max_call_depth in
+        Wast_execute.run_wast_string verbosity wast_timeout wast_max_call_depth scriptstr
+    | _ -> Execute.Host.error "Wast mode does not support multiple files"
 else
-  process_args_and_run verbosity text no_exec srcs func_name src_module_name args)
+  process_args_and_run verbosity text no_exec max_call_depth srcs func_name src_module_name args)
   |> Execute.Host.to_out |> Output.Out.convert
 
 (** Command line interface *)
@@ -134,17 +91,6 @@ let no_exec =
   let doc = "Stop before executing (only go up to typechecking)." in
   Arg.(value & flag & info ["no-exec"] ~doc)
 
-  (*
-let interactive =
-  let doc = "Interactive execution." in
-  Arg.(value & flag & info ["i"; "interactive"] ~doc)
-*)
-  (*
-let fuel =
-  let doc = "Specify maximum amount of steps to run." in
-  Arg.(value & opt (some int) None & info ["f"; "fuel"] ~doc)
-*)
-
 let func_name =
   let doc = "Name of the Wasm function to run." in
   Arg.(value & opt string "" & info ["r"; "run"] ~docv:"NAME" ~doc)
@@ -160,6 +106,14 @@ let args =
 let wast = 
   let doc = "Running a .wast test suite" in
   Arg.(value & flag & info ["wast"] ~docv:"ARG" ~doc)
+
+let wast_timeout = 
+  let doc = "Set the timeout for running .wast test suites" in
+  Arg.(value & opt int 10 & info ["t"] ~docv:"ARG" ~doc)
+
+let max_call_depth = 
+  let doc = "Set the maximum depths of call stack allowed in the interpreter (-1 for unlimited)" in
+  Arg.(value & opt int (-1) & info ["d"] ~docv:"MAXDEPTH" ~doc)
 
 let srcs =
   let doc = "Source file(s) to interpret." in
@@ -178,7 +132,7 @@ let cmd =
   in
   Cmd.v 
      (Cmd.info "wasm_interpreter" ~version:"c9b010d-dirty" ~doc ~exits ~man ~man_xrefs)
-     Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ wast $ srcs $ func_name $ module_name $ args ))
+     Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ wast $ wast_timeout $ max_call_depth $ srcs $ func_name $ module_name $ args ))
 
   
 let () = Stdlib.exit @@ 

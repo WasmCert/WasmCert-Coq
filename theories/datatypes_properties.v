@@ -1,5 +1,4 @@
 (** Properties about Wasm datatypes (mainly equality relations) **)
-(* (C) M. Bodin, J. Pichon - see LICENSE.txt *)
 
 From Wasm Require Export datatypes.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
@@ -194,6 +193,15 @@ Definition eqextern_typeP : Equality.axiom extern_type_eqb :=
 
 HB.instance Definition extern_type_eqMixin := hasDecEq.Build extern_type eqextern_typeP.
 
+Definition extern_value_eq_dec : forall v1 v2 : extern_value, {v1 = v2} + {v1 <> v2}.
+Proof. decidable_equality. Defined.
+
+Definition extern_value_eqb v1 v2 : bool := extern_value_eq_dec v1 v2.
+Definition eqextern_valueP : Equality.axiom extern_value_eqb :=
+  eq_dec_Equality_axiom extern_value_eq_dec.
+
+HB.instance Definition extern_value_eqMixin := hasDecEq.Build extern_value eqextern_valueP.
+
 (** Induction scheme for [basic_instruction]. **)
 Definition basic_instruction_rect' :=
   ltac:(rect'_build basic_instruction_rect).
@@ -228,7 +236,7 @@ Definition administrative_instruction_rect :=
 
 Section Host.
 
-Context `{host_function_class}.
+  Context `{host_function_class}.
 
 Definition funcinst_eq_dec : forall (cl1 cl2 : funcinst),
   {cl1 = cl2} + {cl1 <> cl2}.
@@ -286,15 +294,6 @@ Definition eqexportinstP : Equality.axiom exportinst_eqb :=
   eq_dec_Equality_axiom exportinst_eq_dec.
 
 HB.instance Definition exportinst_eqMixin := hasDecEq.Build exportinst eqexportinstP.
-
-Definition store_record_eq_dec : forall v1 v2 : store_record, {v1 = v2} + {v1 <> v2}.
-Proof. decidable_equality. Defined.
-
-Definition store_record_eqb v1 v2 : bool := store_record_eq_dec v1 v2.
-Definition eqstore_recordP : Equality.axiom store_record_eqb :=
-  eq_dec_Equality_axiom store_record_eq_dec.
-
-HB.instance Definition store_record_eqMixin := hasDecEq.Build store_record eqstore_recordP.
 
 Definition frame_eq_dec : forall v1 v2 : frame, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
@@ -460,7 +459,6 @@ HB.instance Definition lholed_eqMixin {k} := hasDecEq.Build (lholed k) (@eqlhole
 
 End lholed_eqdec.
 
-
 Definition limits_eq_dec : forall v1 v2 : limits, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality. Defined.
 Definition limits_eqb v1 v2 : bool := limits_eq_dec v1 v2.
@@ -484,4 +482,3 @@ Definition eqmemory_typeP : Equality.axiom memory_type_eqb :=
   eq_dec_Equality_axiom memory_type_eq_dec.
 
 HB.instance Definition memory_type_eqMixin := hasDecEq.Build memory_type eqmemory_typeP.
-

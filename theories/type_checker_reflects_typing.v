@@ -1,7 +1,7 @@
 (** Soundness and correctness of the type checker **)
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From Coq Require Import Program Wf_nat.
+From Coq Require Import Program Wf_nat BinNums NArith.
 From Wasm Require Import type_checker typing_inversion.
 
 Set Implicit Arguments.
@@ -69,88 +69,130 @@ Proof.
   induction ts1; destruct ts2 => //=; by resolve_subtyping.
 Qed.
 
-Lemma same_lab_h_condition: forall labs ts l,
-  List.Forall (fun i => lookup_N labs i = Some ts) l ->
-  same_lab_h l labs ts = Some ts.
+Lemma combine_rev {T: Type}: forall (l1 l2: list T),
+    length l1 = length l2 ->
+    List.combine l1 l2 = rev (List.combine (rev l1) (rev l2)).
 Proof.
-  move => C ts l.
-  move: C ts.
-  induction l => //=.
-  move => C ts H.
-  inversion H; subst; clear H.
-  rewrite H2 eq_refl.
-  by apply IHl.
+  induction l1; destruct l2 => //=; move => Hlen.
+  do 2 rewrite rev_cons.
+  do 2 rewrite - cats1.
+  rewrite combine_app; last by do 2 rewrite rev_length; injection Hlen.
+  rewrite cats1 rev_rcons.
+  f_equal; apply IHl1; by injection Hlen.
 Qed.
 
-Lemma same_lab_h_all: forall labs ts l,
-  same_lab_h l labs ts = Some ts ->
-  List.Forall (fun i => lookup_N labs i = Some ts) l.
+Lemma common_lab_h_spec_acc: forall iss lab_c tx ts,
+    common_lab_h iss lab_c tx = Some ts ->
+    ts <ts: tx.
 Proof.
-  move => C ts l.
-  move: C ts.
-  induction l => //=.
-  move => C ts H.
-  remove_bools_options.
-  move/eqP in Hif; subst.
-  constructor => //.
-  by apply IHl.
+  induction iss; move => lab_c tx ts /= Hcommon => //=.
+  - by injection Hcommon as <-; resolve_subtyping.
+  - remove_bools_options.
+    apply IHiss in Hcommon.
+    rewrite ts_inf_comm in Hoption0.
+    apply ts_inf_sub in Hoption0.
+    by resolve_subtyping.
+Qed.
+    
+Lemma common_lab_h_spec: forall iss lab_c tx ts i labid,
+    common_lab_h iss lab_c tx = Some ts ->
+    List.nth_error iss i = Some labid ->
+    exists tcs, List.nth_error lab_c (N.to_nat labid) = Some tcs /\
+    ts <ts: tcs.
+Proof.
+  induction iss; move => lab_c tx ts [ | i] labid /= Hcommon Hnthi => //=; remove_bools_options.
+  - unfold lookup_N in Hoption.
+    exists l.
+    rewrite Hoption; split => //.
+    apply common_lab_h_spec_acc in Hcommon.
+    apply ts_inf_sub in Hoption0.
+    by resolve_subtyping.
+  - by eapply IHiss; eauto.
+Qed.
+    
+Lemma common_lab_spec: forall iss lab_c ts i labid,
+    common_lab iss lab_c = Some ts ->
+    List.nth_error iss i = Some labid ->
+    exists tcs, List.nth_error lab_c (N.to_nat labid) = Some tcs /\
+    ts <ts: tcs.
+Proof.
+  move => iss lab_c ts i labid Hcommon Hnthi.
+  unfold common_lab in Hcommon.
+  destruct iss => //; remove_bools_options.
+  destruct i; simpl in *.
+  - injection Hnthi as ->.
+    apply common_lab_h_spec_acc in Hcommon.
+    unfold lookup_N in Hoption.
+    by exists l.
+  - by eapply common_lab_h_spec in Hcommon; eauto.
+Qed.
+
+Lemma common_lab_h_cond: forall iss lab_c tx ts,
+    List.Forall
+      (fun i : N =>
+         exists ts' : result_type,
+           lookup_N lab_c i = Some ts' /\ tx <ts: ts')
+      iss ->
+    tx <ts: ts ->
+    exists ty, common_lab_h iss lab_c ts = Some ty /\
+            tx <ts: ty.
+Proof.
+  induction iss; move => lab_c tx ts Hforall Hsub => //=; remove_bools_options.
+  - by exists ts.
+  - inversion Hforall as [ | ?? Hlookup Hrest]; subst; clear Hforall.
+    destruct Hlookup as [ts' [Hlablookup Hsubts']].
+    rewrite Hlablookup.
+    specialize (ts_inf_exists Hsubts' Hsub) as [tsinf Hinfeq].
+    rewrite Hinfeq.
+    apply IHiss => //.
+    by apply (ts_inf_strict Hsubts' Hsub).
+Qed.
+    
+Lemma common_lab_cond: forall iss lab_c tx,
+    iss <> nil ->
+    List.Forall
+      (fun i : N =>
+         exists ts' : result_type,
+           lookup_N lab_c i = Some ts' /\ tx <ts: ts')
+      iss ->
+    exists ty, common_lab iss lab_c = Some ty /\
+            tx <ts: ty.
+Proof.
+  move => iss lab_c ts Hnotnil Hforall.
+  unfold common_lab; destruct iss => //.
+  inversion Hforall as [ | ?? Hlookup Hrest]; subst; clear Hforall.
+  destruct Hlookup as [ts' [Hlablookup Hsubts']].
+  rewrite Hlablookup.
+  by eapply common_lab_h_cond in Hrest; eauto.
 Qed.
   
-Lemma same_lab_h_rec: forall x l labs ts,
-  same_lab_h (x :: l) labs ts = Some ts ->
-  same_lab_h l labs ts = Some ts.
+Lemma common_lab_h_rev: forall iss lab_c tx ts,
+    common_lab_h iss lab_c tx = Some ts ->
+    common_lab_h iss (map rev lab_c) (rev tx) = Some (rev ts).
 Proof.
-  move => x l C ts H.
-  simpl in H.
-  remove_bools_options.
-  by move/eqP in Hif; subst.
+  induction iss => //; move => lab_c tx ts /= Hcommon.
+  - by injection Hcommon as <-.
+  - remove_bools_options.
+    rewrite lookup_N_map Hoption => /=.
+    unfold ts_inf in *; repeat rewrite rev_length.
+    remove_bools_options.
+    apply IHiss in Hcommon.
+    rewrite <- Hcommon.
+    f_equal.
+    rewrite combine_rev; last by repeat rewrite rev_length; move/eqP in Hif.
+    repeat rewrite revK.
+    by rewrite map_rev.
 Qed.
-
-Lemma same_lab_h_consistent: forall l lab ts ts',
-  same_lab_h l lab ts' = Some ts ->
-  ts = ts'.
+  
+Lemma common_lab_rev: forall iss lab_c ts,
+    common_lab iss lab_c = Some ts ->
+    common_lab iss (map rev lab_c) = Some (rev ts).
 Proof.
-  induction l => //=; intros; first by inversion H.
-  remove_bools_options.
-  move/eqP in Hif; subst.
-  by apply IHl in H.
-Qed.
-
-Lemma same_lab_same_lab_h: forall l lab ts,
-  same_lab l lab = Some ts ->
-  same_lab_h l lab ts = Some ts.
-Proof.
-  move => l lab ts H.
-  unfold same_lab in H.
-  destruct l => //=; remove_bools_options.
-  rewrite H.
-  replace l0 with ts => //=; first by rewrite eq_refl.
-  by apply same_lab_h_consistent in H.
-Qed.
-
-Lemma same_lab_h_same_lab: forall l lab ts,
-  same_lab_h l lab ts = Some ts ->
-  l <> nil ->  
-  same_lab l lab = Some ts.
-Proof.
-  move => l lab ts H Hnil.
-  unfold same_lab_h in H.
-  by destruct l => //=; remove_bools_options.
-Qed.
-
-Lemma same_lab_rev: forall iss lab_c ts,
-    same_lab iss lab_c = Some ts ->
-    same_lab iss (map rev lab_c) = Some (rev ts).
-Proof.
+  unfold common_lab.
   move => iss lab_c ts Hlab.
-  destruct iss => //.
-  apply same_lab_h_same_lab => //.
-  apply same_lab_h_condition.
-  apply same_lab_same_lab_h, same_lab_h_all in Hlab.
-  apply Forall_spec.
-  move => n x Hnth.
-  eapply Forall_lookup in Hlab; eauto.
-  by rewrite lookup_N_map Hlab.
+  destruct iss => //; remove_bools_options.
+  rewrite lookup_N_map Hoption => /=.
+  by apply common_lab_h_rev.
 Qed.
 
 Lemma c_types_agree_extend: forall ts1 ts2 ts,
@@ -206,7 +248,9 @@ Ltac simplify_tc_goal :=
       rewrite (expand_t_context_reverse H)
   | H: context C [ match ?u with | Unop_i _ => _ | Unop_f _ | _ => _ end ] |- _ => destruct u => //=
   | H: context C [ match ?b with | Binop_i _ => _ | Binop_f _ => _ end ] |- _ => destruct b => //=
-  | H: context C [ match ?r with | Relop_i _ => _ | Relop_f _ => _ end ] |- _ => destruct r => //=
+    | H: context C [ match ?r with | Relop_i _ => _ | Relop_f _ => _ end ] |- _ => destruct r => //=
+(*                                                                                 | H: context C [ lookup_N_safe _ _ ] |- _ => setoid_rewrite lookup_N_safe_spec in H
+                                                                                 | |- context [ lookup_N_safe _ _ ] => setoid_rewrite lookup_N_safe_spec*)
   | |- context [ consume _ nil ] => rewrite consume_nil
   | |- context [ consume <<?ts, _>> ?ts ] => rewrite consume_self
   | |- context [ consume <<(?ts ++ _), _>> ?ts ] => rewrite consume_prefix
@@ -1436,7 +1480,8 @@ Proof.
       eapply bet_subtyping; first by apply bet_br_if with (ts := ts) => //.
       by apply Hsub.
     (* Br_table *)
-    + apply same_lab_same_lab_h, same_lab_h_all in Hoption.
+    + apply common_lab_rev in Hoption.
+      rewrite mapK in Hoption; last by apply revK.
       eapply type_update_top_agree_subtyping in Hupdate; eauto.
       destruct Hupdate as [tn [ts1 [ts2 [Hagree' Hsub]]]].
       rewrite rev_cons -cats1 in Hsub.
@@ -1445,9 +1490,7 @@ Proof.
       { eapply bet_br_table with (ts := rev l1).
         apply Forall_spec.
         move => n x Hnth.
-        eapply Forall_lookup in Hoption; eauto.
-        apply nth_error_map in Hoption as [vt [Hnth' Hmap]]; subst.
-        by rewrite revK.
+        by eapply common_lab_spec; eauto.
       }
       by apply Hsub.
     (* Return *)
@@ -1517,10 +1560,19 @@ Proof.
       unfold c_types_agree.
       by simplify_tc_goal.
     (* Br_table *)
-    + apply same_lab_h_condition in H.
-      apply same_lab_h_same_lab in H; last by destruct ins.
-      apply same_lab_rev in H.
-      by unfold c_types_agree; simplify_tc_goal.
+    + apply common_lab_cond in H as [ty [Hcommon Hsub]]; last by destruct ins.
+      apply common_lab_rev in Hcommon.
+      rewrite Hcommon.
+      apply values_subtyping_rev in Hsub.
+      specialize consume_subtyping with (ct1 := << rev ty ++ rev t1s, false >>) (ct1' := << rev ts ++ rev t1s, false >>) (ct2 := << rev t1s, false >>) (ts := rev ty) as Hconsume.
+      destruct Hconsume as [ct2' [Hconsume' Hctsub]].
+      { by apply consume_prefix. }
+      { apply ct_subtyping_prefix => //.
+        by apply ct_subtyping_refl.
+      }
+      { rewrite Hconsume'.
+        by unfold c_types_agree; simplify_tc_goal.
+      }
     (* Call *)
     + destruct tf as [t1 t2] => /=.
       by unfold c_types_agree, type_update; simplify_tc_goal.

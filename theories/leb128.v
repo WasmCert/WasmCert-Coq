@@ -1,8 +1,7 @@
 (* LEB128 integer format *)
 (* https://en.wikipedia.org/wiki/LEB128 *)
-(* TODO: size bound *)
 Require Import Numbers.BinNums.
-Require Import NArith.BinNat.
+Require Import BinNat BinInt.
 Require Import Coq.Init.Byte.
 From parseque Require Import Parseque.
 
@@ -148,11 +147,12 @@ Section Language.
       let aux := Induction.map _unsigned _ rec in
       let unsigned_ :=
         parse_unsigned_end <|>
-        (((fun lsb rest => BinNatDef.N.add lsb (BinNatDef.N.mul 128 rest)) <$> parse_unsigned_ctd) <*> aux) in
+        (((fun lsb rest => BinNatDef.N.add lsb (BinNatDef.N.mul 128%N rest)) <$> parse_unsigned_ctd) <*> aux) in
       MkUnsigned unsigned_).
     
     (** top-level function *)
-    Definition parse_unsigned : [ byte_parser N ] := fun n => _unsigned n (parse_unsigned_aux n).
+    Definition parse_unsigned : [ byte_parser N ] :=
+      fun n => _unsigned n (parse_unsigned_aux n).
 
   End Unsigned_sec.
 
@@ -181,7 +181,7 @@ Definition parse_signed_ctd {n} : byte_parser Z n :=
 Section Signed_sec.
 
   Record Signed (n : nat) : Type := MkSigned
-  { _signed : byte_parser BinNums.Z n;
+  { _signed : byte_parser Z n;
   }.
     
   Arguments MkUnsigned {_}.
@@ -193,11 +193,11 @@ Section Signed_sec.
       let aux := Induction.map _signed _ rec in
       let signed_ :=
         parse_signed_end <|>
-        (((fun lsb rest => ZArith.BinInt.Zplus lsb (ZArith.BinInt.Zmult (ZArith.BinInt.Z_of_nat 128) rest)) <$> parse_signed_ctd) <*> aux) in
+        (((fun lsb rest => ZArith.BinInt.Zplus lsb (ZArith.BinInt.Zmult 128%Z rest)) <$> parse_signed_ctd) <*> aux) in
       MkSigned _ signed_).
     
     Definition parse_signed : [ byte_parser Z ] := fun n => _signed n (signed_aux n).
-
+    
   End Signed_sec.
 
 End Language.

@@ -3,10 +3,7 @@
     and https://webassembly.github.io/spec/core/exec/index.html **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
-From Wasm Require array.
-From Wasm Require Import memory memory_list.
-From Wasm Require Export common numerics bytes.
-From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+From Wasm Require Export common numerics bytes memory.
 From compcert Require common.Memdata.
 Require Import BinNat.
 
@@ -16,8 +13,6 @@ Unset Printing Implicit Defensive.
  
 
 (** * Basic Datatypes **)
-
-(* TODO: use a more faithful definition of u32. *)
 
 (** std-doc:
 Definitions are referenced with zero-based indices. Each class of definition has its own index space, as distinguished by the following classes.
@@ -552,7 +547,7 @@ Instructions in this group are concerned with linear memory.
   | BI_load_vec : load_vec_arg -> memarg -> basic_instruction
   (* the lane version has a different type signature *)
   | BI_load_vec_lane : width_vec -> memarg -> laneidx -> basic_instruction
-  | BI_store : number_type -> option packed_type -> memarg-> basic_instruction
+  | BI_store : number_type -> option packed_type -> memarg -> basic_instruction
   | BI_store_vec_lane : width_vec -> memarg -> laneidx -> basic_instruction
   | BI_memory_size
   | BI_memory_grow
@@ -849,11 +844,15 @@ size, never exceeds the maximum size of memtype, if present.
 
 [https://www.w3.org/TR/wasm-core-2/exec/runtime.html#memory-instances]
 *)
-Record meminst : Set := {
-  meminst_type : memory_type;
-  meminst_data: memory_list;
-}.
 
+Section Memory.
+
+Context `{Memory}.
+
+Record meminst : Type := {
+  meminst_type : memory_type;
+  meminst_data: mem_t;
+}.
 
 (** std-doc:
 A global instance is the runtime representation of a global variable. It records its 
@@ -1068,6 +1067,7 @@ Definition thread : Type := frame * list administrative_instruction.
 
 Definition config_tuple : Type := store_record * thread.
 End Host.
+End Memory.
 
 (* Notations for values to basic/admin instructions *)
 Notation "$VN v" := (AI_basic (BI_const_num v)) (at level 60).

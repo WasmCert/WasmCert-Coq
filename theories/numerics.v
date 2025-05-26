@@ -1,8 +1,8 @@
-(** Common useful definitions **)
+(** Wasm numerics **)
 (* (C) M. Bodin, J. Pichon - see LICENSE.txt *)
 
-Require Import common.
-From Coq Require ZArith ZArith.Int ZArith.BinInt ZArith.Zpower.
+From Wasm Require Export common.
+From Coq Require Import ZArith ZArith.Int ZArith.BinInt ZArith.Zpower.
 From compcert Require Integers Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From HB Require Import structures.
@@ -19,8 +19,6 @@ Unset Printing Implicit Defensive.
 (** * Integers **)
 
 Module Wasm_int.
-
-Import ZArith.BinInt.
 
 Coercion Z.of_nat : nat >-> Z.
 
@@ -1079,6 +1077,8 @@ Record mixin_of (float_t : Type) := Mixin {
   float_inf : float_t;
   float_canon_nan : float_t;
   float_nan: BinPos.positive -> option float_t;
+  float_is_canonical : float_t -> bool;
+  float_is_arithmetic : float_t -> bool;
   (** Unuary operators **)
   float_neg : float_t -> float_t ;
   float_abs : float_t -> float_t ;
@@ -1437,14 +1437,21 @@ Proof. by refine (exist _ unspec_arithmetic_nan (eqxx true)). Qed.
 (** An unspecified [NaN]. **)
 Definition unspec_nan : T := sval unspec_nan_nan.
 
-(** Taking the opposite of a floating point number.
-  Its action on [NaN] is not specified. **)
-Definition opp : T -> T.
+(** Return the opposite nan if the input is a nan; otherwise return an unspecified nan. *)
+Definition wasm_opp_nan (x: T): { res | Binary.is_nan prec emax res = true}.
 Proof.
-  refine (Binary.Bopp _ _ (fun _ => exist _ unspec_nan _)).
-  by apply: (svalP unspec_nan_nan).
+  destruct x.
+  1,2,4: by apply unspec_nan_nan.
+  by exists (Binary.B754_nan prec emax (negb s) pl e).
 Defined.
 
+(** Taking the opposite of a floating point number.
+    Compcert Binary.opp defines an unspecified behaviour for nan.
+    However, Wasm defines it concretely.
+    Very inconveniently, Binary.opp doesn't link the input to the opp_nan
+    parameter.
+ **)
+Definition opp : T -> T := Binary.Bopp _ _ wasm_opp_nan.
 
 (** Given a mantissa and an exponent (in radix two), produce a representation for a float.
   The sign is not specified if given 0 as a mantissa. **)
@@ -1509,7 +1516,7 @@ Definition sqrt (z : T) : T :=
   Note that these parameters are used to compute the absolute value of the
   resulting integer. **)
 
-Definition ZofB_param (divP divN : Z -> Z -> Z) (z : T) :=
+Definition ZofB_param (divP divN : Z -> Z -> Z) (z : T) : option Z :=
   match z with
   | Binary.B754_zero _ => Some 0%Z
   | Binary.B754_finite s m 0%Z _ =>
@@ -1713,7 +1720,7 @@ Definition fdiv (z1 z2 : T) :=
   else if is_zero z1 && (sign z1 == sign z2) then pos_zero
   else if is_zero z1 && (sign z1 != sign z2) then neg_zero
   else if is_zero z2 && (sign z1 == sign z2) then pos_infinity
-  else if is_zero z2 && (sign z1 != sign z2) then pos_infinity
+  else if is_zero z2 && (sign z1 != sign z2) then neg_infinity
   else div z1 z2.
 
 Definition fmin (z1 z2 : T) :=
@@ -1751,9 +1758,10 @@ Definition fneg (z : T) :=
 
 Definition fsqrt (z : T) :=
   if is_nan z then nans [:: z]
-  else if sign z then nans [::]
+  else if z == neg_infinity then nans [::]
   else if z == pos_infinity then pos_infinity
   else if is_zero z then z
+  else if sign z then nans [::]
   else sqrt z.
 
 Definition fceil (z : T) :=
@@ -1782,15 +1790,15 @@ Definition fnearest (z : T) :=
   if is_nan z then nans [:: z]
   else if is_infinity z then z
   else if is_zero z then z
-  else if cmp Cgt z pos_zero && cmp Clt z (normalise 1 (-1)) then pos_zero
-  else if cmp Clt z neg_zero && cmp Cgt z (normalise (-1) (-1)) then neg_zero
+  else if cmp Cgt z pos_zero && cmp Cle z (normalise 1 (-1)) then pos_zero
+  else if cmp Clt z neg_zero && cmp Cge z (normalise (-1) (-1)) then neg_zero
   else nearest z.
 
 (** We also define the conversions to integers using the same operations. **)
 
 (** The [trunc] operations are undefined if outside their respective range.
   This function thus checks these ranges. **)
-Definition to_int_range t m (min max i : Z) : option t :=
+Definition to_int_range {t} m (min max i : Z) : option t :=
   if (i >=? min)%Z && (i <=? max)%Z then
     Some (Wasm_int.int_of_Z m i)
   else None.
@@ -1802,7 +1810,7 @@ Definition si32_trunc z :=
 Definition ui64_trunc z :=
   Option.bind (to_int_range i64m 0 Wasm_int.Int64.max_unsigned) (trunco z).
 Definition si64_trunc z :=
-  Option.bind (to_int_range i64m Wasm_int.Int64.min_signed Wasm_int.Int32.max_signed) (trunco z).
+  Option.bind (to_int_range i64m Wasm_int.Int64.min_signed Wasm_int.Int64.max_signed) (trunco z).
 
 Definition ui32_trunc_sat z :=
   Wasm_int.int_of_Z i32m (trunc_sat 0 Wasm_int.Int32.max_unsigned z).
@@ -1826,10 +1834,12 @@ Defined.
 
 Definition Tmixin : mixin_of T := {|
     float_zero := pos_zero ;
-    float_inf := pos_infinity ;
-    float_canon_nan := canonical_nan true;
-    float_nan := float_nan_pl true;
-    (** Unuary operators **)
+    float_inf := pos_infinity;
+    float_canon_nan := canonical_nan false;
+    float_nan := float_nan_pl false;
+    float_is_canonical := is_canonical;
+    float_is_arithmetic := is_arithmetic;
+    (** Unary operators **)
     float_neg := fneg ;
     float_abs := fabs ;
     float_sqrt := fsqrt ;
@@ -1915,7 +1925,6 @@ Proof. reflexivity. Qed.
 
 Lemma nearest_unit_test_4_ok : Float64.nearest_unit_test_4.
 Proof. reflexivity. Qed.
-
 
 End Wasm_float.
 
