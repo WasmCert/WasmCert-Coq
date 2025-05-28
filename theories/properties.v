@@ -2579,6 +2579,43 @@ Proof.
     by simpl in Hconst.
 Qed.
 
+Definition lfill_ctx_instr (e: administrative_instruction) : bool :=
+  match e with
+  | AI_label _ _ _ => true
+  | _ => is_const e
+  end.
+
+(* A commonly required case for dealing with inverting reduction relations *)
+Lemma lfill_singleton_neq: forall k (lh: lholed k) es es' e e',
+    lfill lh es = [::e] ->
+    lfill lh es' = [::e'] ->
+    (~ lfill_ctx_instr e) ->
+    (~ lfill_ctx_instr e') ->
+    e <> e' ->
+    {Heq: k = 0 & lholed_cast lh Heq = LH_base nil nil} /\ es = [::e] /\ es' = [::e'].
+Proof.
+  move => k lh.
+  destruct lh as [vs es | ] => /=; intros ???? Hlf1 Hlf2 Hnconst1 Hnconst2 Hneq => //=.
+  - destruct vs; simpl in *.
+    + destruct es0, es'; simpl in *; subst.
+      * by inversion Hlf2.
+      * by destruct es'.
+      * by destruct es0.
+      * (* The decomposition case *)
+        destruct es0, es', es => //; simpl in *; subst.
+        inversion Hlf1; inversion Hlf2; subst.
+        split => //.
+        by exists Logic.eq_refl.
+    + destruct vs, es0, es, es' => //; simpl in *; subst.
+      inversion Hlf1; inversion Hlf2.
+      rewrite H0 in H1.
+      by inversion H1.
+  - destruct l as [ | ? l].
+    + destruct l1 => //; simpl in *.
+      inversion Hlf1; inversion Hlf2; by subst => //.
+    + by destruct l => //.
+Qed.
+
 Lemma const_seq_factorise (fe: nat -> administrative_instruction) (ves: list administrative_instruction):
   {vs & {es & ves = v_to_e_list vs ++ [::fe 0] ++ es}} + {forall vs es, ves <> v_to_e_list vs ++ [::fe 0] ++ es}.
 Proof.

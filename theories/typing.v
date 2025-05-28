@@ -545,9 +545,10 @@ Inductive e_typing : store_record -> t_context -> seq administrative_instruction
   ext_func_typing s a = Some tf ->
   e_typing s C [::AI_invoke a] tf
 (* The soundness section of the tail call proposal doesn't contain a rule for return_invoke; this typing rule is a placeholder and will be decided later. *)
-| ety_return_invoke : forall s (a: funcaddr) C tf,
-  ext_func_typing s a = Some tf ->
-  e_typing s C [::AI_return_invoke a] tf
+| ety_return_invoke : forall s (a: funcaddr) C ts1 ts2 ts3 ts4,
+  ext_func_typing s a = Some (Tf ts1 ts2) ->
+  C.(tc_return) = Some ts2 ->  
+  e_typing s C [::AI_return_invoke a] (Tf (ts3 ++ ts1) ts4)
 | ety_label : forall s C e0s es ts t2s n,
   e_typing s C e0s (Tf ts t2s) ->
   e_typing s (upd_label C ([::ts] ++ tc_labels C)) es (Tf [::] t2s) ->

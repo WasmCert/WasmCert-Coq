@@ -636,8 +636,16 @@ Proof.
         unfold type_update, produce in Htc; simpl in *.
         by simplify_tc_goal.
       * simplify_tc_goal; by eapply type_update_reachable in Htc.
+  (* call *)
   - destruct f0; by eapply type_update_reachable; eauto.
+  (* call_indirect *)
   - destruct f; by eapply type_update_reachable; eauto.
+  (* return_call *)
+  - destruct f0; simpl in *.
+    by unfold type_update_top in Htc; simplify_tc_goal.
+  (* return_call_indirect *)
+  - destruct f.
+    by unfold type_update_top in Htc; simplify_tc_goal.
 Qed.
   
 Lemma check_single_None: forall C e,
@@ -1518,6 +1526,35 @@ Proof.
       rewrite rev_cons revK -cats1 revK in Hsub.
       exists tn; split => //.
       by resolve_tc_be_typing.
+    (* Return_call *)
+    + destruct f0 as [tn0 tm0].
+      remove_bools_options.
+      move/eqP in Hif; subst.
+      eapply type_update_top_agree_subtyping in Hupdate; eauto.
+      destruct Hupdate as [tn [ts1 [ts2 [Hagree' Hsub]]]].
+      apply nth_error_map in Hoption0 as [ts [Hnth Heq]].
+      destruct ts; simpl in Heq.
+      injection Heq as <- Hrevr.
+      apply (f_equal rev) in Hrevr; repeat rewrite revK in Hrevr; subst.
+      rewrite revK in Hsub.
+      exists tn; split => //.
+      eapply bet_subtyping; first by apply bet_return_call with (t1s := r0) (t2s := r).
+      by eauto.
+    (* Return_call_indirect *)      
+    + destruct f as [tn0 tm0].
+      move/eqP in Hif.
+      remove_bools_options.
+      move/eqP in Hif0; subst.
+      eapply type_update_top_agree_subtyping in Hupdate; eauto.
+      destruct Hupdate as [tn [ts1 [ts2 [Hagree' Hsub]]]].
+      apply nth_error_map in Hoption as [ts [Hnth Heq]].
+      destruct ts; simpl in Heq.
+      injection Heq as <- Hrevr.
+      apply (f_equal rev) in Hrevr; repeat rewrite revK in Hrevr; subst.
+      rewrite rev_cons revK -cats1 in Hsub.
+      exists tn; split => //.
+      eapply bet_subtyping; first by eapply bet_return_call_indirect with (t1s := r0) (t2s := r); eauto.
+      by eauto.
 Qed.
       
 Lemma tc_to_bet_list: forall C cts bes tm cts',

@@ -524,17 +524,28 @@ Proof.
   move => C C' es tf Hext Hetype.
   move: C' Hext.
   induction Hetype; move => C' Hext; (try by econstructor; eauto); try (by econstructor; eauto; rewrite_context_agree; eauto); try (by rewrite_context_agree; econstructor; eauto; rewrite_context_agree).
+  (* block *)
   - econstructor; eauto; unfold expand_t in *; rewrite_context_agree.
     by apply IHHetype; rewrite_context_agree.
+  (* loop *)
   - econstructor; eauto; unfold expand_t in *; rewrite_context_agree.
     by apply IHHetype; by rewrite_context_agree.
+  (* if *)
   - econstructor; eauto; unfold expand_t in *; rewrite_context_agree.
     + apply IHHetype1; by rewrite_context_agree.
     + apply IHHetype2; by rewrite_context_agree.
+  (* call_indirect *)
   - rewrite_context_agree.
     econstructor; eauto.
     + by rewrite - Htableagree.
     + by rewrite_context_agree.
+  (* return_call_indirect *)
+  - rewrite_context_agree.
+    econstructor; eauto.
+    + by rewrite - Htableagree.
+    + by rewrite_context_agree.
+    + by rewrite_context_agree.
+  (* table_copy *)
   - rewrite_context_agree.
     eapply context_agree_table_type in H as [tabt [Hnth Hagree]]; eauto; unfold table_agree in *; move/eqP in Hagree.
     econstructor.
@@ -542,6 +553,7 @@ Proof.
     + reflexivity.
     + by apply Hnth_ctxext.
     + by rewrite - Hagree - H2.
+  (* table init *)
   - rewrite_context_agree.
     econstructor; first by eauto.
     + by rewrite - Htableagree.
@@ -560,6 +572,9 @@ Proof.
   - (* be *)
     apply ety_a.
     by eapply context_agree_be_typing; eauto.
+  - (* Return_invoke *)
+    eapply ety_return_invoke; eauto.
+    by rewrite_context_agree.
   - (* Label *)
     eapply ety_label; eauto.
     eapply IHHetype2.
@@ -622,6 +637,10 @@ Proof.
   (* invoke *)
   - move=> s a C tf Hextfunc s' HST1 HST2 Hext.
     eapply ety_invoke; eauto => //.
+    by eapply ext_func_typing_extension; eauto.
+  (* return_invoke *)
+  - move => s a C ts1 ts2 ts3 ts4 Hextfunc Hret s' HST1 HST2 Hext.
+    eapply ety_return_invoke; eauto.
     by eapply ext_func_typing_extension; eauto.
   (* Label *)
   - move=> s C es es' t1s t2s n HType1 IHHType1 HType2 IHHType2 E s' HST1 HST2 Hext.
@@ -1600,10 +1619,38 @@ Proof.
   move => s f es s' f' es' C C0 ts t1s t2s hs hs' HReduce HST HIT Hmatch Hlocs HType Hvaltype.
   eapply t_preservation_locs_type_aux in Hvaltype; eauto.
   eapply values_typing_extension in Hvaltype; eauto.
-
   by eapply store_extension_reduce; eauto.
 Qed.
 
+(* Auxiliary lemmas for dealing with tail call reduction premises *)
+Lemma r_return_call_invert: forall hs s f i hs' s' f' a,
+    reduce hs s f [:: AI_basic (BI_call i)] hs' s' f' [:: AI_invoke a] ->
+    lookup_N (inst_funcs (f_inst f)) i = Some a.
+Proof.
+  move => hs s f i hs' s' f' a Hreduce.
+  dependent induction Hreduce => //.
+  - by inversion H.
+  - by repeat (destruct ves => //).
+  - destruct (lfill_singleton_neq H x) as [[? Hlheq] [-> ->]] => //.
+    by apply IHHreduce.
+Qed.
+
+Lemma r_return_call_indirect_invert: forall hs s f i x y hs' s' f' a,
+    reduce hs s f [:: $VN VAL_int32 i; AI_basic (BI_call_indirect x y)] hs' s' f' [:: AI_invoke a] ->
+    exists cl, lookup_N (s_funcs s) a = Some cl /\
+          lookup_N (inst_types (f_inst f)) y = Some (cl_type cl) /\
+          stab_elem s (f_inst f) x (Wasm_int.N_of_uint i32m i) = Some (VAL_ref_func a).
+Proof.
+  move => hs s f i x y hs' s' f' a Hreduce.
+  dependent induction Hreduce => //.
+  - by inversion H.
+  - by exists cl.
+  - by repeat (destruct ves => //).
+  - dependent destruction lh; simpl in *.
+    destruct (lfill_singleton_neq H x) as [[? Hlheq] [-> ->]] => //.
+    by apply IHHreduce.
+Qed.
+  
 (* Main preservation lemma *)
 Lemma t_preservation_e: forall s f es s' f' es' tlocs C C' t1s t2s lab ret hs hs',
     reduce hs s f es hs' s' f' es' ->
@@ -1680,7 +1727,18 @@ Proof.
     { unfold ext_func_typing.
       by rewrite H0 -Hinj => //=.
     }
-    
+  - (* Return_call *)
+    (* Due to the opsem being defined based on the corresponding reduction
+    of call, this is now an inductive case. Same for Return_call_indirect below *)
+    apply r_return_call_invert in HReduce.
+    eapply inst_typing_func_lookup in HReduce as [[ts1 ts2] [Hft Hnth]]; eauto.
+    rewrite Hconjl0 in Hnth; injection Hnth as <- <-.
+    by eapply ety_return_invoke; eauto.
+  - (* Return_call_indirect *)
+    apply r_return_call_invert in HReduce.
+    eapply inst_typing_func_lookup in HReduce as [[ts1 ts2] [Hft Hnth]]; eauto.
+    rewrite Hconjl0 in Hnth; injection Hnth as <- <-.
+    by eapply ety_return_invoke; eauto.
   - (* Invoke native *)
     destruct extr as [ts1' ts2'].
     destruct Hft as [<- [Hvalid Hftype]].
