@@ -791,10 +791,28 @@ Proof.
   eapply ety_subtyping; eauto; by apply et_values_typing; eauto.
 Qed.
 
+Lemma et_thread_typing: forall s f es rs ts,
+    thread_typing s rs (f, es) ts ->
+    exists C,
+      frame_typing s f C /\
+      e_typing s (upd_return C rs) es (Tf nil ts).
+Proof.
+  intros ????? Htype.
+  inversion Htype; subst; clear Htype.
+  by exists C.
+Qed.
+  
 End Typing_inversion_e.
 
 Ltac invert_e_typing :=
   repeat match goal with
+  | H: thread_typing _ _ _ _ |- _ =>
+    let C := fresh "C" in
+    let H1 := fresh "Hframetype" in
+    let H2 := fresh "Hetype" in
+    apply et_thread_typing in H as [C [H1 H2]]; subst;
+    try repeat rewrite -catA in H1;
+    try repeat rewrite -catA in H2
   | H: e_typing _ _ (_ ++ _) _ |- _ =>
     let ts3 := fresh "ts3_comp" in
     let H1 := fresh "H1_comp" in
@@ -1052,10 +1070,8 @@ Proof.
   move => s C vs f LI tf lh HType HConst Hlf.
   destruct tf as [t1s t2s].
   invert_e_typing.
-  inversion Hconjl0; subst; clear Hconjl0.
-  remove_bools_options.
   apply const_es_exists in HConst as [? ->].
-  eapply Lfilled_return_typing in H6; eauto; last by apply v_to_e_const.
+  eapply Lfilled_return_typing in Hetype; eauto; last by apply v_to_e_const.
   invert_e_typing.
   eapply ety_subtyping; first apply et_values_typing; eauto.
   by resolve_subtyping.

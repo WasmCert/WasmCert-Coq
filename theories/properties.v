@@ -2586,30 +2586,26 @@ Definition lfill_ctx_instr (e: administrative_instruction) : bool :=
   end.
 
 (* A commonly required case for dealing with inverting reduction relations *)
-Lemma lfill_singleton_neq: forall k (lh: lholed k) es es' e e',
-    lfill lh es = [::e] ->
-    lfill lh es' = [::e'] ->
+Lemma lfill_singleton_invert: forall k (lh: lholed k) es es' fes e,
+    lfill lh es = fes ->
+    lfill lh es' = [::e] ->
+    (~ e \in fes) ->
     (~ lfill_ctx_instr e) ->
-    (~ lfill_ctx_instr e') ->
-    e <> e' ->
-    {Heq: k = 0 & lholed_cast lh Heq = LH_base nil nil} /\ es = [::e] /\ es' = [::e'].
+    {Heq: k = 0 & lholed_cast lh Heq = LH_base nil nil} /\ es = fes /\ es' = [::e].
 Proof.
   move => k lh.
-  destruct lh as [vs es | ] => /=; intros ???? Hlf1 Hlf2 Hnconst1 Hnconst2 Hneq => //=.
+  destruct lh as [vs es | ] => /=; intros ???? Hlf1 Hlf2 Hnmem Hnfill => //=.
   - destruct vs; simpl in *.
-    + destruct es0, es'; simpl in *; subst.
-      * by inversion Hlf2.
-      * by destruct es'.
-      * by destruct es0.
-      * (* The decomposition case *)
-        destruct es0, es', es => //; simpl in *; subst.
-        inversion Hlf1; inversion Hlf2; subst.
+    + destruct es'; simpl in *; subst => //.
+      * by rewrite mem_cat mem_seq1 eq_refl orb_true_r in Hnmem.
+      (* The decomposition case *)
+      * destruct es', es => //; simpl in Hlf2; inversion Hlf2; subst.
+        rewrite cats0.
         split => //.
         by exists Logic.eq_refl.
-    + destruct vs, es0, es, es' => //; simpl in *; subst.
-      inversion Hlf1; inversion Hlf2.
-      rewrite H0 in H1.
-      by inversion H1.
+    + destruct vs, es', es => //; simpl in *.
+      inversion Hlf2; subst.
+      by rewrite cats0 mem_head in Hnmem.
   - destruct l as [ | ? l].
     + destruct l1 => //; simpl in *.
       inversion Hlf1; inversion Hlf2; by subst => //.

@@ -227,32 +227,30 @@ Proof.
   intros hs s ccs [vs es] d.
   get_cc ccs.
   (* Return needs an additional frame to execute; otherwise it returns in a type error. *)
-  destruct ccs' as [| ccs' cc0] using last_ind.
-  (* Error *)
-  - by resolve_invalid_typing.
-  - clear IHccs'.
-    destruct fc as [lvs lk lf les].
-    destruct (lk <= length vs) eqn:Hvslen.
-    + apply <<hs, (s, rcons ccs' cc0, (take lk vs ++ lvs, les), None), N.sub d 1>> => //=; last by destruct ccs'.
-      unfold reduce_ctx => /=.
-      rewrite rev_cons rev_rcons rcons_cons.
-      destruct cc0 as [[fvs0 fk0 ff0 fes0] lcs0].
-      rewrite revK rev_rcons revK.
-      apply (list_label_ctx_eval.(ctx_reduce)) => //=.
-      apply (list_closure_ctx_eval.(ctx_reduce)) => //.
-      resolve_reduce_ctx lvs les.
-      apply r_simple; eapply rs_return.
-      { by apply v_to_e_const. }
-      { by rewrite v_to_e_length length_is_size size_rev size_takel. }
-      { apply lh_ctx_fill_aux with (acc := (LH_base (rev (drop lk vs)) es)) (lcs := lcs) => /=.
-        repeat rewrite catA => /=.
-        rewrite v_to_e_cat rev_drop rev_take cat_take_drop.
-        by repeat rewrite - catA.
-      }
-    (* Not enough values *)
-    + resolve_invalid_typing.
-      assert (length extr1 = lk) as <-; first by injection Hretcons; destruct ccs'.
-      by discriminate_size.
+  destruct ccs' as [| ccs' cc0] using last_ind; first by resolve_invalid_typing.
+  clear IHccs'.
+  destruct fc as [lvs lk lf les].
+  destruct (lk <= length vs) eqn:Hvslen.
+  - apply <<hs, (s, rcons ccs' cc0, (take lk vs ++ lvs, les), None), N.sub d 1>> => //=; last by destruct ccs'.
+    unfold reduce_ctx => /=.
+    rewrite rev_cons rev_rcons rcons_cons.
+    destruct cc0 as [[fvs0 fk0 ff0 fes0] lcs0].
+    rewrite revK rev_rcons revK.
+    apply (list_label_ctx_eval.(ctx_reduce)) => //=.
+    apply (list_closure_ctx_eval.(ctx_reduce)) => //.
+    resolve_reduce_ctx lvs les.
+    apply r_simple; eapply rs_return.
+    { by apply v_to_e_const. }
+    { by rewrite v_to_e_length length_is_size size_rev size_takel. }
+    { apply lh_ctx_fill_aux with (acc := (LH_base (rev (drop lk vs)) es)) (lcs := lcs) => /=.
+      repeat rewrite catA => /=.
+      rewrite v_to_e_cat rev_drop rev_take cat_take_drop.
+      by repeat rewrite - catA.
+    }
+  (* Not enough values *)
+  - resolve_invalid_typing.
+    assert (length extr1 = lk) as <-; first by injection Hretcons; destruct ccs'.
+    by discriminate_size.
 Defined.
 
 Definition run_ctx_invoke hs s ccs vs0 es0 a d:
@@ -360,6 +358,75 @@ Proof.
   - (* None *)
     resolve_invalid_typing.
     unfold ext_func_typing in Hconjr.
+    by remove_bools_options; simpl in *.
+Defined.
+
+Definition run_ctx_return_invoke hs s ccs vs es a d:
+    run_step_ctx_result hs (s, ccs, (vs, es), Some (AI_return_invoke a)) d.
+Proof.
+  get_cc ccs.
+  (* Return_invoke always comes with another frame, otherwise the return field of the typing context could not be non-empty to match the typing rule of AI_return_invoke. *)
+  destruct ccs' as [| ccs' cc0] using last_ind; first by resolve_invalid_typing.
+  clear IHccs'.
+  destruct fc as [lvs lk lf les].
+  (* Check function type *)
+  destruct (lookup_N s.(s_funcs) a) as [cl|] eqn:?.
+  - destruct (cl_type cl) as [ts1 ts2] eqn:Hcltype.
+    (* arity of the frame should match the function type *)
+    (*
+  | r_return_invoke : forall (a : N) (cl : funcinst) 
+                        (t1s t2s : result_type) (n m : nat)
+                        (vs es : seq administrative_instruction) 
+                        (i : nat) (lh : lholed i) 
+                        (f f0 : frame) (hs : host_state) 
+                        (s : store_record),
+                      lookup_N (s_funcs s) a = Some cl ->
+                      cl_type cl = Tf t1s t2s ->
+                      length t1s = n ->
+                      length t2s = m ->
+                      const_list vs ->
+                      length vs = n ->
+                      lfill lh (vs ++ [:: AI_return_invoke a]) = es ->
+                      reduce hs s f [:: AI_frame m f0 es] hs s f
+                        (vs ++ [:: AI_invoke a])
+*)
+    destruct (length ts2 == lk) eqn:Hfarity; move/eqP in Hfarity.
+    (* Check for number of values against the consumed types of the function. Note that this is not a returning from the frame, therefore the arity is not checked against vs (unlike when returning) *)
+    + destruct (length ts1 <= length vs) eqn:Hvslen.
+      * apply <<hs, (s, rcons ccs' cc0, (take (length ts1) vs ++ lvs, les), Some (AI_invoke a)), N.sub d 1>> => //=; last by destruct ccs'.
+        unfold reduce_ctx => /=.
+        rewrite rev_cons rev_rcons rcons_cons.
+        destruct cc0 as [[fvs0 fk0 ff0 fes0] lcs0].
+        rewrite revK rev_rcons revK.
+        apply (list_label_ctx_eval.(ctx_reduce)) => //=.
+        apply (list_closure_ctx_eval.(ctx_reduce)) => //.
+        resolve_reduce_ctx lvs les.
+        eapply r_return_invoke; eauto.
+        { by apply v_to_e_const. }
+        { by rewrite v_to_e_length length_is_size size_rev size_takel. }
+        { apply lh_ctx_fill_aux with (acc := (LH_base (rev (drop (length ts1) vs)) es)) (lcs := lcs) => /=.
+          repeat rewrite catA => /=.
+          subst.
+          rewrite v_to_e_cat rev_drop rev_take cat_take_drop.
+          by repeat rewrite - catA.
+        }
+      (* Not enough values *)
+      * resolve_invalid_typing; simpl in *.
+        clear Hretcons Hretnil.
+        unfold ext_func_typing in Hconjl0.
+        rewrite Heqo Hcltype in Hconjl0.
+        injection Hconjl0 as <- <-.
+        by discriminate_size.
+    (* Arity mismatch *)
+    + resolve_invalid_typing; simpl in *.
+      unfold ext_func_typing in Hconjl0.
+      rewrite Heqo Hcltype in Hconjl0.
+      injection Hconjl0 as <- <-.
+      apply Hfarity.
+      injection Hretcons => //; by destruct ccs'.
+  (* None *)
+  - resolve_invalid_typing.
+    unfold ext_func_typing in Hconjl0.
     by remove_bools_options; simpl in *.
 Defined.
 
@@ -530,12 +597,15 @@ Proof.
       (* BI_br_if j *) j |
       (* BI_br_table js j *) js j |
       (* BI_return *) |
-      (* BI_call j *) x |
-      (* BI_call_indirect j *) x y ] |
+      (* BI_call x *) x |
+      (* BI_call_indirect x y *) x y  |
+      (* BI_return_call x *) x |
+      (* BI_return_call_indirect x y *) x y ] |
       (* AI_trap *) |
       (* AI_ref a *) a |
       (* AI_ref_extern a *) a |
       (* AI_invoke a *) a |
+      (* AI_return_invoke a *) a |
       (* AI_label ln les es *) ln les es |
       (* AI_frame ln lf es *) ln lf es ].
 
@@ -1648,6 +1718,71 @@ the condition that all values should live in the operand stack. *)
         resolve_reduce_ctx vs0 es0.
         by eapply r_call_indirect_failure_bound; subst.
 
+    (* Return_call and return_call indirect are basically the same as the non-tail-call versions. *)
+    (* AI_basic (BI_return_call x) *)
+    - destruct (lookup_N fc.(FC_frame).(f_inst).(inst_funcs) x) as [a|] eqn: Hnth.
+      (* Some a *)
+      + apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some (AI_return_invoke a)), d>> => //.
+        resolve_reduce_ctx vs0 es0.
+        by apply r_return_call, r_call.
+      (* None *)
+      + resolve_invalid_typing.
+        unfold_frame_type Hftype.
+        eapply inst_typing_func_lookup_inv in Hconjl0 as [? [??]]; eauto.
+        by simplify_multieq.
+
+    (* AI_basic (BI_return_call_indirect x y) *)
+    - destruct vs0 as [|v vs0]; first by no_args.
+      assert_i32 v.
+      destruct (stab_elem s fc.(FC_frame).(f_inst) x ($nou32 v)) as [vref|] eqn:?.
+      (* Some a *)
+      + destruct vref as [t | a | a].
+        (* ref_null *)
+        * apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap), d>> => //.
+          resolve_reduce_ctx vs0 es0.
+          replace ($VN VAL_int32 v) with ($V (VAL_num (VAL_int32 v))); last done.
+          by eapply r_return_call_indirect_failure, r_call_indirect_failure_null_ref; eauto.
+        (* funcref *)
+        * destruct (lookup_N s.(s_funcs) a) as [cl | ] eqn:Hnthcl.
+          (* Some *)
+          -- destruct (lookup_N (inst_types (f_inst (fc.(FC_frame)))) y == Some (cl_type cl)) eqn:Hcl; move/eqP in Hcl.
+            (* true *)
+            ++ apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some (AI_return_invoke a)), d>> => //.
+              resolve_reduce_ctx vs0 es0.
+              replace ($VN VAL_int32 v) with ($V (VAL_num (VAL_int32 v))); last done.
+              by eapply r_return_call_indirect_success, r_call_indirect_success; subst; eauto.
+            (* false *)
+            ++ apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some (AI_trap)), d>> => //.
+              resolve_reduce_ctx vs0 es0.
+              replace ($VN VAL_int32 v) with ($V (VAL_num (VAL_int32 v))); last done.
+              by eapply r_return_call_indirect_failure, r_call_indirect_failure_mismatch; subst; eauto.
+          (* None *)
+          -- resolve_invalid_typing.
+             unfold_frame_type Hftype.
+             unfold_store_operations.
+             resolve_store_inst_lookup.
+             destruct t1; remove_bools_options; simpl in *.
+             eapply all_projection in Hif1; eauto.
+             unfold value_typing in Hif1; simpl in Hif1.
+             unfold ext_func_typing in Hif1.
+             by remove_bools_options.
+        (* externref *)
+        * resolve_invalid_typing.
+          unfold_frame_type Hftype.
+          unfold_store_operations.
+          resolve_store_inst_lookup.
+          destruct t1; remove_bools_options; simpl in *.
+          eapply all_projection in Hif1; eauto.
+          unfold value_typing in Hif1; simpl in *.
+          simplify_multieq.
+          apply ref_subtyping in Hif1.
+          by rewrite Hconjl1 in Hif1.
+      (* None *)
+      + apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some (AI_trap)), d>> => //.
+        resolve_reduce_ctx vs0 es0.
+        replace ($VN VAL_int32 v) with ($V (VAL_num (VAL_int32 v))); last done.
+        by eapply r_return_call_indirect_failure, r_call_indirect_failure_bound; subst.
+        
     (* AI_trap *)
     - destruct ((vs0 == nil) && (es0 == nil)) eqn:Hscnil; move/andP in Hscnil.
       + destruct Hscnil as [Heq1 Heq2]; move/eqP in Heq1; move/eqP in Heq2; subst.
@@ -1692,7 +1827,10 @@ the condition that all values should live in the operand stack. *)
        
     (* AI_invoke a *)
     - by apply run_ctx_invoke.
-        
+
+    (* AI_return_invoke a *)
+    - by apply run_ctx_return_invoke.
+      
     (* AI_label ln les es *)
     - by apply RSC_invalid => /=; move => [??].
 
