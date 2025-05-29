@@ -23,7 +23,7 @@
     (cmdliner (>= 1.1.0))
     (linenoise (>= 1.4.0))
     (mdx (>= 1.9.0))
-    (wasm (and (>= 2.0.1) (<= 2.0.1)))
+    (wasm (and (>= 2.0.2) (<= 2.0.2)))
   )
   (maintainers
     "Xiaojia Rao"
