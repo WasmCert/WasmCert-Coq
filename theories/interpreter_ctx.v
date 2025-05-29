@@ -373,23 +373,6 @@ Proof.
   destruct (lookup_N s.(s_funcs) a) as [cl|] eqn:?.
   - destruct (cl_type cl) as [ts1 ts2] eqn:Hcltype.
     (* arity of the frame should match the function type *)
-    (*
-  | r_return_invoke : forall (a : N) (cl : funcinst) 
-                        (t1s t2s : result_type) (n m : nat)
-                        (vs es : seq administrative_instruction) 
-                        (i : nat) (lh : lholed i) 
-                        (f f0 : frame) (hs : host_state) 
-                        (s : store_record),
-                      lookup_N (s_funcs s) a = Some cl ->
-                      cl_type cl = Tf t1s t2s ->
-                      length t1s = n ->
-                      length t2s = m ->
-                      const_list vs ->
-                      length vs = n ->
-                      lfill lh (vs ++ [:: AI_return_invoke a]) = es ->
-                      reduce hs s f [:: AI_frame m f0 es] hs s f
-                        (vs ++ [:: AI_invoke a])
-*)
     destruct (length ts2 == lk) eqn:Hfarity; move/eqP in Hfarity.
     (* Check for number of values against the consumed types of the function. Note that this is not a returning from the frame, therefore the arity is not checked against vs (unlike when returning) *)
     + destruct (length ts1 <= length vs) eqn:Hvslen.
