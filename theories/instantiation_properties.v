@@ -9,8 +9,14 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* Some of the proofs were adapted from the Iris branch -- therefore the stdpp notations for now *)
-Notation "l !! n" := (List.nth_error l n) (at level 10).
+(* Some of the proofs were adapted from the Iris branch -- therefore the stdpp notations *)
+
+Declare Scope lookup_scope.
+
+Notation "l !! n" := (List.nth_error l n) (at level 10) : lookup_scope.
+
+#[local]
+Open Scope lookup_scope.
 
 Definition exp_default := MED_func 0%N.
 
@@ -825,3 +831,6 @@ Proof.
 Qed.
 
 End Host.
+
+#[local]
+Close Scope lookup_scope.
