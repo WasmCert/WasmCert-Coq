@@ -592,6 +592,10 @@ Fixpoint pp_basic_instruction (i : indentation) (be : basic_instruction) : strin
     indent i (with_fg be_style "call " ++ pp_id x ++ newline)
   | BI_call_indirect x y =>
     indent i (with_fg be_style "call_indirect " ++ pp_id x ++ " " ++ pp_id y ++ newline)
+  | BI_return_call x =>
+    indent i (with_fg be_style "return_call " ++ pp_id x ++ newline)
+  | BI_return_call_indirect x y =>
+    indent i (with_fg be_style "return_call_indirect " ++ pp_id x ++ " " ++ pp_id y ++ newline)
   | BI_local_get x =>
     indent i (with_fg be_style "local.get " ++ pp_id x ++ newline)
   | BI_local_set x =>
@@ -723,6 +727,8 @@ Fixpoint pp_administrative_instruction (n : indentation) (e : administrative_ins
     indent n (with_fg ae_style "ref_extern " ++ pp_addr a ++ newline)
   | AI_invoke a =>
     indent n (with_fg ae_style "invoke " ++ pp_addr a ++ newline)
+  | AI_return_invoke a =>
+    indent n (with_fg ae_style "return_invoke " ++ pp_addr a ++ newline)
            
   | AI_label k es1 es2 =>
     indent n (with_fg ae_style "label " ++ string_of_nat k ++ newline) ++

@@ -711,6 +711,31 @@ Proof.
   by apply all2_rev.
 Qed.
 
+Lemma instr_subtyping_produced_suffix: forall ts1 ts2 ts3 ts4,
+    (Tf ts1 ts2 <ti: Tf ts3 ts4) ->
+    exists ts_suffix, ts4 = ((take (size ts4 - size ts2) ts4) ++ ts_suffix) /\
+              (ts2 <ts: ts_suffix).
+Proof.
+  move => ts1 ts2 ts3 ts4 Htisub.
+  exists (drop (size ts4 - size ts2) ts4); split; first by rewrite cat_take_drop.
+  simplify_subtyping.
+  rewrite drop_size_cat => //.
+  rewrite size_cat.
+  rewrite (values_subtyping_size Hconjr0).
+  by lias.
+Qed.
+
+Lemma instr_subtyping_suffix_prod_cons: forall ts1 ts2 ts3 ts4 ts5 ts6 ts ts',
+    Tf ts1 ts <ti: Tf ts2 ts3 ->
+    Tf (ts4 ++ ts') ts5 <ti: Tf ts3 ts6 ->
+    size ts = size ts' ->
+    ts <ts: ts'.                     
+Proof.
+  intros ???????? Hsub1 Hsub2 Hlen.
+  simplify_subtyping.
+  by eapply values_subtyping_cat_suffix; eauto.
+Qed.
+  
 (*
 Given a subtype of (tx -> ty) and a subtype of (ty -> tz),
 try to figure out the relations that have to be satisfied by the subtypes and

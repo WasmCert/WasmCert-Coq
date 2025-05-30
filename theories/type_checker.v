@@ -277,6 +277,36 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
               else None
           | None => None
           end
+      | BI_return_call x =>
+          match C.(tc_return) with
+          | Some t2s =>
+              match lookup_N (tc_funcs C) x with
+              | None => None 
+              | Some (Tf tn tm) =>
+                  if (t2s == tm) then
+                    type_update_top ts (tn) nil
+                  else None
+              end
+          | None => None
+          end
+      | BI_return_call_indirect x y =>
+          match C.(tc_return) with
+          | Some t2s =>
+              match lookup_N C.(tc_tables) x with
+              | Some tabt =>
+                  if tabt.(tt_elem_type) == T_funcref then
+                    match lookup_N (tc_types C) y with
+                    | Some (Tf tn tm) =>
+                        if (t2s == tm) then
+                          type_update_top ts ((T_num T_i32 :: tn)) nil
+                        else None
+                    | None => None 
+                    end
+                  else None
+              | None => None
+              end
+          | None => None
+          end
       | BI_local_get i =>
           match lookup_N (tc_locals C) i with
           | None => None 

@@ -522,6 +522,7 @@ Proof.
     | faddr
     | eaddr
     | addr
+    | addr
     | n ces es
     | n f es
     ]; simpl in *; try by (injection Hdecomp as <- <- <-; unfold valid_ccs).
@@ -551,6 +552,7 @@ Proof.
     |
     | faddr
     | eaddr
+    | addr
     | addr
     | n ces es
     | n f es
@@ -703,6 +705,7 @@ Proof.
       | faddr
       | eaddr
       | addr
+      | addr
       | n ces es
       | n f es
       ]; simpl in *; try by injection Hdecomp as <- <- <- => /=; apply split_vals_inv in Hsplit as ->.
@@ -842,7 +845,6 @@ Proof.
   rewrite - cat1s in Htype.
   unfold vs_to_es in Htype.
   invert_e_typing.
-  inversion Hconjl0 as [??????? Hftype ? Hetype]; subst; clear Hconjl0.
   by do 2 eexists; repeat split; eauto.
 Qed.
 
@@ -1062,7 +1064,6 @@ Proof.
     apply ccs_typing_focus in Hetype as [C' [ret [labs [[ts1' ts2'] Hetype]]]].
     destruct cc as [fc lcs']; simpl in *.
     invert_e_typing.
-    inversion Hconjl0; subst; clear Hconjl0.
     exists C0, (Some extr), extr.
     repeat split => //=; last by move => Hreveq => //=; apply (f_equal size) in Hreveq; rewrite size_rev in Hreveq.
     by rewrite Hconjr0.

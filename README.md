@@ -6,7 +6,12 @@ A WebAssembly (aka Wasm) formalisation in Coq(Rocq), based on the [official spec
 The quotes from the WebAssembly standard (starting with `std-doc`) are (C) their respective authors. 
 The files located in `src/Parray` are adapted from the Rocq kernel and therefore licensed under GNU LPGL 2.1 - see `src/Parray/LICENSE.LGPL`.
 
-The current master branch formalises Wasm version 2.0, plus additional subtyping systems from the future funcref/GC extension proposals. A large part of the old Wasm 1.0 formalisation has been published at [FM'21](https://link.springer.com/chapter/10.1007/978-3-030-90870-6_4), with many additions to the repository since then.
+The current project formalises Wasm version 2.0 with the following deltas:
+- [+] Subtyping systems (from the future funcref/GC extension proposals);
+- [+] Tail-call;
+- [-] SIMD.
+
+A large part of the old Wasm 1.0 formalisation has been published at [FM'21](https://link.springer.com/chapter/10.1007/978-3-030-90870-6_4), with many additions to the repository since then.
 
 # Components of the Repository
 
@@ -31,7 +36,7 @@ This repository contains a mechanised Wasm program logic using the Iris framewor
 
 This is migrated from an older build for the [artefact](https://zenodo.org/records/7808708) submitted along with the Iris-Wasm publication at [PLDI'23](https://dl.acm.org/doi/10.1145/3591265).
 
-A new version working with `opam` can be found [here](https://github.com/logsem/iriswasm).
+A more updated version working with `opam` can be found [here](https://github.com/logsem/iriswasm).
 
 # Binary Parser (experimental)
 This repository contains some experimental work on a parser for the binary format which is currently unverified.
@@ -46,7 +51,6 @@ The project can be installed using opam.
 Compiling the dependencies and codebase requires having at least 8 GB of RAM on your computer.
 ```bash
 opam repo add coq-released https://coq.inria.fr/opam/released
-opam pin add -y wasm git+https://github.com/WasmCert/spec#interpreter_only
 opam install .
 ```
 
@@ -61,11 +65,14 @@ The project also includes the official test suite as a submodule under `wast_tes
 ```bash`
 make run_wast
 ```
-All SIMD tests are skipped since the project does not implement SIMD yet. The interpreter is expected to pass all the other tests (last tested on 14th May 2025):
+All SIMD tests are skipped since the project does not implement SIMD yet. The interpreter is expected to pass all the other core tests (last tested on 30th May 2025):
 ```bash
 Total passed: 28018/28018 (100.00%)
 ```
+
 Running the test suite takes around 1-2 minutes.
+
+Note that tail-call is not part of the standard yet and is therefore not tested.
 
 
 ## Using the project

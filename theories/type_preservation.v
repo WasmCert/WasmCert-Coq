@@ -133,13 +133,8 @@ Proof.
       { by apply ety_a' => //; econstructor; eauto => //. }
       { eapply instr_subtyping_weaken1 with (tx1 := extr ++ extr1); eauto; by resolve_subtyping. }
     }
-  - (* Frame_const *)
-    inversion Hconjl0; subst.
-    invert_e_typing.
-    by resolve_e_typing.
   - (* Frame_return *)
-    inversion Hconjl0; subst; clear Hconjl0.
-    eapply Lfilled_return_typing in H6; (try reflexivity); eauto.
+    eapply Lfilled_return_typing in Hetype; (try reflexivity); eauto.
     + invert_e_typing.
       by resolve_e_typing.
     + by apply v_to_e_const.
@@ -524,17 +519,28 @@ Proof.
   move => C C' es tf Hext Hetype.
   move: C' Hext.
   induction Hetype; move => C' Hext; (try by econstructor; eauto); try (by econstructor; eauto; rewrite_context_agree; eauto); try (by rewrite_context_agree; econstructor; eauto; rewrite_context_agree).
+  (* block *)
   - econstructor; eauto; unfold expand_t in *; rewrite_context_agree.
     by apply IHHetype; rewrite_context_agree.
+  (* loop *)
   - econstructor; eauto; unfold expand_t in *; rewrite_context_agree.
     by apply IHHetype; by rewrite_context_agree.
+  (* if *)
   - econstructor; eauto; unfold expand_t in *; rewrite_context_agree.
     + apply IHHetype1; by rewrite_context_agree.
     + apply IHHetype2; by rewrite_context_agree.
+  (* call_indirect *)
   - rewrite_context_agree.
     econstructor; eauto.
     + by rewrite - Htableagree.
     + by rewrite_context_agree.
+  (* return_call_indirect *)
+  - rewrite_context_agree.
+    econstructor; eauto.
+    + by rewrite - Htableagree.
+    + by rewrite_context_agree.
+    + by rewrite_context_agree.
+  (* table_copy *)
   - rewrite_context_agree.
     eapply context_agree_table_type in H as [tabt [Hnth Hagree]]; eauto; unfold table_agree in *; move/eqP in Hagree.
     econstructor.
@@ -542,6 +548,7 @@ Proof.
     + reflexivity.
     + by apply Hnth_ctxext.
     + by rewrite - Hagree - H2.
+  (* table init *)
   - rewrite_context_agree.
     econstructor; first by eauto.
     + by rewrite - Htableagree.
@@ -560,6 +567,9 @@ Proof.
   - (* be *)
     apply ety_a.
     by eapply context_agree_be_typing; eauto.
+  - (* Return_invoke *)
+    eapply ety_return_invoke; eauto.
+    by rewrite_context_agree.
   - (* Label *)
     eapply ety_label; eauto.
     eapply IHHetype2.
@@ -622,6 +632,10 @@ Proof.
   (* invoke *)
   - move=> s a C tf Hextfunc s' HST1 HST2 Hext.
     eapply ety_invoke; eauto => //.
+    by eapply ext_func_typing_extension; eauto.
+  (* return_invoke *)
+  - move => s a C ts1 ts2 ts3 ts4 Hextfunc Hret s' HST1 HST2 Hext.
+    eapply ety_return_invoke; eauto.
     by eapply ext_func_typing_extension; eauto.
   (* Label *)
   - move=> s C es es' t1s t2s n HType1 IHHType1 HType2 IHHType2 E s' HST1 HST2 Hext.
@@ -1456,9 +1470,8 @@ Proof.
     destruct HType as [lab [t1s [t2s Hetype]]].
     by eapply IHHReduce in Hetype; eauto.
   - (* frame *)
-    inversion Hconjl0 as [s2 f2 es2 ors rs C2 Hstype Hftype ? Hetype]; subst; clear Hconjl0.
-    unfold frame_typing in Hftype; remove_bools_options.
-    destruct Hftype as [ts [-> Hvaltype]].
+    unfold frame_typing in Hframetype; remove_bools_options.
+    destruct Hframetype as [ts [-> Hvaltype]].
     eapply IHHReduce in Hetype; eauto.
     by unfold inst_match; lias.
 Qed.
@@ -1511,9 +1524,8 @@ Proof.
     destruct HType as [lab [t1s [t2s Hetype]]].
     by eapply IHHReduce in Hetype; eauto.
   - (* frame *)
-    inversion Hconjl0 as [s2 f2 es2 ors rs C2 Hstype Hftype ? Hetype]; subst; clear Hconjl0.
-    unfold frame_typing in Hftype; remove_bools_options.
-    destruct Hftype as [ts [-> Hvaltype]].
+    unfold frame_typing in Hframetype; remove_bools_options.
+    destruct Hframetype as [ts [-> Hvaltype]].
     eapply IHHReduce in Hetype; eauto.
     by unfold inst_match; lias.
 Qed.
@@ -1600,10 +1612,40 @@ Proof.
   move => s f es s' f' es' C C0 ts t1s t2s hs hs' HReduce HST HIT Hmatch Hlocs HType Hvaltype.
   eapply t_preservation_locs_type_aux in Hvaltype; eauto.
   eapply values_typing_extension in Hvaltype; eauto.
-
   by eapply store_extension_reduce; eauto.
 Qed.
 
+(* Auxiliary lemmas for dealing with tail call reduction premises *)
+Lemma r_return_call_invert: forall hs s f i hs' s' f' a,
+    reduce hs s f [:: AI_basic (BI_call i)] hs' s' f' [:: AI_invoke a] ->
+    lookup_N (inst_funcs (f_inst f)) i = Some a.
+Proof.
+  move => hs s f i hs' s' f' a Hreduce.
+  dependent induction Hreduce => //.
+  - by inversion H.
+  - by repeat (destruct ves => //).
+  - destruct (lfill_singleton_invert H x) as [[? Hlheq] [-> ->]] => //.
+    by apply IHHreduce.
+Qed.
+
+Lemma r_return_call_indirect_invert: forall hs s f v x y hs' s' f' a,
+    reduce hs s f [:: $V v; AI_basic (BI_call_indirect x y)] hs' s' f' [:: AI_invoke a] ->
+    exists cl i,
+      $V v = $VN (VAL_int32 i) /\
+        lookup_N (s_funcs s) a = Some cl /\
+        lookup_N (inst_types (f_inst f)) y = Some (cl_type cl) /\
+        stab_elem s (f_inst f) x (Wasm_int.N_of_uint i32m i) = Some (VAL_ref_func a).
+Proof.
+  move => hs s f v x y hs' s' f' a Hreduce.
+  dependent induction Hreduce => //.
+  - by inversion H.
+  - by exists cl, i.
+  - by repeat (destruct ves => //).
+  - destruct (lfill_singleton_invert H x) as [[? Hlheq] [-> ->]] => //.
+    + by do 2 (destruct v as [v|v|v] => //=).
+    + by apply IHHreduce.
+Qed.
+  
 (* Main preservation lemma *)
 Lemma t_preservation_e: forall s f es s' f' es' tlocs C C' t1s t2s lab ret hs hs',
     reduce hs s f es hs' s' f' es' ->
@@ -1680,7 +1722,27 @@ Proof.
     { unfold ext_func_typing.
       by rewrite H0 -Hinj => //=.
     }
-    
+  - (* Return_call *)
+    (* Due to the opsem being defined based on the corresponding reduction
+    of call, this is now an inductive case. Same for Return_call_indirect below *)
+    apply r_return_call_invert in HReduce.
+    eapply inst_typing_func_lookup in HReduce as [[ts1 ts2] [Hft Hnth]]; eauto.
+    rewrite Hconjl0 in Hnth; injection Hnth as <- <-.
+    by eapply ety_return_invoke; eauto.
+  - (* Return_call_indirect *)
+    apply r_return_call_indirect_invert in HReduce.
+    destruct HReduce as [cl [i [Hveq [Hnthfunc [Hnthinsttype Hstab]]]]].
+    replace (size extr1 + (size extr + 1) - 1) with (size extr1 + size extr); last by lias.
+    rewrite catA take_size_cat; last by rewrite size_cat.
+    unfold stab_elem in Hstab.
+    remove_bools_options.
+    specialize (inst_typing_type_lookup y HIT1) as Hnthtypes.
+    rewrite Hconjl2 in Hnthtypes.
+    rewrite Hnthtypes in Hnthinsttype.
+    injection Hnthinsttype as Hcltype.
+    eapply ety_return_invoke with (ts2 := extr0); eauto.
+    unfold ext_func_typing.
+    by rewrite Hnthfunc Hcltype.
   - (* Invoke native *)
     destruct extr as [ts1' ts2'].
     destruct Hft as [<- [Hvalid Hftype]].
@@ -1720,7 +1782,25 @@ Proof.
     clear H1_values Htisub.
     eapply values_typing_trans in H2_values; eauto.
     by eapply ety_subtyping; first apply result_e_type; first eapply host_application_respect; eauto.
-    
+
+  - (* Return_invoke *)
+    eapply lfilled_es_type_exists in Hetype; eauto.
+    destruct Hetype as [labs [ts1 [ts2 Hetype]]].
+    invert_e_typing.
+    injection Hconjr1 as <-.
+    resolve_e_typing.
+    eapply ety_subtyping; first by eapply ety_invoke; eauto.
+    unfold ext_func_typing in Hconjl0.
+    rewrite H H0 in Hconjl0.
+    injection Hconjl0 as <- <-.
+    eapply instr_subtyping_weaken1; first by apply instr_subtyping_eq.
+    (* This almost seems impossible, but the subtyping relation can indeed be
+derived from the two transitive pairs on the suffixes. Stated as an individual lemma. *)
+    eapply instr_subtyping_suffix_prod_cons; eauto.
+    repeat rewrite length_is_size in H4.
+    rewrite v_to_e_size in H4.
+    apply values_typing_size in H2_values.
+    by lias.
   - (* Local_get *)
     unfold lookup_N in *.
     eapply all2_nth_impl in Hloctype; eauto.
@@ -1876,10 +1956,9 @@ Proof.
         by rewrite -catA.
         
   - (* r_frame *)
-    inversion Hconjl0; subst; clear Hconjl0.
-    unfold frame_typing in H1.
+    unfold frame_typing in Hframetype.
     remove_bools_options.
-    destruct H1 as [ts [-> Hvaltype]].
+    destruct Hframetype as [ts [-> Hvaltype]].
 
     assert (store_extension s s') as Hext.
     { eapply store_extension_reduce; eauto.
@@ -1895,7 +1974,7 @@ Proof.
     erewrite -> inst_t_context_local_empty in *; eauto.
     rewrite -> cats0 in *.
     assert (inst_match t (upd_return (upd_local t ts) (Some extr))) as Hmatch; first by unfold inst_match; lias.
-    specialize (inst_typing_reduce HReduce HST1 Hoption Hmatch H6) as [C'' [Hit Hcext]].
+    specialize (inst_typing_reduce HReduce HST1 Hoption Hmatch Hetype) as [C'' [Hit Hcext]].
     apply ety_frame => //.
     eapply mk_thread_typing; eauto.
     { unfold frame_typing.

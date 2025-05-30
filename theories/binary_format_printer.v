@@ -161,6 +161,8 @@ Fixpoint binary_of_be (be : basic_instruction) : list byte :=
   | BI_return => x0f :: nil
   | BI_call x => x10 :: binary_of_idx x
   | BI_call_indirect x y => x11 :: binary_of_idx y ++ binary_of_idx x
+  | BI_return_call x => x12 :: binary_of_idx x
+  | BI_return_call_indirect x y => x13 :: binary_of_idx y ++ binary_of_idx x
 
   | BI_ref_null t => xd0 :: binary_of_reference_type t :: nil
   | BI_ref_is_null => xd1 :: nil
