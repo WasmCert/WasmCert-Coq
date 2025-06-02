@@ -169,6 +169,18 @@ Definition be_principal_typing (C: t_context) (be: basic_instruction) (tf: instr
         lookup_N (tc_tables C) x = Some tabt /\
         tabt.(tt_elem_type) = T_funcref /\
         lookup_N (tc_types C) y = Some (Tf ts1 ts2)
+  | BI_return_call n =>
+      exists ts1 ts2 ts3 ts4,
+      tf = (Tf (ts3 ++ ts1) ts4) /\
+        lookup_N (tc_funcs C) n = Some (Tf ts1 ts2) /\
+        tc_return C = Some ts2
+  | BI_return_call_indirect x y =>
+      exists ts1 ts2 ts3 ts4 tabt,
+      tf = (Tf (ts3 ++ ts1 ++ [::T_num T_i32]) ts4)/\
+        lookup_N (tc_tables C) x = Some tabt /\
+        tabt.(tt_elem_type) = T_funcref /\
+        lookup_N (tc_types C) y = Some (Tf ts1 ts2) /\
+        tc_return C = Some ts2
   | BI_local_get x =>
       exists t,
       tf = (Tf nil [::t]) /\
@@ -522,6 +534,10 @@ Definition e_principal_typing (s: store_record) (C: t_context) (e: administrativ
   | AI_invoke a =>
       exists tf0, tf = tf0 /\
         ext_func_typing s a = Some tf0
+  | AI_return_invoke a =>
+      exists ts1 ts2 ts3 ts4, tf = (Tf (ts3 ++ ts1) ts4) /\
+      ext_func_typing s a = Some (Tf ts1 ts2) /\
+      tc_return C = Some ts2                     
   | AI_label n es0 es =>
       exists ts1 ts2,
       tf = (Tf nil ts2) /\
@@ -564,7 +580,7 @@ Lemma e_typing_inversion: forall s C e tf,
       e_principal_typing s C e tf_principal.
 Proof.
   move => s C e tf HType.
-  dependent induction HType; try by (eexists; split; first (by apply instr_subtyping_eq); try by eexists; eauto).
+  dependent induction HType; try by (eexists; split; first (by apply instr_subtyping_eq); try by repeat (eexists; eauto)).
   (* bet *)
   - do 2 (try destruct bes => //).
     destruct e => //.
@@ -775,10 +791,28 @@ Proof.
   eapply ety_subtyping; eauto; by apply et_values_typing; eauto.
 Qed.
 
+Lemma et_thread_typing: forall s f es rs ts,
+    thread_typing s rs (f, es) ts ->
+    exists C,
+      frame_typing s f C /\
+      e_typing s (upd_return C rs) es (Tf nil ts).
+Proof.
+  intros ????? Htype.
+  inversion Htype; subst; clear Htype.
+  by exists C.
+Qed.
+  
 End Typing_inversion_e.
 
 Ltac invert_e_typing :=
   repeat match goal with
+  | H: thread_typing _ _ _ _ |- _ =>
+    let C := fresh "C" in
+    let H1 := fresh "Hframetype" in
+    let H2 := fresh "Hetype" in
+    apply et_thread_typing in H as [C [H1 H2]]; subst;
+    try repeat rewrite -catA in H1;
+    try repeat rewrite -catA in H2
   | H: e_typing _ _ (_ ++ _) _ |- _ =>
     let ts3 := fresh "ts3_comp" in
     let H1 := fresh "H1_comp" in
@@ -1036,10 +1070,8 @@ Proof.
   move => s C vs f LI tf lh HType HConst Hlf.
   destruct tf as [t1s t2s].
   invert_e_typing.
-  inversion Hconjl0; subst; clear Hconjl0.
-  remove_bools_options.
   apply const_es_exists in HConst as [? ->].
-  eapply Lfilled_return_typing in H6; eauto; last by apply v_to_e_const.
+  eapply Lfilled_return_typing in Hetype; eauto; last by apply v_to_e_const.
   invert_e_typing.
   eapply ety_subtyping; first apply et_values_typing; eauto.
   by resolve_subtyping.

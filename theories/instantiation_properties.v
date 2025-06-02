@@ -9,8 +9,14 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* Some of the proofs were adapted from the Iris branch -- therefore the stdpp notations for now *)
-Notation "l !! n" := (List.nth_error l n) (at level 10).
+(* Some of the proofs were adapted from the Iris branch -- therefore the stdpp notations *)
+
+Declare Scope lookup_scope.
+
+Notation "l !! n" := (List.nth_error l n) (at level 10) : lookup_scope.
+
+#[local]
+Open Scope lookup_scope.
 
 Definition exp_default := MED_func 0%N.
 
@@ -472,10 +478,20 @@ Lemma value_no_reduce (hs hs': host_state) s f v s' f' e':
   False.
 Proof.
   move => Hred.
-  dependent induction Hred; subst; (try by repeat destruct vs => //; destruct v as [v | v | v]; destruct v => //); (try by repeat destruct vcs => //; destruct v as [v | v | v]; destruct v => //).
+  dependent induction Hred; subst; (try by repeat destruct vcs => //; destruct v as [v | v | v]; destruct v => //).
+  (* simple *)
   { inversion H; subst; clear H; try by destruct v as [v | v | v]; destruct v => //.
     by destruct lh as [vs ? | ? vs]; simpl in H1; destruct v as [v | v | v]; destruct v; do 2 destruct vs => //.
   }
+  (* block *)
+  { by repeat destruct vs => //; destruct v as [v|v|v]; destruct v => //. }
+  (* loop *)
+  { by repeat destruct vs => //; destruct v as [v|v|v]; destruct v => //. }
+  (* invoke *)
+  { destruct vs => //; first by destruct v as [v|v|v]; destruct v => //.
+    by destruct vs => //.
+  }
+  (* label *)
   { destruct lh as [vs ? | ? vs] => //=; simpl in H; last by destruct v as [v | v | v]; destruct v => //; do 2 destruct vs => //=.
     destruct vs => //=; last first.
     { destruct vs, es, l => //=.
@@ -815,3 +831,6 @@ Proof.
 Qed.
 
 End Host.
+
+#[local]
+Close Scope lookup_scope.

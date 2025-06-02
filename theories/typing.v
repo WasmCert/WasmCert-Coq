@@ -278,6 +278,16 @@ Inductive be_typing : t_context -> seq basic_instruction -> instr_type -> Prop :
   tabtype.(tt_elem_type) = T_funcref ->
   lookup_N (tc_types C) y = Some (Tf t1s t2s) ->
   be_typing C [::BI_call_indirect x y] (Tf (t1s ++ [::T_num T_i32]) t2s)
+| bet_return_call : forall C x t1s t2s t3s t4s,
+  lookup_N (tc_funcs C) x = Some (Tf t1s t2s) ->
+  tc_return C = Some t2s ->
+  be_typing C [::BI_return_call x] (Tf (t3s ++ t1s) t4s)
+| bet_return_call_indirect : forall C x y tabt t1s t2s t3s t4s,
+  lookup_N (tc_tables C) x = Some tabt ->
+  tabt.(tt_elem_type) = T_funcref ->
+  lookup_N (tc_types C) y = Some (Tf t1s t2s) -> 
+  tc_return C = Some t2s ->
+  be_typing C [::BI_return_call_indirect x y] (Tf (t3s ++ t1s ++ [::T_num T_i32]) t4s)
 | bet_local_get : forall C x t,
   lookup_N (tc_locals C) x = Some t ->
   be_typing C [::BI_local_get x] (Tf [::] [::t])
@@ -534,6 +544,11 @@ Inductive e_typing : store_record -> t_context -> seq administrative_instruction
 | ety_invoke : forall s (a: funcaddr) C tf,
   ext_func_typing s a = Some tf ->
   e_typing s C [::AI_invoke a] tf
+(* The soundness section of the tail call proposal doesn't contain a rule for return_invoke; this typing rule is a placeholder and will be decided later. *)
+| ety_return_invoke : forall s (a: funcaddr) C ts1 ts2 ts3 ts4,
+  ext_func_typing s a = Some (Tf ts1 ts2) ->
+  C.(tc_return) = Some ts2 ->  
+  e_typing s C [::AI_return_invoke a] (Tf (ts3 ++ ts1) ts4)
 | ety_label : forall s C e0s es ts t2s n,
   e_typing s C e0s (Tf ts t2s) ->
   e_typing s (upd_label C ([::ts] ++ tc_labels C)) es (Tf [::] t2s) ->

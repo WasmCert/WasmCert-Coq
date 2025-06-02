@@ -2571,12 +2571,45 @@ Proof.
     apply const_list_split in Hconst as [_ Hconst].
     simpl in Hconst.
     move/andP in Hconst; destruct Hconst as [? Hconst].
-    destruct e as [b | | | | | | ] => //; try destruct b => //;
+    destruct e as [b | | | | | | | ] => //; try destruct b => //;
     exists lvs, les, (Logic.eq_refl 0); by split => //.
   - move => e lf Hconst Hlf. subst.
     exfalso.
     apply const_list_split in Hconst as [_ Hconst].
     by simpl in Hconst.
+Qed.
+
+Definition lfill_ctx_instr (e: administrative_instruction) : bool :=
+  match e with
+  | AI_label _ _ _ => true
+  | _ => is_const e
+  end.
+
+(* A commonly required case for dealing with inverting reduction relations *)
+Lemma lfill_singleton_invert: forall k (lh: lholed k) es es' fes e,
+    lfill lh es = fes ->
+    lfill lh es' = [::e] ->
+    (~ e \in fes) ->
+    (~ lfill_ctx_instr e) ->
+    {Heq: k = 0 & lholed_cast lh Heq = LH_base nil nil} /\ es = fes /\ es' = [::e].
+Proof.
+  move => k lh.
+  destruct lh as [vs es | ] => /=; intros ???? Hlf1 Hlf2 Hnmem Hnfill => //=.
+  - destruct vs; simpl in *.
+    + destruct es'; simpl in *; subst => //.
+      * by rewrite mem_cat mem_seq1 eq_refl orb_true_r in Hnmem.
+      (* The decomposition case *)
+      * destruct es', es => //; simpl in Hlf2; inversion Hlf2; subst.
+        rewrite cats0.
+        split => //.
+        by exists Logic.eq_refl.
+    + destruct vs, es', es => //; simpl in *.
+      inversion Hlf2; subst.
+      by rewrite cats0 mem_head in Hnmem.
+  - destruct l as [ | ? l].
+    + destruct l1 => //; simpl in *.
+      inversion Hlf1; inversion Hlf2; by subst => //.
+    + by destruct l => //.
 Qed.
 
 Lemma const_seq_factorise (fe: nat -> administrative_instruction) (ves: list administrative_instruction):
@@ -2588,7 +2621,7 @@ Proof.
   - subst.
     left; by exists nil, ves'.
   - destruct (e_to_v_opt e) as [v | ] eqn:Hconst.
-    { destruct e as [ b | | | | | |] => //; first destruct b => //.
+    { destruct e as [ b | | | | | | |] => //; first destruct b => //.
       all: apply ve_inv in Hconst; destruct (IHves' fe) as [[vs [es ->]] | Hcontra]; first by (left; exists (v :: vs), es); rewrite - Hconst.
       all: right; move => vs es Heq;
       destruct vs as [| v' vs'] => //; simpl in *; first by inversion Heq.
@@ -2630,8 +2663,8 @@ Proof.
     by apply Hcontra in Heq.
   - specialize (split_vals_nconst Hsplit) as Hnconst.
     apply split_vals_inv in Hsplit as ->.
-    destruct e as [ | | | | | j lvs les |].
-    6: {
+    destruct e as [ | | | | | | j lvs les |].
+    7: {
       destruct (Hrec (fun n => fe (S n)) les) as [IH | IH] => /=.
       (* measure *)
       {
