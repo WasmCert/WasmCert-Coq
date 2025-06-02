@@ -27,7 +27,7 @@ A large part of the old Wasm 1.0 formalisation has been published at [FM'21](htt
 - [x] Interpreter with optimised context representations.
 
 ## Merged
-- [x] Updates for Wasm 2.0 (except SIMD) + subtyping systems.
+- [x] Updates for Wasm 2.0 (except SIMD) + subtyping systems + tail-call.
 - [x] Validate WasmRef-Coq (conformance tests).
 
 # Program Logic
@@ -62,7 +62,7 @@ dune test
 ```
 
 The project also includes the official test suite as a submodule under `wast_testsuite`. To run the interpreter against the test suite:
-```bash`
+```bash
 make run_wast
 ```
 All SIMD tests are skipped since the project does not implement SIMD yet. The interpreter is expected to pass all the other core tests (last tested on 30th May 2025):
