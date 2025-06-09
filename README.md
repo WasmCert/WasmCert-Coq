@@ -61,7 +61,12 @@ The project comes with a small set of tests for the extracted interpreter. To ru
 dune test
 ```
 
-The project also includes the official test suite as a submodule under `wast_testsuite`. To run the interpreter against the test suite:
+The project also includes the official test suite as a submodule under `wast_testsuite`. To run the interpreter against the test suite, first pull the test suite submodule:
+```bash
+git submodule update --init --recursive
+```
+
+Then, run:
 ```bash
 make run_wast
 ```
