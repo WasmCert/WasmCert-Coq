@@ -18,8 +18,8 @@ Hypothesis host_application_impl_correct :
 (* The progress property is derived from the interpreter. *)
 Definition t_progress_interp_ctx: forall (hs: host_state) (s: store_record) (f: frame) es ts,
   config_typing s (f, es) ts ->
-  terminal_form es \/
-    (exists hs' s' f' es', reduce hs s f es hs' s' f' es').
+  (terminal_form es) +
+    {hs' & {s' & {f' & {es' | reduce hs s f es hs' s' f' es'}}}}.
 Proof.
   move => hs s f es ts Htype.
   (* initialise an interpreter cfg tuple *)
@@ -35,11 +35,11 @@ Proof.
     by exists hs', s'', f'', es''.
   (* values *)
   - rewrite Hvalfill in Hfill; injection Hfill as <- <- <-.
-    do 2 left.
+    left; apply/orP; left.
     by apply v_to_e_const.
   (* trap *)
   - rewrite Htrapfill in Hfill; injection Hfill as <- <- <-.
-    by left; right.
+    by left; apply/orP; right.
   (* invalid input -- impossible *)
   - by apply Hcontra in Hvalid.
   (* ill-typed -- impossible *)

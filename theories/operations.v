@@ -1050,8 +1050,8 @@ Definition const_list (es : list administrative_instruction) : bool :=
   List.forallb is_const es.
 
 (* The expected terminal instructions *)
-Definition terminal_form (es: seq administrative_instruction) :=
-  const_list es \/ es = [::AI_trap].
+Definition terminal_form (es: seq administrative_instruction) : bool :=
+  (const_list es || (es == [::AI_trap])).
 
 (* Filling label context hole *)
 Fixpoint lfill {k} (lh : lholed k) (es : seq administrative_instruction) : seq administrative_instruction :=
