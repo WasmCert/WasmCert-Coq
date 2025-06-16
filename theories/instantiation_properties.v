@@ -11,15 +11,6 @@ Unset Printing Implicit Defensive.
 
 (* Some of the proofs were adapted from the Iris branch -- therefore the stdpp notations *)
 
-Declare Scope lookup_scope.
-
-Notation "l !! n" := (List.nth_error l n) (at level 10) : lookup_scope.
-
-#[local]
-Open Scope lookup_scope.
-
-Definition exp_default := MED_func 0%N.
-
 (* Getting the count of each type of imports from a module. This is to calculate the correct shift for indices of the exports in the Wasm store later. *)
 Definition get_import_func_count (m: module) :=
   length (pmap (fun x => match x.(imp_desc) with
@@ -45,8 +36,8 @@ Definition get_import_global_count (m: module) :=
                       end) m.(mod_imports)).
 
 Lemma ext_funcs_lookup_exist (modexps: list extern_value) n fn:
-  (ext_funcs modexps) !! n = Some fn ->
-  exists k, modexps !! k = Some (EV_func fn).
+  List.nth_error (ext_funcs modexps) n = Some fn ->
+  exists k, List.nth_error modexps k = Some (EV_func fn).
 Proof.
   move: n fn.
   induction modexps; move => n tn Hextfunclookup; try by destruct n => //=.
@@ -65,8 +56,8 @@ Proof.
 Qed.
 
 Lemma ext_tables_lookup_exist (modexps: list extern_value) n tn:
-  (ext_tables modexps) !! n = Some tn ->
-  exists k, modexps !! k = Some (EV_table tn).
+  List.nth_error (ext_tables modexps) n = Some tn ->
+  exists k, List.nth_error modexps k = Some (EV_table tn).
 Proof.
   move: n tn.
   induction modexps; move => n tn Hexttablookup; try by destruct n => //=.
@@ -85,8 +76,8 @@ Proof.
 Qed.
 
 Lemma ext_mems_lookup_exist (modexps: list extern_value) n mn:
-  (ext_mems modexps) !! n = Some mn ->
-  exists k, modexps !! k = Some (EV_mem mn).
+  List.nth_error (ext_mems modexps) n = Some mn ->
+  exists k, List.nth_error modexps k = Some (EV_mem mn).
 Proof.
   move: n mn.
   induction modexps; move => n mn Hextmemlookup; try by destruct n => //=.
@@ -105,8 +96,8 @@ Proof.
 Qed.
 
 Lemma ext_globals_lookup_exist (modexps: list extern_value) n fn:
-  (ext_globals modexps) !! n = Some fn ->
-  exists k, modexps !! k = Some (EV_global fn).
+  List.nth_error (ext_globals modexps) n = Some fn ->
+  exists k, List.nth_error modexps k = Some (EV_global fn).
 Proof.
   move: n fn.
   induction modexps; move => n tn Hextgloblookup; try by destruct n => //=.
@@ -125,8 +116,8 @@ Proof.
 Qed.
 
 Lemma ext_funcs_lookup_exist_inv (modexps: list extern_value) n idx:
-  modexps !! n = Some (EV_func idx) ->
-  exists k, ((ext_funcs modexps) !! k = Some idx).
+  List.nth_error modexps n = Some (EV_func idx) ->
+  exists k, (List.nth_error (ext_funcs modexps) k = Some idx).
 Proof.
   move : n idx.
   induction modexps; move => n idx H; try by destruct n => //=.
@@ -139,8 +130,8 @@ Proof.
 Qed.
 
 Lemma ext_tables_lookup_exist_inv (modexps: list extern_value) n idx:
-  modexps !! n = Some (EV_table idx) ->
-  exists k, ((ext_tables modexps) !! k = Some idx).
+  List.nth_error modexps n = Some (EV_table idx) ->
+  exists k, (List.nth_error (ext_tables modexps) k = Some idx).
 Proof.
   move : n idx.
   induction modexps; move => n idx H; try by destruct n => //=.
@@ -153,8 +144,8 @@ Proof.
 Qed.
 
 Lemma ext_mems_lookup_exist_inv (modexps: list extern_value) n idx:
-  modexps !! n = Some (EV_mem idx) ->
-  exists k, ((ext_mems modexps) !! k = Some idx).
+  List.nth_error modexps n = Some (EV_mem idx) ->
+  exists k, (List.nth_error (ext_mems modexps) k = Some idx).
 Proof.
   move : n idx.
   induction modexps; move => n idx H; try by destruct n => //=.
@@ -167,8 +158,8 @@ Proof.
 Qed.
 
 Lemma ext_globals_lookup_exist_inv (modexps: list extern_value) n idx:
-  modexps !! n = Some (EV_global idx) ->
-  exists k, ((ext_globals modexps) !! k = Some idx).
+  List.nth_error modexps n = Some (EV_global idx) ->
+  exists k, (List.nth_error (ext_globals modexps) k = Some idx).
 Proof.
   move : n idx.
   induction modexps; move => n idx H; try by destruct n => //=.
@@ -646,8 +637,8 @@ Lemma vt_imps_funcs_lookup s v_imps t_imps gt (k: nat):
   List.nth_error (ext_t_funcs t_imps) k = Some gt ->
   exists n gn,
     List.nth_error (ext_funcs v_imps) k = Some gn /\
-    v_imps !! n = Some (EV_func gn) /\
-    t_imps !! n = Some (ET_func gt).
+    List.nth_error v_imps n = Some (EV_func gn) /\
+    List.nth_error t_imps n = Some (ET_func gt).
 Proof.
   move: t_imps k gt.
   induction v_imps; destruct t_imps; move => k gt Hall2; (try by inversion Hall2); (try by destruct k).
@@ -669,8 +660,8 @@ Lemma vt_imps_tables_lookup s v_imps t_imps gt (k: nat):
   List.nth_error (ext_t_tables t_imps) k = Some gt ->
   exists n gn,
     List.nth_error (ext_tables v_imps) k = Some gn /\
-    v_imps !! n = Some (EV_table gn) /\
-    t_imps !! n = Some (ET_table gt).
+    List.nth_error v_imps n = Some (EV_table gn) /\
+    List.nth_error t_imps n = Some (ET_table gt).
 Proof.
   move: t_imps k gt.
   induction v_imps; destruct t_imps; move => k gt Hall2; (try by inversion Hall2); (try by destruct k).
@@ -692,8 +683,8 @@ Lemma vt_imps_mems_lookup s v_imps t_imps gt (k: nat):
   List.nth_error (ext_t_mems t_imps) k = Some gt ->
   exists n gn,
     List.nth_error (ext_mems v_imps) k = Some gn /\
-    v_imps !! n = Some (EV_mem gn) /\
-    t_imps !! n = Some (ET_mem gt).
+    List.nth_error v_imps n = Some (EV_mem gn) /\
+    List.nth_error t_imps n = Some (ET_mem gt).
 Proof.
   move: t_imps k gt.
   induction v_imps; destruct t_imps; move => k gt Hall2; (try by inversion Hall2); (try by destruct k).
@@ -715,8 +706,8 @@ Lemma vt_imps_globals_lookup s v_imps t_imps gt (k: nat):
   List.nth_error (ext_t_globals t_imps) k = Some gt ->
   exists n gn,
     List.nth_error (ext_globals v_imps) k = Some gn /\
-    v_imps !! n = Some (EV_global gn) /\
-    t_imps !! n = Some (ET_global gt).
+    List.nth_error v_imps n = Some (EV_global gn) /\
+    List.nth_error t_imps n = Some (ET_global gt).
 Proof.
   move: t_imps k gt.
   induction v_imps; destruct t_imps; move => k gt Hall2; (try by inversion Hall2); (try by destruct k).
@@ -761,8 +752,8 @@ Qed.
 
 Lemma vt_imps_globals_typing s v_imps t_imps gt (k: nat):
   List.Forall2 (external_typing s) v_imps t_imps ->
-  (ext_t_globals t_imps) !! k = Some gt ->
-  exists gn, (ext_globals v_imps) !! k = Some gn /\
+  List.nth_error (ext_t_globals t_imps) k = Some gt ->
+  exists gn, List.nth_error (ext_globals v_imps) k = Some gn /\
           external_typing s (EV_global gn) (ET_global gt).
 Proof.
   move => HForall2 Htl.
@@ -831,6 +822,3 @@ Proof.
 Qed.
 
 End Host.
-
-#[local]
-Close Scope lookup_scope.
