@@ -229,6 +229,18 @@ Section MemoryVec.
   Definition mv_update i b v:= @vector_update byte v i b.
   Definition mv_grow n v:= @vector_grow byte v n.
 
+  Lemma mv_lookup_ib:
+    forall mem i,
+      (i < mv_length mem)%N ->
+      mv_lookup i mem <> None.
+  Proof.
+    move => mem i => /=.
+    rewrite /mv_length /mv_lookup /vector_lookup.
+    move => H.
+    apply N.ltb_lt in H.
+    by rewrite H.
+  Qed.
+
   Lemma mv_lookup_oob:
     forall mem i,
       (i >= mv_length mem)%N ->
@@ -345,7 +357,33 @@ Proof.
   generalize ((vector_length mem + n) <=? v_capacity mem) at 2 3.
   case => Hgrow //=; move => [<-] => /=; done.
 Qed.
-  
+
+Lemma mv_update_ib:
+  forall mem i b,
+    (i < mv_length mem)%N ->
+    mv_update i b mem <> None.
+Proof.
+  move => mem i b => /=.
+  rewrite /mv_length /mv_update /vector_update.
+  move => H.
+  apply N.ltb_lt in H.
+  by rewrite H.
+Qed.
+
+Lemma mv_update_oob:
+  forall mem i b,
+    (i >= mv_length mem)%N ->
+    mv_update i b mem = None.
+Proof.
+  move => mem i b => /=.
+  rewrite /mv_length /mv_update /vector_update.
+  move => H.
+  apply N.ge_le in H; move/N.leb_spec0 in H.
+  rewrite N.leb_antisym in H.
+  move/negPf in H.
+  by rewrite H.
+Qed.
+
 Lemma mv_grow_lookup :
   forall i n mem mem',
     (i < mv_length mem)%N ->
@@ -396,12 +434,15 @@ Qed.
   Instance Memory_vec: Memory.
 Proof.
   apply (@Build_Memory memory_vec mv_make mv_length mv_lookup mv_grow mv_update).
+  - exact mv_lookup_ib.
   - exact mv_lookup_oob.
   - exact mv_make_length.
   - exact mv_make_lookup.
   - exact mv_update_lookup.
   - exact mv_update_lookup_ne.
   - by intros; eapply mv_update_length; eauto.
+  - exact mv_update_ib.
+  - exact mv_update_oob.
   - exact mv_grow_lookup.
   - exact mv_grow_length.
 Qed.

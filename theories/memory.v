@@ -26,7 +26,12 @@ Section Memory.
       (* Doesn't have to succeed *)
       mem_grow : N -> mem_t -> option mem_t;
       mem_update : N -> byte -> mem_t -> option mem_t;
-      
+
+      mem_lookup_ib :
+      forall mem i,
+        N.lt i (mem_length mem) ->
+        mem_lookup i mem <> None;
+
       mem_lookup_oob :
       forall mem i,
         N.ge i (mem_length mem) ->
@@ -56,6 +61,16 @@ Section Memory.
       forall i b mem mem',
         mem_update i b mem = Some mem' ->
         mem_length mem' = mem_length mem;
+
+      mem_update_ib :
+      forall mem i b,
+        N.lt i (mem_length mem) ->
+        mem_update i b mem <> None;
+
+      mem_update_oob :
+      forall mem i b,
+        N.ge i (mem_length mem) ->
+        mem_update i b mem = None;
 
       mem_grow_lookup :
       forall i n mem mem',
