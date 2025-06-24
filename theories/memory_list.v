@@ -47,6 +47,18 @@ Section MemoryList.
                 |}
       else None.
 
+  Lemma ml_lookup_ib:
+    forall mem i,
+      (i < ml_length mem)%N ->
+      ml_lookup i mem <> None.
+  Proof.
+    move => mem i => /=.
+    rewrite /ml_length /ml_lookup.
+    move => H.
+    apply N.ltb_lt in H.
+    by rewrite H.
+  Qed.
+
   Lemma ml_lookup_oob:
     forall mem i,
       (i >= ml_length mem)%N ->
@@ -151,6 +163,32 @@ Proof.
   by lias.
 Qed.
 
+Lemma ml_update_ib:
+  forall mem i b,
+    (i < ml_length mem)%N ->
+    ml_update i b mem <> None.
+Proof.
+  move => mem i b => /=.
+  rewrite /ml_length /ml_update.
+  move => H.
+  apply N.ltb_lt in H.
+  by rewrite H.
+Qed.
+
+Lemma ml_update_oob:
+  forall mem i b,
+    (i >= ml_length mem)%N ->
+    ml_update i b mem = None.
+Proof.
+  move => mem i b => /=.
+  rewrite /ml_length /ml_update.
+  move => H.
+  apply N.ge_le in H; move/N.leb_spec0 in H.
+  rewrite N.leb_antisym in H.
+  move/negPf in H.
+  by rewrite H.
+Qed.
+
 Lemma ml_grow_lookup :
   forall i n mem mem',
     (i < ml_length mem)%N ->
@@ -174,12 +212,15 @@ Qed.
   Instance Memory_list: Memory.
 Proof.
   apply (@Build_Memory memory_list ml_make ml_length ml_lookup ml_grow ml_update).
+  - exact ml_lookup_ib.
   - exact ml_lookup_oob.
   - exact ml_make_length.
   - exact ml_make_lookup.
   - exact ml_update_lookup.
   - exact ml_update_lookup_ne.
   - by intros; eapply ml_update_length; eauto.
+  - exact ml_update_ib.
+  - exact ml_update_oob.
   - exact ml_grow_lookup.
   - exact ml_grow_length.
 Qed.
