@@ -33,6 +33,8 @@ Definition u8: Set := N.
 (* 2^32 *)
 Definition u32_bound : N := 4294967296%N.
 
+Definition u8_bound : N := 256%N.
+
 Definition typeidx : Set := u32.
 Definition funcidx : Set := u32.
 Definition tableidx : Set := u32.
@@ -409,57 +411,175 @@ Inductive packed_type : Set := (* tp *)
   | Tp_i32
   .
 
-Inductive shape_vec_i: Set :=
-  | SVI_8_16
-  | SVI_16_8
-  | SVI_32_4
-  | SVI_64_2
+(** SIMD Definitions and Instructions **)
+  
+Inductive vshape_i: Set :=
+  | VSI_8_16
+  | VSI_16_8
+  | VSI_32_4
+  | VSI_64_2
   .
   
-Inductive shape_vec_f: Set :=
-  | SVF_32_4
-  | SVF_64_2
+Inductive vshape_f: Set :=
+  | VSF_32_4
+  | VSF_64_2
   .
   
-Inductive shape_vec : Set := (* shape *)
-  | SV_ishape: shape_vec_i -> shape_vec
-  | SV_fshape: shape_vec_f -> shape_vec
+Inductive vshape : Set := (* shape *)
+  | VS_i: vshape_i -> vshape
+  | VS_f: vshape_f -> vshape
   .
 
-Inductive unop_vec : Set :=
-  | VUO_not
-  .
-  
-Inductive binop_vec : Set :=
-  | VBO_and
-  .
-  
-Inductive ternop_vec : Set :=
-  | VTO_bitselect
-  .
-  
-Inductive test_vec : Set :=
-  | VT_any_true
-  .
-  
-Inductive shift_vec : Set :=
-  | VSH_any_true
+Inductive vec_half : Set :=
+  | VH_low
+  | VH_high
   .
 
-Definition laneidx := u8.
+Definition laneidx : Set := u8. 
 
-Inductive packed_type_vec :=
+Inductive vvunop : Set :=
+  | VVU_not
+  .
+
+Inductive viunop : Set :=
+  | VUOI_abs
+  | VUOI_neg
+  | VUOI_popcnt (* has shape constraints: i8x16 *)
+  .
+
+Inductive vfunop : Set :=
+  | VUOF_abs
+  | VUOF_neg
+  | VUOF_sqrt
+  | VUOF_ceil
+  | VUOF_floor
+  | VUOF_trunc
+  | VUOF_nearest
+  .
+
+(* Indicate whether a cvtop has a zero flag. *)
+Inductive vec_zero : Set :=
+  | VZ_zero
+  .
+  
+Inductive vcvtop : Set :=
+  | VCVT_extend : vec_half -> sx -> vcvtop
+  | VCVT_trunc_sat : sx -> option vec_zero -> vcvtop
+  | VCVT_convert : option vec_half -> sx -> vcvtop
+  | VCVT_demote : vec_zero -> vcvtop (* Superficial tag since zero has to be present for demote; only available on f64x2 *)
+  | VCVT_promote (* only available on LOW half and f32x4 *)
+  .
+  
+Inductive vunop : Set :=
+  | VI_unop: viunop -> vunop
+  | VF_unop: vfunop -> vunop
+  | VV_unop: vvunop -> vunop
+  | V_cvtop: vcvtop -> vunop
+  | V_extadd_pairwise: sx -> vunop (* i16 and i32 only *)
+  .
+  
+Inductive vvbinop : Set :=
+  | VVB_and
+  | VVB_andnot
+  | VVB_or
+  | VVB_xor
+  .
+  
+Inductive vibinop : Set :=
+  | VBOI_add
+  | VBOI_sub
+  | VBOI_add_sat: sx -> vibinop (* i8 and i16 only *)
+  | VBOI_sub_sat: sx -> vibinop (* i8 and i16 only *)
+  | VBOI_mul (* i16/i32/i64 only *)
+  | VBOI_avgr (* unsigned only, i8/i16 only *)
+  | VBOI_q15mulr_sat (* signed only, i8/i16 only *)
+  | VBOI_min: sx -> vibinop (* i8/i16/i32 only *)
+  | VBOI_max: sx -> vibinop (* i8/i16/i32 only *)
+  .
+
+Inductive vfbinop : Set :=
+  | VBOF_add
+  | VBOF_sub
+  | VBOF_mul
+  | VBOF_div
+  | VBOF_min
+  | VBOF_max
+  | VBOF_pmin
+  | VBOF_pmax
+  .
+
+Inductive vextbinop: Set :=
+  | VBOE_extmul: vec_half -> sx -> vextbinop
+  | VBOE_dot (* signed only, i32 only *)
+.
+  
+Inductive vbinop : Set :=
+  | VI_binop: vibinop -> vbinop
+  | VF_binop: vfbinop -> vbinop
+  | VV_binop: vvbinop -> vbinop
+  | VE_binop: vextbinop -> vbinop
+  | V_narrow: vshape_i -> sx -> vbinop (* resulting width needs to be 2x original and at most i32 *)
+  .
+
+(* Technically this is vvternop. But this is the only ternary operation. *)
+Inductive vternop : Set :=
+  | VT_bitselect
+  .
+
+Inductive vvtestop : Set :=
+  | VVT_any_true
+  .
+  
+Inductive vitestop : Set :=
+  | VIT_all_true
+  .
+
+Inductive vtestop : Set :=
+  | VI_testop: vitestop -> vtestop
+  | VV_testop: vvtestop -> vtestop
+  .
+
+Inductive virelop : Set :=
+  | VIR_eq
+  | VIR_ne
+  | VIR_lt: sx -> virelop (* not available on i64x2 unsigned *)
+  | VIR_gt: sx -> virelop (* not available on i64x2 unsigned *)
+  | VIR_le: sx -> virelop (* not available on i64x2 unsigned *)
+  | VIR_ge: sx -> virelop (* not available on i64x2 unsigned *)
+  .
+  
+Inductive vfrelop : Set :=
+  | VFR_eq
+  | VFR_ne
+  | VFR_lt: sx -> vfrelop 
+  | VFR_gt: sx -> vfrelop
+  | VFR_le: sx -> vfrelop
+  | VFR_ge: sx -> vfrelop
+  .
+
+Inductive vrelop : Set :=
+  | VI_relop: virelop -> vrelop
+  | VF_relop: vfrelop -> vrelop
+  .
+
+(* Technically vishiftop, but shifts are only available for integers *)
+Inductive vshiftop : Set :=
+  | VS_shl
+  | VS_shr : sx -> vshiftop
+  .
+
+Inductive vpacked_type :=
   | Tptv_8_8
   | Tptv_16_4
   | Tptv_32_2
 .
 
-Inductive zero_type_vec :=
+Inductive vzero_type :=
   | Tztv_32
   | Tztv_64
 .
 
-Inductive width_vec :=
+Inductive vwidth :=
   | Twv_8
   | Twv_16
   | Twv_32
@@ -467,9 +587,9 @@ Inductive width_vec :=
   .
 
 Inductive load_vec_arg :=
-  | LVA_packed: packed_type_vec -> sx -> load_vec_arg
-  | LVA_zero: zero_type_vec -> load_vec_arg
-  | LVA_splat: width_vec -> load_vec_arg
+  | LVA_packed: vpacked_type -> sx -> load_vec_arg
+  | LVA_zero: vzero_type -> load_vec_arg
+  | LVA_splat: vwidth -> load_vec_arg
   .
 
 Record memarg : Set :=
@@ -502,14 +622,14 @@ Extract lanes: consume a v128 operand and return the numeric value in a given la
 Replace lanes: consume a v128 operand and a numeric value for a given lane, and produce a v128 result.
 **)
   | BI_const_vec : value_vec -> basic_instruction
-  | BI_unop_vec: unop_vec -> basic_instruction
-  | BI_binop_vec: binop_vec -> basic_instruction
-  | BI_ternop_vec: ternop_vec -> basic_instruction
-  | BI_test_vec: test_vec -> basic_instruction
-  | BI_shift_vec: shift_vec -> basic_instruction
-  | BI_splat_vec: shape_vec -> basic_instruction
-  | BI_extract_vec: shape_vec -> option sx -> laneidx -> basic_instruction
-  | BI_replace_vec: shape_vec -> laneidx -> basic_instruction
+  | BI_unop_vec: vshape -> vunop -> basic_instruction
+  | BI_binop_vec: vshape -> vbinop -> basic_instruction
+  | BI_ternop_vec: vshape -> vternop -> basic_instruction
+  | BI_test_vec: vshape -> vtestop -> basic_instruction
+  | BI_shift_vec: vshape -> vshiftop -> basic_instruction
+  | BI_splat_vec: vshape -> basic_instruction
+  | BI_extract_vec: vshape -> option sx -> laneidx -> basic_instruction (* sx only available for i8/i16 *)
+  | BI_replace_vec: vshape -> laneidx -> basic_instruction
 (** std-doc:
 Instructions in this group are concerned with accessing references.
 **)
@@ -546,9 +666,9 @@ Instructions in this group are concerned with linear memory.
   | BI_load : number_type -> option (packed_type * sx) -> memarg -> basic_instruction
   | BI_load_vec : load_vec_arg -> memarg -> basic_instruction
   (* the lane version has a different type signature *)
-  | BI_load_vec_lane : width_vec -> memarg -> laneidx -> basic_instruction
+  | BI_load_vec_lane : vwidth -> memarg -> laneidx -> basic_instruction
   | BI_store : number_type -> option packed_type -> memarg -> basic_instruction
-  | BI_store_vec_lane : width_vec -> memarg -> laneidx -> basic_instruction
+  | BI_store_vec_lane : vwidth -> memarg -> laneidx -> basic_instruction
   | BI_memory_size
   | BI_memory_grow
   | BI_memory_fill
@@ -1069,6 +1189,7 @@ the current function originates from.
 Definition thread : Type := frame * list administrative_instruction.
 
 Definition config_tuple : Type := store_record * thread.
+
 End Host.
 End Memory.
 
