@@ -107,38 +107,38 @@ Definition binary_of_valvec (v: value_vec) :=
 (* placeholder for vector operations added in 2.0, to be filled in a future update
 https://webassembly.github.io/spec/core/binary/instructions.html#vector-instructions
 *)
-Definition binary_of_unop_vec (op: unop_vec) :=
+Definition binary_of_vunop (sh: vshape) (op: vunop) :=
   xfd :: x0c :: (List.repeat x00 16).
 
-Definition binary_of_binop_vec (op: binop_vec) :=
+Definition binary_of_vbinop (sh: vshape) (op: vbinop) :=
   xfd :: x0c :: (List.repeat x00 16).
 
-Definition binary_of_ternop_vec (op: ternop_vec) :=
+Definition binary_of_vternop (sh: vshape) (op: vternop) :=
   xfd :: x0c :: (List.repeat x00 16).
 
-Definition binary_of_test_vec (op: test_vec) :=
+Definition binary_of_vtestop (sh: vshape) (op: vtestop) :=
   xfd :: x0c :: (List.repeat x00 16).
 
-Definition binary_of_shift_vec (op: shift_vec) :=
+Definition binary_of_vshiftop (sh: vshape) (op: vshiftop) :=
   xfd :: x0c :: (List.repeat x00 16).
 
-Definition binary_of_splat_vec (sh: shape_vec) :=
+Definition binary_of_splat_vec (sh: vshape) :=
   xfd :: x0c :: (List.repeat x00 16).
 
-Definition binary_of_extract_vec (sh: shape_vec) (s: option sx) (x: laneidx) :=
+Definition binary_of_extract_vec (sh: vshape) (s: option sx) (x: laneidx) :=
   xfd :: x0c :: (List.repeat x00 16).
 
-Definition binary_of_replace_vec (sh: shape_vec) (x: laneidx) :=
+Definition binary_of_replace_vec (sh: vshape) (x: laneidx) :=
   xfd :: x0c :: (List.repeat x00 16).
   
 Definition binary_of_load_vec (lvarg: load_vec_arg) (marg: memarg) :=
   xfd :: x0c :: (List.repeat x00 16).
 
-Definition binary_of_load_vec_lane (w: width_vec) (marg: memarg) (x: laneidx) :=
+Definition binary_of_load_vec_lane (w: vwidth) (marg: memarg) (x: laneidx) :=
   xfd :: x0c :: (List.repeat x00 16).
 
 (* store_vec_lane and load_vec uses the same args. Maybe it's better to find a new name *)
-Definition binary_of_store_vec_lane (w: width_vec) (marg: memarg) (x: laneidx) :=
+Definition binary_of_store_vec_lane (w: vwidth) (marg: memarg) (x: laneidx) :=
   xfd :: x0c :: (List.repeat x00 16).
 
 Fixpoint binary_of_be (be : basic_instruction) : list byte :=
@@ -394,11 +394,11 @@ Fixpoint binary_of_be (be : basic_instruction) : list byte :=
 
   | BI_const_vec v => binary_of_valvec v
 
-  | BI_unop_vec op => binary_of_unop_vec op
-  | BI_binop_vec op => binary_of_binop_vec op
-  | BI_ternop_vec op => binary_of_ternop_vec op
-  | BI_test_vec op => binary_of_test_vec op
-  | BI_shift_vec op => binary_of_shift_vec op
+  | BI_vunop sh op => binary_of_vunop sh op
+  | BI_vbinop sh op => binary_of_vbinop sh op
+  | BI_vternop sh op => binary_of_vternop sh op
+  | BI_vtestop sh op => binary_of_vtestop sh op
+  | BI_vshiftop sh op => binary_of_vshiftop sh op
   | BI_splat_vec sh => binary_of_splat_vec sh
   | BI_extract_vec sh s lanex => binary_of_extract_vec sh s lanex
   | BI_replace_vec sh lanex => binary_of_replace_vec sh lanex

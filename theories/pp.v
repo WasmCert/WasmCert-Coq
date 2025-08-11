@@ -516,38 +516,38 @@ Definition pp_cvtop (cvt: cvtop) : string :=
 (* placeholder for vector operations added in 2.0, to be filled in a future update
 https://webassembly.github.io/spec/core/binary/instructions.html#vector-instructions
 *)
-Definition pp_unop_vec (op: unop_vec) :=
+Definition pp_vunop (sh: vshape) (op: vunop) :=
   "(not implemented)".
 
-Definition pp_binop_vec (op: binop_vec) :=
+Definition pp_vbinop (sh: vshape) (op: vbinop) :=
   "(not implemented)".
 
-Definition pp_ternop_vec (op: ternop_vec) :=
+Definition pp_vternop (sh: vshape) (op: vternop) :=
   "(not implemented)".
 
-Definition pp_test_vec (op: test_vec) :=
+Definition pp_vtestop (sh: vshape) (op: vtestop) :=
   "(not implemented)".
 
-Definition pp_shift_vec (op: shift_vec) :=
+Definition pp_vshiftop (sh: vshape) (op: vshiftop) :=
   "(not implemented)".
 
-Definition pp_splat_vec (sh: shape_vec) :=
+Definition pp_splat_vec (sh: vshape) :=
   "(not implemented)".
 
-Definition pp_extract_vec (sh: shape_vec) (s: option sx) (x: laneidx) :=
+Definition pp_extract_vec (sh: vshape) (s: option sx) (x: laneidx) :=
   "(not implemented)".
 
-Definition pp_replace_vec (sh: shape_vec) (x: laneidx) :=
+Definition pp_replace_vec (sh: vshape) (x: laneidx) :=
   "(not implemented)".
   
 Definition pp_load_vec (lvarg: load_vec_arg) (marg: memarg) :=
   "(not implemented)".
 
-Definition pp_load_vec_lane (w: width_vec) (marg: memarg) (x: laneidx) :=
+Definition pp_load_vec_lane (w: vwidth) (marg: memarg) (x: laneidx) :=
   "(not implemented)".
 
 (* store_vec_lane and load_vec uses the same args. Maybe it's better to find a new name *)
-Definition pp_store_vec_lane (w: width_vec) (marg: memarg) (x: laneidx) :=
+Definition pp_store_vec_lane (w: vwidth) (marg: memarg) (x: laneidx) :=
   "(not implemented)".
 
 Fixpoint pp_basic_instruction (i : indentation) (be : basic_instruction) : string :=
@@ -668,16 +668,16 @@ Fixpoint pp_basic_instruction (i : indentation) (be : basic_instruction) : strin
       indent i (pp_number_type vt1 ++ "." ++ pp_cvtop cvtop ++ "_" ++ pp_number_type vt2 ++ pp_sx_o sxo ++ newline)
 
   (* vector instructions currently unimplemented *)
-  | BI_unop_vec op =>
-      indent i (pp_unop_vec op)
-  | BI_binop_vec op =>
-      indent i (pp_binop_vec op)
-  | BI_ternop_vec op =>
-      indent i (pp_ternop_vec op)
-  | BI_test_vec op =>
-      indent i (pp_test_vec op)
-  | BI_shift_vec op =>
-      indent i (pp_shift_vec op)
+  | BI_vunop sh op =>
+      indent i (pp_vunop sh op)
+  | BI_vbinop sh op =>
+      indent i (pp_vbinop sh op)
+  | BI_vternop sh op =>
+      indent i (pp_vternop sh op)
+  | BI_vtestop sh op =>
+      indent i (pp_vtestop sh op)
+  | BI_vshiftop sh op =>
+      indent i (pp_vshiftop sh op)
   | BI_splat_vec sh =>
       indent i (pp_splat_vec sh)
   | BI_extract_vec sh s lanex =>

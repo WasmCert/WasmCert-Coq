@@ -622,11 +622,11 @@ Extract lanes: consume a v128 operand and return the numeric value in a given la
 Replace lanes: consume a v128 operand and a numeric value for a given lane, and produce a v128 result.
 **)
   | BI_const_vec : value_vec -> basic_instruction
-  | BI_unop_vec: vshape -> vunop -> basic_instruction
-  | BI_binop_vec: vshape -> vbinop -> basic_instruction
-  | BI_ternop_vec: vshape -> vternop -> basic_instruction
-  | BI_test_vec: vshape -> vtestop -> basic_instruction
-  | BI_shift_vec: vshape -> vshiftop -> basic_instruction
+  | BI_vunop: vshape -> vunop -> basic_instruction
+  | BI_vbinop: vshape -> vbinop -> basic_instruction
+  | BI_vternop: vshape -> vternop -> basic_instruction
+  | BI_vtestop: vshape -> vtestop -> basic_instruction
+  | BI_vshiftop: vshape -> vshiftop -> basic_instruction
   | BI_splat_vec: vshape -> basic_instruction
   | BI_extract_vec: vshape -> option sx -> laneidx -> basic_instruction (* sx only available for i8/i16 *)
   | BI_replace_vec: vshape -> laneidx -> basic_instruction

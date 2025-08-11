@@ -75,27 +75,27 @@ Proof.
   - (* Cvtop *)
     erewrite eval_cvt_type_preserve; eauto.
     by resolve_subtyping.
-  - (* Unop_vec *)
-    replace (typeof_vec (app_unop_vec op v)) with (typeof_vec v); last by destruct op, v.
+  - (* vunop *)
+    replace (typeof_vec (app_vunop sh op v)) with (typeof_vec v); last by destruct op, v.
     rewrite H0.
     by resolve_subtyping.
-  - (* Binop_vec *)
-    replace (typeof_vec (app_binop_vec op v1 v2)) with (typeof_vec v1); last by destruct op, v1, v2.
+  - (* vbinop *)
+    replace (typeof_vec (app_vbinop sh op v1 v2)) with (typeof_vec v1); last by destruct op, v1, v2.
     rewrite H0.
     by resolve_subtyping.
-  - (* Ternop_vec *)
-    replace (typeof_vec (app_ternop_vec op v1 v2 v3)) with (typeof_vec v1); last by destruct op, v1, v2, v3.
+  - (* vternop *)
+    replace (typeof_vec (app_vternop sh op v1 v2 v3)) with (typeof_vec v1); last by destruct op, v1, v2, v3.
     rewrite H0.
     by resolve_subtyping.
-  - (* Shift_vec *)
-    replace (typeof_vec (app_shift_vec op v1 v2)) with (typeof_vec v1); last by destruct op, v1, v2.
+  - (* vshiftop *)
+    replace (typeof_vec (app_vshiftop sh op v1 v2)) with (typeof_vec v1); last by destruct op, v1, v2.
     rewrite H0.
     by resolve_subtyping.
   - (* Extract_vec *)
-    replace (typeof_num (app_extract_vec shape sx x v1)) with (typeof_shape_unpacked shape); last by destruct shape as [shape | shape]; destruct shape.
+    replace (typeof_num (app_extract_vec sh sx x v1)) with (typeof_shape_unpacked sh); last by destruct sh as [[] | []].
     by resolve_subtyping.
   - (* Replace_vec *)
-    replace (typeof_vec (app_replace_vec shape x v1 v2)) with (typeof_vec v1); last by destruct shape as [shape | shape]; destruct shape.
+    replace (typeof_vec (app_replace_vec sh x v1 v2)) with (typeof_vec v1); last by destruct sh as [[] | []].
     rewrite H1.
     by resolve_subtyping.
   - (* Br *)

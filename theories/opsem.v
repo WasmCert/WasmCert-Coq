@@ -59,32 +59,32 @@ Inductive reduce_simple : seq administrative_instruction -> seq administrative_i
     reduce_simple [::$VN v; AI_basic (BI_cvtop t2 op t1 sx)] [::AI_trap]
 
   (** vector instructions **)
-  | rs_unop_vec: 
-    forall v op,
-    reduce_simple [:: $VV v; AI_basic (BI_unop_vec op)] [::$VV (app_unop_vec op v)]
-  | rs_binop_vec: 
-    forall v1 v2 op,
-    reduce_simple [:: $VV v1; $VV v2; AI_basic (BI_binop_vec op)] [::$VV (app_binop_vec op v1 v2)]
-  | rs_ternop_vec: 
-    forall v1 v2 v3 op,
-    reduce_simple [:: $VV v1; $VV v2; $VV v3; AI_basic (BI_ternop_vec op)] [::$VV (app_ternop_vec op v1 v2 v3)]
-  | rs_test_vec: 
-    forall v1 op,
-    reduce_simple [:: $VV v1; AI_basic (BI_test_vec op)] [::$VN (VAL_int32 (wasm_bool (app_test_vec op v1)))]
-  | rs_shift_vec: 
-    forall v1 v2 op,
-    reduce_simple [:: $VV v1; $VN (VAL_int32 v2); AI_basic (BI_shift_vec op)] [::$VV app_shift_vec op v1 v2]
+  | rs_vunop: 
+    forall v sh op,
+    reduce_simple [:: $VV v; AI_basic (BI_vunop sh op)] [::$VV (app_vunop sh op v)]
+  | rs_vbinop: 
+    forall v1 v2 sh op,
+    reduce_simple [:: $VV v1; $VV v2; AI_basic (BI_vbinop sh op)] [::$VV (app_vbinop sh op v1 v2)]
+  | rs_vternop: 
+    forall v1 v2 v3 sh op,
+    reduce_simple [:: $VV v1; $VV v2; $VV v3; AI_basic (BI_vternop sh op)] [::$VV (app_vternop sh op v1 v2 v3)]
+  | rs_vtestop: 
+    forall v1 sh op,
+    reduce_simple [:: $VV v1; AI_basic (BI_vtestop sh op)] [::$VN (VAL_int32 (wasm_bool (app_vtestop sh op v1)))]
+  | rs_vshiftop: 
+    forall v1 v2 sh op,
+    reduce_simple [:: $VV v1; $VN (VAL_int32 v2); AI_basic (BI_vshiftop sh op)] [::$VV app_vshiftop sh op v1 v2]
   | rs_splat_vec: 
-    forall v1 shape,
-    reduce_simple [:: $VN v1; AI_basic (BI_splat_vec shape)] [::$VV (app_splat_vec shape v1)]
+    forall v1 sh,
+    reduce_simple [:: $VN v1; AI_basic (BI_splat_vec sh)] [::$VV (app_splat_vec sh v1)]
   | rs_extract_vec: 
-    forall v1 shape sx x,
-    N.ltb x (shape_dim shape) = true ->
-    reduce_simple [:: $VV v1; AI_basic (BI_extract_vec shape sx x)] [::$VN (app_extract_vec shape sx x v1)]
+    forall v1 sh sx x,
+    N.ltb x (shape_dim sh) = true ->
+    reduce_simple [:: $VV v1; AI_basic (BI_extract_vec sh sx x)] [::$VN (app_extract_vec sh sx x v1)]
   | rs_replace_vec: 
-    forall v1 v2 shape x,
-    N.ltb x (shape_dim shape) = true ->
-    reduce_simple [:: $VV v1; $VN v2; AI_basic (BI_replace_vec shape x)] [::$VV (app_replace_vec shape x v1 v2)]
+    forall v1 v2 sh x,
+    N.ltb x (shape_dim sh) = true ->
+    reduce_simple [:: $VV v1; $VN v2; AI_basic (BI_replace_vec sh x)] [::$VV (app_replace_vec sh x v1 v2)]
     
   (** reference operations **)
   | rs_ref_is_null_true:

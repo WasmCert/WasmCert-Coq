@@ -190,15 +190,15 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
           if cvtop_valid t2 op t1 sx
           then type_update ts [::(T_num t1)] [::(T_num t2)]
           else None
-      | BI_unop_vec op =>
+      | BI_vunop sh op =>
           type_update ts [::T_vec T_v128] [::T_vec T_v128]
-      | BI_binop_vec op =>
+      | BI_vbinop sh op =>
           type_update ts [::T_vec T_v128; T_vec T_v128] [::T_vec T_v128]
-      | BI_ternop_vec op =>
+      | BI_vternop sh op =>
           type_update ts [::T_vec T_v128; T_vec T_v128; T_vec T_v128] [::T_vec T_v128]
-      | BI_test_vec tv =>
+      | BI_vtestop sh tv =>
           type_update ts [::T_vec T_v128] [::T_num T_i32]
-      | BI_shift_vec sv =>
+      | BI_vshiftop sh sv =>
           type_update ts [::T_num T_i32; T_vec T_v128] [::T_vec T_v128]
       | BI_splat_vec shape =>
           type_update ts [::T_num (typeof_shape_unpacked shape)] [::T_vec T_v128]
