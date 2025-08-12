@@ -533,19 +533,19 @@ Definition app_relop (op: relop) (v1: value_num) (v2: value_num) :=
     end
   end.
 
-Definition app_vunop (sh: vshape) (op: vunop) (v1: value_vec) : value_vec :=
+Definition app_vunop (op: vunop) (v1: value_vec) : value_vec :=
   v1.
 
-Definition app_vbinop (sh: vshape) (op: vbinop) (v1 v2: value_vec) : value_vec :=
+Definition app_vbinop (op: vbinop) (v1 v2: value_vec) : value_vec :=
   v1.
 
-Definition app_vternop (sh: vshape) (op: vternop) (v1 v2 v3: value_vec) : value_vec :=
+Definition app_vternop (op: vternop) (v1 v2 v3: value_vec) : value_vec :=
   v1.
 
-Definition app_vtestop (sh: vshape) (op: vtestop) (v1: value_vec) : bool :=
+Definition app_vtestop (op: vtestop) (v1: value_vec) : bool :=
   true.
 
-Definition app_vshiftop (sh: vshape) (op: vshiftop) (v1: value_vec) (v2: i32) : value_vec :=
+Definition app_vshiftop (op: vshiftop) (v1: value_vec) (v2: i32) : value_vec :=
   v1.
 
 Definition app_splat_vec (sh: vshape) (v1: value_num) : value_vec :=

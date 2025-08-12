@@ -519,42 +519,47 @@ Definition pp_cvtop (cvt: cvtop) : string :=
 (* placeholder for vector operations added in 2.0, to be filled in a future update
 https://webassembly.github.io/spec/core/binary/instructions.html#vector-instructions
 *)
-Definition pp_vunop (sh: vshape) (op: vunop) :=
-  "(not implemented)".
+Definition pp_vunop (op: vunop) :=
+  "vunop: " ++ pp_N op.
 
-Definition pp_vbinop (sh: vshape) (op: vbinop) :=
-  "(not implemented)".
+Definition pp_vbinop (op: vbinop) :=
+  let '(opcode, olanes) := op in
+  match olanes with
+  | nil => "vbinop: " ++ pp_N opcode
+  | _ => (* shuffle *)
+      "vbinop shuffle lanes: " ++ pp_list pp_N olanes
+  end.
 
-Definition pp_vternop (sh: vshape) (op: vternop) :=
-  "(not implemented)".
+Definition pp_vternop (op: vternop) :=
+  "vternop: " ++ pp_N op.
 
-Definition pp_vtestop (sh: vshape) (op: vtestop) :=
-  "(not implemented)".
+Definition pp_vtestop (op: vtestop) :=
+  "vtestop: " ++ pp_N op.
 
-Definition pp_vshiftop (sh: vshape) (op: vshiftop) :=
-  "(not implemented)".
+Definition pp_vshiftop (op: vshiftop) :=
+  "vshiftop: " ++ pp_N op.
 
 Definition pp_splat_vec (sh: vshape) :=
-  "(not implemented)".
+  "(not implemented: splat)".
 
 Definition pp_extract_vec (sh: vshape) (s: option sx) (x: laneidx) :=
-  "(not implemented)".
+  "(not implemented: extract_lane)".
 
 Definition pp_replace_vec (sh: vshape) (x: laneidx) :=
-  "(not implemented)".
+  "(not implemented: replace_lane)".
   
 Definition pp_load_vec (lvarg: load_vec_arg) (marg: memarg) :=
-  "(not implemented)".
+  "(not implemented: load_vec)".
 
 Definition pp_load_vec_lane (w: vwidth) (marg: memarg) (x: laneidx) :=
-  "(not implemented)".
+  "(not implemented: load_vec_lane)".
 
 (* store_vec_lane and load_vec uses the same args. Maybe it's better to find a new name *)
 Definition pp_store_vec (marg: memarg) :=
-  "(not implemented)".
+  "(not implemented: store_vec)".
 
 Definition pp_store_vec_lane (w: vwidth) (marg: memarg) (x: laneidx) :=
-  "(not implemented)".
+  "(not implemented: store_vec_lane)".
 
 Fixpoint pp_basic_instruction (i : indentation) (be : basic_instruction) : string :=
   let pp_basic_instructions bes i :=
@@ -674,16 +679,16 @@ Fixpoint pp_basic_instruction (i : indentation) (be : basic_instruction) : strin
       indent i (pp_number_type vt1 ++ "." ++ pp_cvtop cvtop ++ "_" ++ pp_number_type vt2 ++ pp_sx_o sxo ++ newline)
 
   (* vector instructions currently unimplemented *)
-  | BI_vunop sh op =>
-      indent i (pp_vunop sh op)
-  | BI_vbinop sh op =>
-      indent i (pp_vbinop sh op)
-  | BI_vternop sh op =>
-      indent i (pp_vternop sh op)
-  | BI_vtestop sh op =>
-      indent i (pp_vtestop sh op)
-  | BI_vshiftop sh op =>
-      indent i (pp_vshiftop sh op)
+  | BI_vunop op =>
+      indent i (pp_vunop op)
+  | BI_vbinop op =>
+      indent i (pp_vbinop op)
+  | BI_vternop op =>
+      indent i (pp_vternop op)
+  | BI_vtestop op =>
+      indent i (pp_vtestop op)
+  | BI_vshiftop op =>
+      indent i (pp_vshiftop op)
   | BI_splat_vec sh =>
       indent i (pp_splat_vec sh)
   | BI_extract_vec sh s lanex =>

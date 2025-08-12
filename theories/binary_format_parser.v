@@ -504,6 +504,203 @@ Definition parse_f64_const {n} : be_parser n :=
 Definition parse_v128_const {n} : be_parser n :=
   exact_byte xfd &> assert_u32 12%N &> ((fun x => BI_const_vec (VAL_vec128 x)) <$> parse_16bytes).
 
+(*
+Inductive vvunop : Set :=
+  | VVU_not
+  .
+
+Inductive viunop : Set :=
+  | VUOI_abs
+  | VUOI_neg
+  | VUOI_popcnt (* has shape constraints: i8x16 *)
+  .
+
+Inductive vfunop : Set :=
+  | VUOF_abs
+  | VUOF_neg
+  | VUOF_sqrt
+  | VUOF_ceil
+  | VUOF_floor
+  | VUOF_trunc
+  | VUOF_nearest
+  .
+
+(* Indicate whether a cvtop has a zero flag. *)
+Inductive vec_zero : Set :=
+  | VZ_zero
+  .
+  
+Inductive vcvtop : Set :=
+  | VCVT_extend : vec_half -> sx -> vcvtop
+  | VCVT_trunc_sat : sx -> option vec_zero -> vcvtop
+  | VCVT_convert : option vec_half -> sx -> vcvtop
+  | VCVT_demote : vec_zero -> vcvtop (* Superficial tag since zero has to be present for demote; only available on f64x2 *)
+  | VCVT_promote (* only available on LOW half and f32x4 *)
+  .
+  
+Inductive vunop : Set :=
+  | VI_unop: viunop -> vunop
+  | VF_unop: vfunop -> vunop
+  | VV_unop: vvunop -> vunop
+  | V_cvtop: vcvtop -> vunop
+  | V_extadd_pairwise: sx -> vunop (* i16 and i32 only *)
+*)
+
+(* Slightly stupid, but no better solution without defining the concrete constructors *)
+
+Section Opcode_classes.
+
+  Open Scope N_scope.
+
+  Local Notation " x == y " := (N.eqb x y) (at level 5).
+  Local Notation " x >= y " := (N.leb y x) (at level 70).
+  Local Notation " x <= y " := (N.leb x y) (at level 70).
+
+Definition opcode_is_unop (n: N) : bool :=
+  (* v128 *)
+  (n == 77) ||
+  (* i8*16 *)
+    (n == 96) ||
+    (n == 97) ||
+    (n == 98) ||
+    (* i16x8 *)
+    (n == 128) ||
+    (n == 129) ||
+    (* i32x2 *)
+    (n == 160) ||
+    (n == 161) ||
+    (* i64x2 *)
+    (n == 192) ||
+    (n == 193) ||
+    (* f32x4 *)
+    ((n >= 103) && (n <= 106)) ||
+    (n == 224) ||
+    (n == 225) ||
+    (n == 227) ||
+    (* f64x2 *)
+    ((n >= 116) && (n <= 117)) ||
+    (n == 122) ||
+    (n == 248) ||
+    (n == 236) ||
+    (n == 237) ||
+    (n == 239) ||
+    (* cvtop *)
+    ((n >= 248) && (n <= 255)) ||
+    ((n >= 94) && (n <= 95)) ||
+    (* extend *)
+    ((n >= 135) && (n <= 138)) ||
+    ((n >= 167) && (n <= 170)) ||
+    ((n >= 199) && (n <= 202)).
+    
+Definition opcode_is_binop (n: N) : bool :=
+  (n == 14) ||
+    ((n >= 35) && (n <= 76)) ||
+    ((n >= 78) && (n <= 81)) ||
+    ((n >= 214) && (n <= 219)) ||
+    ((n >= 101) && (n <= 102)) ||
+    ((n >= 110) && (n <= 115)) ||
+    ((n >= 118) && (n <= 121)) || (n == 123) ||
+    ((n >= 124) && (n <= 125)) || (n == 130) ||
+    ((n >= 133) && (n <= 134)) ||
+    ((n >= 142) && (n <= 147)) ||
+    ((n >= 149) && (n <= 153)) ||
+    ((n >= 155) && (n <= 159)) ||
+    ((n >= 126) && (n <= 127)) ||
+    (n == 174) ||
+    (n == 177) ||
+    ((n >= 181) && (n <= 186)) ||
+    ((n >= 188) && (n <= 191)) ||
+    (n == 206) ||
+    (n == 209) ||
+    (n == 213) ||
+    ((n >= 220) && (n <= 223)) ||
+    ((n >= 228) && (n <= 235)) ||
+    ((n >= 240) && (n <= 247)).
+
+
+Definition opcode_is_ternop (n: N) : bool :=
+  (n == 82).
+
+Definition opcode_is_testop (n: N) : bool :=
+  (n == 83) ||
+    (n == 99) || (n == 100) ||
+    (n == 131) || (n == 132) ||
+    (n == 163) || (n == 164) ||
+    (n == 195) || (n == 196).
+
+Definition opcode_is_shiftop (n: N) : bool :=
+  ((n >= 107) && (n <= 109)) ||
+    ((n >= 139) && (n <= 141)) ||
+    ((n >= 171) && (n <= 173)) ||
+    ((n >= 203) && (n <= 205)).
+
+Close Scope N_scope.
+
+End Opcode_classes.
+
+Definition parse_simd_unop {n} : be_parser n :=
+  guardM
+    (fun n => if opcode_is_unop n then Some (BI_vunop n) else None)
+    parse_u32_as_N.
+
+Definition parse_simd_binop {n} : be_parser n :=
+  (* shuffle: carries a list of laneids *)
+  assert_u32 13%N &> ((fun bs => BI_vbinop (13%N, List.map to_N bs)) <$> parse_vec_aux anyTok 16%N) <|>
+  (* others *)
+  guardM
+    (fun n => if opcode_is_binop n then Some (BI_vbinop (n, nil)) else None)
+    parse_u32_as_N.
+
+Definition parse_simd_ternop {n} : be_parser n :=
+  guardM
+    (fun n => if opcode_is_ternop n then Some (BI_vternop n) else None)
+    parse_u32_as_N.
+
+Definition parse_simd_testop {n} : be_parser n :=
+  guardM
+    (fun n => if opcode_is_testop n then Some (BI_vtestop n) else None)
+    parse_u32_as_N.
+
+Definition parse_simd_shiftop {n} : be_parser n :=
+  guardM
+    (fun n => if opcode_is_shiftop n then Some (BI_vshiftop n) else None)
+    parse_u32_as_N.
+
+Definition parse_simd_splat {n} : be_parser n :=
+  assert_u32 15%N $> BI_splat_vec (VS_i VSI_8_16) <|>
+  assert_u32 16%N $> BI_splat_vec (VS_i VSI_16_8) <|>
+  assert_u32 17%N $> BI_splat_vec (VS_i VSI_32_4) <|>
+  assert_u32 18%N $> BI_splat_vec (VS_i VSI_64_2) <|>
+  assert_u32 19%N $> BI_splat_vec (VS_f VSF_32_4) <|>
+  assert_u32 20%N $> BI_splat_vec (VS_f VSF_64_2).
+
+(* TBC *)
+Definition parse_extract_replace_lane {n} : be_parser n :=
+  assert_u32 21%N &> ((BI_extract_vec (VS_i VSI_8_16) (Some SX_S)) <$> parse_laneidx) <|>
+  assert_u32 22%N &> ((BI_extract_vec (VS_i VSI_8_16) (Some SX_U)) <$> parse_laneidx) <|>
+  assert_u32 23%N &> ((BI_replace_vec (VS_i VSI_8_16)) <$> parse_laneidx) <|>
+  assert_u32 24%N &> ((BI_extract_vec (VS_i VSI_16_8) (Some SX_S)) <$> parse_laneidx) <|>
+  assert_u32 25%N &> ((BI_extract_vec (VS_i VSI_16_8) (Some SX_U)) <$> parse_laneidx) <|>
+  assert_u32 26%N &> ((BI_replace_vec (VS_i VSI_16_8)) <$> parse_laneidx) <|>
+  assert_u32 27%N &> ((BI_extract_vec (VS_i VSI_32_4) None) <$> parse_laneidx) <|>
+  assert_u32 28%N &> ((BI_replace_vec (VS_i VSI_32_4)) <$> parse_laneidx) <|>
+  assert_u32 29%N &> ((BI_extract_vec (VS_i VSI_64_2) None) <$> parse_laneidx) <|>
+  assert_u32 30%N &> ((BI_replace_vec (VS_i VSI_64_2)) <$> parse_laneidx) <|>
+  assert_u32 31%N &> ((BI_extract_vec (VS_f VSF_32_4) None) <$> parse_laneidx) <|>
+  assert_u32 32%N &> ((BI_replace_vec (VS_f VSF_32_4)) <$> parse_laneidx) <|>
+  assert_u32 33%N &> ((BI_extract_vec (VS_f VSF_64_2) None) <$> parse_laneidx) <|>
+  assert_u32 34%N &> ((BI_replace_vec (VS_f VSF_64_2)) <$> parse_laneidx).
+
+(* It is only important to parse the instructions into categories by their type signatures. Execution will be delegated outside Coq. *)
+Definition parse_simd_instruction {n}: be_parser n :=
+  parse_simd_unop <|>
+  parse_simd_binop <|>
+  parse_simd_ternop <|>
+  parse_simd_testop <|>
+  parse_simd_shiftop <|>
+  parse_simd_splat <|>
+  parse_extract_replace_lane.
+
 (* :-( *)
 Definition parse_numeric_instruction {n} : be_parser n :=
   parse_i32_const <|>
@@ -657,7 +854,10 @@ Definition parse_numeric_instruction {n} : be_parser n :=
   (exact_byte xfc &> assert_u32 4%N $> (BI_cvtop T_i64 CVO_trunc_sat T_f32 (Some SX_S))) <|>
   (exact_byte xfc &> assert_u32 5%N $> (BI_cvtop T_i64 CVO_trunc_sat T_f32 (Some SX_U))) <|>
   (exact_byte xfc &> assert_u32 6%N $> (BI_cvtop T_i64 CVO_trunc_sat T_f64 (Some SX_S))) <|>
-  (exact_byte xfc &> assert_u32 7%N $> (BI_cvtop T_i64 CVO_trunc_sat T_f64 (Some SX_U))).
+  (exact_byte xfc &> assert_u32 7%N $> (BI_cvtop T_i64 CVO_trunc_sat T_f64 (Some SX_U))) <|>
+
+  (* SIMD instructions, all starting with 0xfd *)
+  exact_byte xfd &> parse_simd_instruction.
 
 Record Language (n : nat) : Type := MkLanguage {
   _be : byte_parser basic_instruction n;

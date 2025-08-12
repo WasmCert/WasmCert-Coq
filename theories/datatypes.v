@@ -418,7 +418,7 @@ Inductive packed_type : Set := (* tp *)
   .
 
 (** SIMD Definitions and Instructions **)
-  
+  (*
 Inductive vshape_i: Set :=
   | VSI_8_16
   | VSI_16_8
@@ -525,6 +525,8 @@ Inductive vbinop : Set :=
   | VV_binop: vvbinop -> vbinop
   | VE_binop: vextbinop -> vbinop
   | V_narrow: vshape_i -> sx -> vbinop (* resulting width needs to be 2x original and at most i32 *)
+  | V_shuffle: list laneidx -> vbinop (* i8x16 only *)
+  | V_swizzle (* i8x16 only *)
   .
 
 (* Technically this is vvternop. But this is the only ternary operation. *)
@@ -543,6 +545,7 @@ Inductive vitestop : Set :=
 Inductive vtestop : Set :=
   | VI_testop: vitestop -> vtestop
   | VV_testop: vvtestop -> vtestop
+  | V_bitmask
   .
 
 Inductive virelop : Set :=
@@ -573,6 +576,42 @@ Inductive vshiftop : Set :=
   | VS_shl
   | VS_shr : sx -> vshiftop
   .
+*)
+  
+Inductive vshape_i: Set :=
+  | VSI_8_16
+  | VSI_16_8
+  | VSI_32_4
+  | VSI_64_2
+  .
+  
+Inductive vshape_f: Set :=
+  | VSF_32_4
+  | VSF_64_2
+  .
+  
+Inductive vshape : Set := (* shape *)
+  | VS_i: vshape_i -> vshape
+  | VS_f: vshape_f -> vshape
+  .
+
+Inductive vec_half : Set :=
+  | VH_low
+  | VH_high
+  .
+
+Definition laneidx : Set := u8. 
+
+Definition vunop := N.
+
+(* Shuffle is included in this type, which needs to encode an additional list of laneidx. *)
+Definition vbinop : Type := N * list N.
+
+Definition vternop := N.
+
+Definition vtestop := N.
+
+Definition vshiftop := N.
 
 (* Available shapes: 8x8, 16x4, 32x2 *)
 Definition vpacked_type : Type := N * N.
@@ -620,11 +659,11 @@ Extract lanes: consume a v128 operand and return the numeric value in a given la
 Replace lanes: consume a v128 operand and a numeric value for a given lane, and produce a v128 result.
 **)
   | BI_const_vec : value_vec -> basic_instruction
-  | BI_vunop: vshape -> vunop -> basic_instruction
-  | BI_vbinop: vshape -> vbinop -> basic_instruction
-  | BI_vternop: vshape -> vternop -> basic_instruction
-  | BI_vtestop: vshape -> vtestop -> basic_instruction
-  | BI_vshiftop: vshape -> vshiftop -> basic_instruction
+  | BI_vunop: vunop -> basic_instruction
+  | BI_vbinop: vbinop -> basic_instruction
+  | BI_vternop: vternop -> basic_instruction
+  | BI_vtestop: vtestop -> basic_instruction
+  | BI_vshiftop: vshiftop -> basic_instruction
   | BI_splat_vec: vshape -> basic_instruction
   | BI_extract_vec: vshape -> option sx -> laneidx -> basic_instruction (* sx only available for i8/i16 *)
   | BI_replace_vec: vshape -> laneidx -> basic_instruction

@@ -60,20 +60,20 @@ Inductive reduce_simple : seq administrative_instruction -> seq administrative_i
 
   (** vector instructions **)
   | rs_vunop: 
-    forall v sh op,
-    reduce_simple [:: $VV v; AI_basic (BI_vunop sh op)] [::$VV (app_vunop sh op v)]
+    forall v op,
+    reduce_simple [:: $VV v; AI_basic (BI_vunop op)] [::$VV (app_vunop op v)]
   | rs_vbinop: 
-    forall v1 v2 sh op,
-    reduce_simple [:: $VV v1; $VV v2; AI_basic (BI_vbinop sh op)] [::$VV (app_vbinop sh op v1 v2)]
+    forall v1 v2 op,
+    reduce_simple [:: $VV v1; $VV v2; AI_basic (BI_vbinop op)] [::$VV (app_vbinop op v1 v2)]
   | rs_vternop: 
-    forall v1 v2 v3 sh op,
-    reduce_simple [:: $VV v1; $VV v2; $VV v3; AI_basic (BI_vternop sh op)] [::$VV (app_vternop sh op v1 v2 v3)]
+    forall v1 v2 v3 op,
+    reduce_simple [:: $VV v1; $VV v2; $VV v3; AI_basic (BI_vternop op)] [::$VV (app_vternop op v1 v2 v3)]
   | rs_vtestop: 
-    forall v1 sh op,
-    reduce_simple [:: $VV v1; AI_basic (BI_vtestop sh op)] [::$VN (VAL_int32 (wasm_bool (app_vtestop sh op v1)))]
+    forall v1 op,
+    reduce_simple [:: $VV v1; AI_basic (BI_vtestop op)] [::$VN (VAL_int32 (wasm_bool (app_vtestop op v1)))]
   | rs_vshiftop: 
-    forall v1 v2 sh op,
-    reduce_simple [:: $VV v1; $VN (VAL_int32 v2); AI_basic (BI_vshiftop sh op)] [::$VV app_vshiftop sh op v1 v2]
+    forall v1 v2 op,
+    reduce_simple [:: $VV v1; $VN (VAL_int32 v2); AI_basic (BI_vshiftop op)] [::$VV app_vshiftop op v1 v2]
   | rs_splat_vec: 
     forall v1 sh,
     reduce_simple [:: $VN v1; AI_basic (BI_splat_vec sh)] [::$VV (app_splat_vec sh v1)]

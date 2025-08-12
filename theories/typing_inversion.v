@@ -96,15 +96,15 @@ Definition be_principal_typing (C: t_context) (be: basic_instruction) (tf: instr
   | BI_cvtop t2 op t1 sx =>
       tf = (Tf [::T_num t1] [::T_num t2]) /\
         cvtop_valid t2 op t1 sx
-  | BI_vunop sh op =>
+  | BI_vunop op =>
       tf = (Tf [::T_vec T_v128] [::T_vec T_v128])
-  | BI_vbinop sh op =>
+  | BI_vbinop op =>
       tf = (Tf [::T_vec T_v128; T_vec T_v128] [::T_vec T_v128])
-  | BI_vternop sh op =>
+  | BI_vternop op =>
       tf = (Tf [::T_vec T_v128; T_vec T_v128; T_vec T_v128] [::T_vec T_v128])
-  | BI_vtestop sh op =>
+  | BI_vtestop op =>
       tf = (Tf [::T_vec T_v128] [::T_num T_i32])
-  | BI_vshiftop sh op =>
+  | BI_vshiftop op =>
       tf = (Tf [::T_vec T_v128; T_num T_i32] [::T_vec T_v128])
   | BI_splat_vec shape =>
       tf = (Tf [::T_num (typeof_shape_unpacked shape)] [::T_vec T_v128])

@@ -107,19 +107,19 @@ Definition binary_of_valvec (v: value_vec) :=
 (* placeholder for vector operations added in 2.0, to be filled in a future update
 https://webassembly.github.io/spec/core/binary/instructions.html#vector-instructions
 *)
-Definition binary_of_vunop (sh: vshape) (op: vunop) :=
+Definition binary_of_vunop (op: vunop) :=
   xfd :: x0c :: (List.repeat x00 16).
 
-Definition binary_of_vbinop (sh: vshape) (op: vbinop) :=
+Definition binary_of_vbinop (op: vbinop) :=
   xfd :: x0c :: (List.repeat x00 16).
 
-Definition binary_of_vternop (sh: vshape) (op: vternop) :=
+Definition binary_of_vternop (op: vternop) :=
   xfd :: x0c :: (List.repeat x00 16).
 
-Definition binary_of_vtestop (sh: vshape) (op: vtestop) :=
+Definition binary_of_vtestop (op: vtestop) :=
   xfd :: x0c :: (List.repeat x00 16).
 
-Definition binary_of_vshiftop (sh: vshape) (op: vshiftop) :=
+Definition binary_of_vshiftop (op: vshiftop) :=
   xfd :: x0c :: (List.repeat x00 16).
 
 Definition binary_of_splat_vec (sh: vshape) :=
@@ -397,11 +397,11 @@ Fixpoint binary_of_be (be : basic_instruction) : list byte :=
 
   | BI_const_vec v => binary_of_valvec v
 
-  | BI_vunop sh op => binary_of_vunop sh op
-  | BI_vbinop sh op => binary_of_vbinop sh op
-  | BI_vternop sh op => binary_of_vternop sh op
-  | BI_vtestop sh op => binary_of_vtestop sh op
-  | BI_vshiftop sh op => binary_of_vshiftop sh op
+  | BI_vunop op => binary_of_vunop op
+  | BI_vbinop op => binary_of_vbinop op
+  | BI_vternop op => binary_of_vternop op
+  | BI_vtestop op => binary_of_vtestop op
+  | BI_vshiftop op => binary_of_vshiftop op
   | BI_splat_vec sh => binary_of_splat_vec sh
   | BI_extract_vec sh s lanex => binary_of_extract_vec sh s lanex
   | BI_replace_vec sh lanex => binary_of_replace_vec sh lanex

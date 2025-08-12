@@ -221,16 +221,16 @@ Inductive be_typing : t_context -> seq basic_instruction -> instr_type -> Prop :
 | bet_cvtop : forall C op t1 t2 sx,
     cvtop_valid t2 op t1 sx ->
     be_typing C [::BI_cvtop t2 op t1 sx] (Tf [::T_num t1] [::T_num t2])
-| bet_vunop: forall C sh op,
-    be_typing C [::BI_vunop sh op] (Tf [::T_vec T_v128] [::T_vec T_v128])
-| bet_vbinop: forall C sh op,
-    be_typing C [::BI_vbinop sh op] (Tf [::T_vec T_v128; T_vec T_v128] [::T_vec T_v128])
-| bet_vternop: forall C sh op,
-    be_typing C [::BI_vternop sh op] (Tf [::T_vec T_v128; T_vec T_v128; T_vec T_v128] [::T_vec T_v128])
-| bet_vtestop: forall C sh op,
-    be_typing C [::BI_vtestop sh op] (Tf [::T_vec T_v128] [::T_num T_i32])
-| bet_vshiftop: forall C sh op,
-    be_typing C [::BI_vshiftop sh op] (Tf [::T_vec T_v128; T_num T_i32] [::T_vec T_v128])
+| bet_vunop: forall C op,
+    be_typing C [::BI_vunop op] (Tf [::T_vec T_v128] [::T_vec T_v128])
+| bet_vbinop: forall C op,
+    be_typing C [::BI_vbinop op] (Tf [::T_vec T_v128; T_vec T_v128] [::T_vec T_v128])
+| bet_vternop: forall C op,
+    be_typing C [::BI_vternop op] (Tf [::T_vec T_v128; T_vec T_v128; T_vec T_v128] [::T_vec T_v128])
+| bet_vtestop: forall C op,
+    be_typing C [::BI_vtestop op] (Tf [::T_vec T_v128] [::T_num T_i32])
+| bet_vshiftop: forall C op,
+    be_typing C [::BI_vshiftop op] (Tf [::T_vec T_v128; T_num T_i32] [::T_vec T_v128])
 | bet_splat_vec: forall C sh,
     be_typing C [::BI_splat_vec sh] (Tf [::T_num (typeof_shape_unpacked sh)] [::T_vec T_v128])
 | bet_extract_vec: forall C sh sx x,

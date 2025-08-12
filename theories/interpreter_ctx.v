@@ -534,11 +534,11 @@ Proof.
       (* BI_relop t op *) t op |
       (* BI_cvtop t2 cvtop t1 sx *) t2 cvtop t1 sx |
       (* BI_const_vec _ *) |
-      (* BI_vunop sh op *) sh op |
-      (* BI_vbinop sh op *) sh op |
-      (* BI_vternop sh op *) sh op |
-      (* BI_vtestop sh op *) sh op |
-      (* BI_vshiftop sh op*) sh op |
+      (* BI_vunop op *) op |
+      (* BI_vbinop op *) op |
+      (* BI_vternop op *) op |
+      (* BI_vtestop op *) op |
+      (* BI_vshiftop op *) op |
       (* BI_splat_vec sh *) sh |
       (* BI_extract_vec shape_vec [Some sx | None] laneidx *) sh sx x |
       (* BI_replace_vec shape_vec laneidx *) sh x |
@@ -706,42 +706,42 @@ the condition that all values should live in the operand stack. *)
     (* AI_basic BI_const_vec v *)
     - apply RSC_invalid => /=; by move => [??].
       
-    (* AI_basic BI_vunop sh op *)
+    (* AI_basic BI_vunop op *)
     - destruct vs0 as [|v vs0]; first by no_args.
       assert_value_vec v.
-      apply <<hs, (s, (fc, lcs) :: ccs', (VAL_vec (app_vunop sh op v) :: vs0, es0), None), d>> => //.
+      apply <<hs, (s, (fc, lcs) :: ccs', (VAL_vec (app_vunop op v) :: vs0, es0), None), d>> => //.
       resolve_reduce_ctx vs0 es0.
       by apply r_simple, rs_vunop.
       
-    (* AI_basic BI_vbinop sh op *)
+    (* AI_basic BI_vbinop op *)
     - destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
       assert_value_vec v1.
       assert_value_vec v2.
-      apply <<hs, (s, (fc,lcs) :: ccs', (VAL_vec (app_vbinop sh op v1 v2) :: vs0, es0), None), d>> => //.
+      apply <<hs, (s, (fc,lcs) :: ccs', (VAL_vec (app_vbinop op v1 v2) :: vs0, es0), None), d>> => //.
       resolve_reduce_ctx vs0 es0.
       by apply r_simple, rs_vbinop.
       
-    (* AI_basic BI_vternop sh op *)
+    (* AI_basic BI_vternop op *)
     - destruct vs0 as [|v3 [|v2 [|v1 vs0]]]; try by no_args.
       assert_value_vec v1.
       assert_value_vec v2.
       assert_value_vec v3.
-      apply <<hs, (s, (fc,lcs) :: ccs', (VAL_vec (app_vternop sh op v1 v2 v3) :: vs0, es0), None), d>> => //.
+      apply <<hs, (s, (fc,lcs) :: ccs', (VAL_vec (app_vternop op v1 v2 v3) :: vs0, es0), None), d>> => //.
       resolve_reduce_ctx vs0 es0.
       by apply r_simple, rs_vternop.
       
-    (* AI_basic BI_vtestop sh tv *)
+    (* AI_basic BI_vtestop tv *)
     - destruct vs0 as [|v vs0]; first by no_args.
       assert_value_vec v.
-      apply <<hs, (s, (fc,lcs) :: ccs', (VAL_num (VAL_int32 (wasm_bool (app_vtestop sh op v))) :: vs0, es0), None), d>> => //.
+      apply <<hs, (s, (fc,lcs) :: ccs', (VAL_num (VAL_int32 (wasm_bool (app_vtestop op v))) :: vs0, es0), None), d>> => //.
       resolve_reduce_ctx vs0 es0.
       by apply r_simple, rs_vtestop.
       
-    (* AI_basic BI_vshiftop sh sv *)
+    (* AI_basic BI_vshiftop sv *)
     - destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
       assert_value_vec v1.
       assert_i32 v2.
-      apply <<hs, (s, (fc,lcs) :: ccs', (VAL_vec (app_vshiftop sh op v1 v2) :: vs0, es0), None), d>> => //.
+      apply <<hs, (s, (fc,lcs) :: ccs', (VAL_vec (app_vshiftop op v1 v2) :: vs0, es0), None), d>> => //.
       resolve_reduce_ctx vs0 es0.
       by apply r_simple, rs_vshiftop.
       
