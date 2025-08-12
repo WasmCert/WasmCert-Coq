@@ -46,7 +46,11 @@ let wasm_val_to_string wval =
   match wval.it with
   | Num num -> Some (wasm_num_to_hexstring num)
   | Ref ref -> Some (wasm_ref_to_string ref)
-  | _-> Some (string_of_value wval.it)
+  | Vec vec -> 
+    (* Wasm ref interpreter always prints v128 as I32x4. *)
+    let vec_string = "v128.const i32x4 " ^ string_of_value wval.it in
+    (* Printf.printf "%s" vec_string; *)
+    Some vec_string
 
 let wasm_numpat_to_string numpat =
   match numpat with
@@ -58,11 +62,24 @@ let wasm_refpat_to_string refpat =
   | RefPat ref -> string_of_ref ref.it
   | _ -> "Unsupported refpat printout"
 
+let wast_shape_to_coq sh = 
+  match sh with
+  | Wasm.V128.I8x16 _ -> Extract.VS_i (Extract.VSI_8_16)
+  | Wasm.V128.I16x8 _ -> Extract.VS_i (Extract.VSI_16_8)
+  | Wasm.V128.I32x4 _ -> Extract.VS_i (Extract.VSI_32_4)
+  | Wasm.V128.I64x2 _ -> Extract.VS_i (Extract.VSI_64_2)
+  | Wasm.V128.F32x4 _ -> Extract.VS_f (Extract.VSF_32_4)
+  | Wasm.V128.F64x2 _ -> Extract.VS_f (Extract.VSF_64_2)
+
+let wasm_vecpat_to_string vecpat = 
+  match vecpat with
+  | VecPat (V128 (_sh, numpats)) -> "\x1b[36mv128\x1b[0m: [" ^ String.concat "; " (List.map wasm_numpat_to_string numpats) ^ "]"
+
 let wasm_result_to_string ret = 
   match ret.it with
   | NumResult numpat -> wasm_numpat_to_string numpat
   | RefResult refpat -> wasm_refpat_to_string refpat
-  | _ -> "Unsupported result type: vec"
+  | VecResult vecpat -> wasm_vecpat_to_string vecpat
 
 let wasm_results_to_string rets = 
   String.concat "; " (List.map wasm_result_to_string rets)
@@ -98,7 +115,7 @@ let wasm_assert_nanpat ret nanop =
 
 let wasm_assert_numpat ret numpat = 
   match numpat with
-  | NumPat num -> (wasm_num_to_coq num.it = Some ret)
+  | NumPat num -> wasm_num_to_coq num.it = Some ret
   | NanPat nanop -> wasm_assert_nanpat ret nanop
 
 let wasm_assert_refpat ret refpat =
@@ -107,14 +124,26 @@ let wasm_assert_refpat ret refpat =
   | RefTypePat Wasm.Types.FuncRefType -> Extract.Extraction_instance.is_funcref ret
   | RefTypePat Wasm.Types.ExternRefType -> Extract.Extraction_instance.is_externref ret
 
-let wasm_assert_ret ret ret_exp = 
+let wasm_assert_vecpat verbosity ret vecpat =
+  match vecpat, ret with
+  | VecPat (V128 (sh, numpats)), Extract.VAL_vec vret -> 
+    let coq_sh = wast_shape_to_coq sh in 
+    let coq_vals = List.map (fun v -> Extract.VAL_num v) (Interpreter.v128_extract_lanes coq_sh vret) in
+    debug_info verbosity intermediate (fun _ -> "The returned v128 extracts to: [" ^ (pp_values coq_vals) ^ "].\n");
+    if List.length coq_vals = List.length numpats then 
+      List.for_all2 wasm_assert_numpat coq_vals numpats
+    else 
+      false
+  | _, _-> assert false
+
+let wasm_assert_ret verbosity ret ret_exp = 
   match ret_exp.it with
   | NumResult numpat -> wasm_assert_numpat ret numpat
   | RefResult refpat -> wasm_assert_refpat ret refpat
-  | _ -> false
+  | VecResult vecpat -> wasm_assert_vecpat verbosity ret vecpat
 
-let wasm_assert_rets rets ret_exps = 
-  let assert_results = List.map2 wasm_assert_ret rets ret_exps in
+let wasm_assert_rets verbosity rets ret_exps = 
+  let assert_results = List.map2 (fun x y -> wasm_assert_ret verbosity x y) rets ret_exps in
   List.fold_left (fun a b -> a && b) true assert_results
 
 let load_wast_module verbosity hs s ovar moddef mod_counter =
@@ -231,7 +260,7 @@ let run_wast_command verbosity max_call_depth cmd hs s mod_counter default_modul
           debug_info verbosity stage (fun _ -> "Returned: ");
           debug_info verbosity stage (fun _ -> Execute.print_invoke_result verbosity res; "");
           debug_info verbosity stage (fun _ -> "Expected: " ^ wasm_results_to_string expect_rets ^ "\n");
-          let assert_result = wasm_assert_rets vs expect_rets in
+          let assert_result = wasm_assert_rets verbosity vs expect_rets in
             if assert_result then
               (debug_info verbosity stage (fun _ -> "Test passed: result matches asserted value\n");
               pure (hs, s', mod_counter, default_module_name, Verdict_OK))
@@ -242,7 +271,7 @@ let run_wast_command verbosity max_call_depth cmd hs s mod_counter default_modul
         end
       | Get (ovar, extname_utf8) ->
         let* res_v = run_get (ovar, extname_utf8) hs s default_module_name in
-        let assert_result = wasm_assert_rets [res_v] expect_rets in
+        let assert_result = wasm_assert_rets verbosity [res_v] expect_rets in
           if assert_result then
             (debug_info verbosity stage (fun _ -> "Test passed: result matches asserted value\n");
               pure (hs, s, mod_counter, default_module_name, Verdict_OK))

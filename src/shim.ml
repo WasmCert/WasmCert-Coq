@@ -91,6 +91,8 @@ module type InterpreterType = sig
 
   val is_arithmetic_nan: Extract.number_type -> value -> bool
 
+  val v128_extract_lanes: Extract.vshape -> Extract.SIMD.v128 -> Extract.value_num list
+
 end
 
 module Interpreter =
@@ -183,4 +185,7 @@ functor (EH : Host) -> struct
 
   let is_arithmetic_nan =
     Extraction_instance.is_arithmetic_nan
+
+  let v128_extract_lanes sh v = 
+    Extraction_instance.v128_extract_lanes sh v
 end

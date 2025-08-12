@@ -576,7 +576,7 @@ Proof.
   move => Hred.
   unfold reduce_trans, opsem.reduce_trans in *.
   apply Operators_Properties.clos_rt_rt1n_iff in Hred.
-  inversion Hred; subst; clear Hred; first by repeat destruct v.
+  inversion Hred; subst; clear Hred; first by do 2 destruct v.
   destruct y as [[[??]?]?].
   unfold reduce_tuple, opsem.reduce_tuple in H.
   apply reduce_global_get in H.

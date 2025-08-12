@@ -413,7 +413,7 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
       | BI_load_vec_lane width marg x =>
           match lookup_N C.(tc_mems) 0%N with
           | Some _ =>
-              if load_vec_lane_bounds width marg x
+              if load_store_vec_lane_bounds width marg x
               then type_update ts [:: T_vec T_v128; T_num T_i32] [::T_vec T_v128]
               else None
           | None => None
@@ -426,10 +426,18 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
               else None
           | None => None
           end
+      | BI_store_vec marg =>
+          match lookup_N C.(tc_mems) 0%N with
+          | Some _ =>
+              if store_vec_bounds marg
+              then type_update ts [::T_vec T_v128; T_num T_i32] [::]
+              else None
+          | None => None
+          end
       | BI_store_vec_lane width marg x =>
           match lookup_N C.(tc_mems) 0%N with
           | Some _ =>
-              if load_vec_lane_bounds width marg x
+              if load_store_vec_lane_bounds width marg x
               then type_update ts [::T_vec T_v128; T_num T_i32] [::]
               else None
           | None => None

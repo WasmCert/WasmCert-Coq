@@ -187,6 +187,8 @@ Ltac unfold_store_operations :=
         unfold smem_store in *; remove_bools_options
     | _: context [ smem_store_packed _ _ ] |- _ =>
         unfold smem_store_packed in *; remove_bools_options
+    | _: context [ smem_store_vec _ _ ] |- _ =>
+        unfold smem_store_vec in *; remove_bools_options
     | _: context [ smem_store_vec_lane _ _ ] |- _ =>
         unfold smem_store_vec_lane in *; remove_bools_options
     | _: context [ smem_grow _ _ ] |- _ =>

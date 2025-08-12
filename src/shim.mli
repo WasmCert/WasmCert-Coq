@@ -103,6 +103,8 @@ module type InterpreterType = sig
 
   val is_arithmetic_nan: Extract.number_type -> value -> bool
 
+  val v128_extract_lanes: Extract.vshape -> Extract.SIMD.v128 -> Extract.value_num list
+
 end
 
 module Interpreter : functor (EH : Host) ->

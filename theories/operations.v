@@ -91,41 +91,25 @@ Definition mem_grow (m : meminst) (len_delta : N) : option meminst :=
     end
   else None.
 
-Definition ptv_to_nm (ptv: vpacked_type) : N * N :=
-  match ptv with
-  | Tptv_8_8 => (8%N, 8%N)
-  | Tptv_16_4 => (16%N, 4%N)
-  | Tptv_32_2 => (32%N, 2%N)
-  end.
-
-Definition ztv_to_n (ztv: vzero_type) : N :=
-  match ztv with
-  | Tztv_32 => 32%N
-  | Tztv_64 => 64%N
-  end.
-
-Definition width_to_n (ww: vwidth) : N :=
-  match ww with
-  | Twv_8 => 8%N
-  | Twv_16 => 16%N
-  | Twv_32 => 32%N
-  | Twv_64 => 64%N
-  end.
-
 Definition load_vec_bounds (lv_arg: load_vec_arg) (m_arg: memarg) : bool :=
   match lv_arg with
   | LVA_packed ptv sx =>
-      let (n, m) := ptv_to_nm ptv in
+      let (n, m) := ptv in
       N.leb (N.pow 2 m_arg.(memarg_align)) (N.mul (N.div n 8) m)
   | LVA_zero ztv =>
-      N.leb (N.pow 2 m_arg.(memarg_align)) (N.div (ztv_to_n ztv) 8)
+      N.leb (N.pow 2 m_arg.(memarg_align)) (N.div (ztv) 8)
   | LVA_splat width =>
-      N.leb (N.pow 2 m_arg.(memarg_align)) (N.div (width_to_n width) 8)
+      N.leb (N.pow 2 m_arg.(memarg_align)) (N.div (width) 8)
+  | LVA_none =>
+      N.leb (N.pow 2 m_arg.(memarg_align)) 16%N
   end.
 
-Definition load_vec_lane_bounds (width: vwidth) (m_arg: memarg) (x: laneidx) : bool :=
-   (N.leb (N.pow 2 (memarg_align m_arg)) (width_to_n width / 8))%N &&
-                         (N.ltb x (128 / width_to_n width)%N). 
+Definition load_store_vec_lane_bounds (width: vwidth) (m_arg: memarg) (x: laneidx) : bool :=
+   (N.leb (N.pow 2 (memarg_align m_arg)) (width / 8))%N &&
+     (N.ltb x (128 / width)%N).
+
+Definition store_vec_bounds (m_arg: memarg) : bool :=
+      N.leb (N.pow 2 m_arg.(memarg_align)) 16%N.
 
 (* TODO: We crucially need documentation here. *)
 
@@ -151,7 +135,7 @@ Definition load_vec (m: meminst) (i: N) (lvarg: load_vec_arg) (marg: memarg) : o
         let bs = int_of_bytes (take (drop m
   if ea + *)
   match (i == marg.(memarg_offset)) with
-  | true => Some (VAL_vec128 tt)
+  | true => Some (VAL_vec128 SIMD.v128_default)
   | _ => None
   end.
 
@@ -169,6 +153,12 @@ Definition store (m : meminst) (n : N) (off : static_offset) (bs : bytes) (l : n
 (* The first argument of wrap doesn't affect the opsem at all, so this is fine.
 Might need a change in the future if this behaviour changes. *)
 Definition store_packed := store.
+
+Definition store_vec (m: meminst) (n: N) (v: value_vec) (marg: memarg) : option meminst :=
+  match (n == marg.(memarg_offset)) with
+  | true => Some m
+  | _ => None
+  end.
 
 Definition store_vec_lane (m: meminst) (n: N) (v: value_vec) (width: vwidth) (marg: memarg) (x: laneidx) : option meminst :=
   match (n == marg.(memarg_offset)) with
@@ -195,6 +185,7 @@ Definition sign_extend_n (n: N) (bytelen: N) : Z :=
   val_z.
 
 (* l is the byte length of the target type, therefore can only be 4/8 *)
+(* v128 also uses this function for i8/i16 decoding *)
 Definition sign_extend_bytes (s : sx) (l : N) (bs : bytes) : bytes :=
   match s with
   | SX_U => bytes_takefill #00 (N.to_nat l) bs
@@ -231,7 +222,7 @@ https://www.w3.org/TR/wasm-core-2/exec/runtime.html#default-val
 Definition default_val (t: value_type) : option value :=
   match t with
   | T_num t => Some (VAL_num (bitzero t))
-  | T_vec t => Some (VAL_vec (VAL_vec128 tt))
+  | T_vec t => Some (VAL_vec (VAL_vec128 SIMD.v128_default))
   | T_ref t => Some (VAL_ref (VAL_ref_null t))
   | T_bot => None
   end.
@@ -558,7 +549,7 @@ Definition app_vshiftop (sh: vshape) (op: vshiftop) (v1: value_vec) (v2: i32) : 
   v1.
 
 Definition app_splat_vec (sh: vshape) (v1: value_num) : value_vec :=
-  VAL_vec128 tt.
+  VAL_vec128 SIMD.v128_default.
 
 Definition app_extract_vec (sh: vshape) (s: option sx) (n: laneidx) (v1: value_vec) : value_num :=
   match sh with
@@ -577,6 +568,22 @@ Definition app_extract_vec (sh: vshape) (s: option sx) (n: laneidx) (v1: value_v
 Definition app_replace_vec (sh: vshape) (n: laneidx) (v1: value_vec) (v2: value_num) : value_vec :=
   v1.
 
+Definition shape_width (sh: vshape) : N :=
+  match sh with
+  | VS_i vsi =>
+      match vsi with
+      | VSI_8_16 => 8
+      | VSI_16_8 => 16
+      | VSI_32_4 => 32
+      | VSI_64_2 => 64
+      end
+  | VS_f vsf =>
+      match vsf with
+      | VSF_32_4 => 32
+      | VSF_64_2 => 64
+      end
+  end.
+
 Definition shape_dim (sh: vshape) : N :=
   match sh with
   | VS_i vsi =>
@@ -592,6 +599,14 @@ Definition shape_dim (sh: vshape) : N :=
       | VSF_64_2 => 2
       end
   end.
+
+(* Sanity check *)
+Lemma shape_width_dim_match:
+  forall (sh: vshape), shape_width sh * shape_dim sh = 128%N.
+Proof.
+  by destruct sh as [[] | []].
+Qed.
+
 
 Definition rglob_is_mut (g : module_global) : bool :=
   g.(modglob_type).(tg_mut) == MUT_var.
@@ -764,6 +779,21 @@ Definition smem_store_packed (s: store_record) (inst: moduleinst) (n: N) (off: s
       match lookup_N s.(s_mems) addr with
       | Some mem =>
         match store_packed mem n off (bits v) (tp_length tp) with
+        | Some mem' =>
+           Some (upd_s_mem s (set_nth mem' s.(s_mems) (N.to_nat addr) mem'))
+        | None => None
+        end
+      | None => None
+      end
+  | None => None
+  end.
+
+Definition smem_store_vec (s: store_record) (inst: moduleinst) (n: N) (v: value_vec) (marg: memarg) : option store_record :=
+  match lookup_N inst.(inst_mems) 0%N with
+  | Some addr =>
+      match lookup_N s.(s_mems) addr with
+      | Some mem =>
+        match store_vec mem n v marg with
         | Some mem' =>
            Some (upd_s_mem s (set_nth mem' s.(s_mems) (N.to_nat addr) mem'))
         | None => None
@@ -1324,6 +1354,70 @@ Definition cvtop_valid (t2: number_type) (op: cvtop) (t1: number_type) (s: optio
   ((op == CVO_demote) && (t2 == T_f32) && (t1 == T_f64) && (s == None)) ||
   ((op == CVO_promote) && (t2 == T_f64) && (t1 == T_f32) && (s == None)) ||
   ((op == CVO_reinterpret) && ((is_int_t t2 && is_float_t t1) || (is_float_t t2 && is_int_t t1)) && (s == None)).
+
+Program Fixpoint v128_extract_bytes (width dim: N) (v: SIMD.v128) {measure (N.to_nat dim)}: list bytes :=
+  match dim with
+  | 0%N => nil
+  | _ =>
+      let bytes := take width v in
+      let bytes_remaining := drop width v in
+      cons bytes (v128_extract_bytes width (N.pred dim) bytes_remaining)
+  end.
+Next Obligation.
+  by lias.
+Qed.
+
+Definition unpacked (sh: vshape) : number_type :=
+    match sh with
+    | VS_i VSI_64_2 => T_i64
+    | VS_i _ => T_i32
+    | VS_f VSF_64_2 => T_f64
+    | VS_f VSF_32_4 => T_f32
+    end.
+
+(* Extract values from a v128 *)
+Definition v128_extract_lanes (sh: vshape) (v: SIMD.v128) : list value_num :=
+  let byte_width := N.div (shape_width sh) 8%N in
+  let dim := shape_dim sh in
+  let v128_bytes_grouped := v128_extract_bytes byte_width dim v in
+  let vt := unpacked sh in
+  match sh with
+  | VS_f _ =>
+      map (fun bs => wasm_deserialise bs vt) v128_bytes_grouped
+  | VS_i VSI_64_2 =>
+      map (fun bs =>
+             let val_n := BinInt.Z.to_N (common.Memdata.decode_int bs) in
+             let val_z := sign_extend_n val_n byte_width in
+             VAL_int64 (Wasm_int.Int64.repr val_z)) v128_bytes_grouped
+  (* All the other shapes extract to Int32. *)
+  | VS_i _ =>
+      map (fun bs =>
+             let val_n := BinInt.Z.to_N (common.Memdata.decode_int bs) in
+             let val_z := sign_extend_n val_n byte_width in
+             VAL_int32 (Wasm_int.Int32.repr val_z)) v128_bytes_grouped
+  end.
+
+Definition v128_serialise (sh: vshape) (vs: list value_num) : SIMD.v128 :=
+  let value_bytes := map bits vs in
+  match sh with
+  | VS_f _
+  | VS_i VSI_64_2
+  | VS_i VSI_32_4 =>
+      List.concat (map bits vs)
+  (* i16x8 and i8x16 needs truncating bytes before merging. *)
+  | VS_i VSI_16_8 =>
+      List.concat (map (fun v => match v with
+                              | VAL_int32 vi => serialise_i16 vi
+                              | _ => nil
+                              end
+                     ) vs)
+  | VS_i VSI_8_16 =>
+      List.concat (map (fun v => match v with
+                              | VAL_int32 vi => serialise_i8 vi
+                              | _ => nil
+                              end
+                     ) vs)
+  end.
 
 End Operations.
 

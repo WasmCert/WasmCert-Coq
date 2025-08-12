@@ -45,6 +45,12 @@ Definition exact_byte (b : byte) {n} : byte_parser byte n :=
       else None)
     anyTok.
 
+Definition parse_u8_as_N {n} : byte_parser N n :=
+  guardM
+    (fun n => if (N.leb n 255%N) then Some n
+           else None)
+    (assert_sized (extract parse_unsigned n) (fun sz => N.leb sz 2)).
+
 Definition parse_u32_as_N {n} : byte_parser N n :=
   guardM
     (fun n => if (N.leb n 4294967295%N) then Some n
@@ -98,6 +104,9 @@ Definition parse_vec {B} {n} (f : byte_parser B n) : byte_parser (list B) n :=
   exact_byte x00 $> nil <|>
   (parse_vec_length >>= (fun k => parse_vec_aux f k)).
 
+Definition parse_16bytes {n} : byte_parser SIMD.v128 n :=
+  (fun bs => List.map compcert_byte_of_byte bs) <$> parse_vec_aux anyTok 16.
+
 Definition parse_f32 {n} : byte_parser Wasm_float.FloatSize32.T n :=
   (fun bs => Floats.Float32.of_bits (Integers.Int.repr (common.Memdata.decode_int (List.map compcert_byte_of_byte bs)))) <$> (parse_vec_aux anyTok 4%N).
 
@@ -131,6 +140,9 @@ Definition parse_elemidx {n} : byte_parser elemidx n :=
 
 Definition parse_dataidx {n} : byte_parser dataidx n :=
   parse_u32_as_N.
+
+Definition parse_laneidx {n} : byte_parser laneidx n :=
+  parse_u8_as_N.
 
 Definition parse_number_type {n} : byte_parser number_type n :=
   (exact_byte x7f $> T_i32) <|>
@@ -399,6 +411,52 @@ Definition parse_memory_copy {n} : byte_parser basic_instruction n :=
 Definition parse_memory_fill {n} : byte_parser basic_instruction n :=
   exact_byte xfc &> assert_u32 11%N &> ((fun _ => BI_memory_fill) <$> exact_byte x00).
 
+Definition parse_v128_load {n} : byte_parser basic_instruction n :=
+  assert_u32 0%N &> (BI_load_vec (LVA_none) <$> parse_memarg).
+
+Definition parse_v128_load_packed {n} : byte_parser basic_instruction n :=
+  assert_u32 1%N &> (BI_load_vec (LVA_packed (8%N, 8%N) SX_S) <$> parse_memarg) <|>
+  assert_u32 2%N &> (BI_load_vec (LVA_packed (8%N, 8%N) SX_U) <$> parse_memarg) <|>
+  assert_u32 3%N &> (BI_load_vec (LVA_packed (16%N, 4%N) SX_S) <$> parse_memarg) <|>
+  assert_u32 4%N &> (BI_load_vec (LVA_packed (16%N, 4%N) SX_U) <$> parse_memarg) <|>
+  assert_u32 5%N &> (BI_load_vec (LVA_packed (32%N, 2%N) SX_S) <$> parse_memarg) <|>
+  assert_u32 6%N &> (BI_load_vec (LVA_packed (32%N, 2%N) SX_U) <$> parse_memarg).
+
+Definition parse_v128_load_splat {n} : byte_parser basic_instruction n :=
+  assert_u32 7%N &> (BI_load_vec (LVA_splat 8%N) <$> parse_memarg) <|>
+  assert_u32 8%N &> (BI_load_vec (LVA_splat 16%N) <$> parse_memarg) <|>
+  assert_u32 9%N &> (BI_load_vec (LVA_splat 32%N) <$> parse_memarg) <|>
+  assert_u32 10%N &> (BI_load_vec (LVA_splat 64%N) <$> parse_memarg).
+
+Definition parse_v128_load_zero {n} : byte_parser basic_instruction n :=
+  assert_u32 92%N &> (BI_load_vec (LVA_zero 32%N) <$> parse_memarg) <|>
+  assert_u32 93%N &> (BI_load_vec (LVA_zero 64%N) <$> parse_memarg).
+
+Definition parse_v128_store {n} : byte_parser basic_instruction n :=
+  assert_u32 11%N &> (BI_store_vec <$> parse_memarg).
+
+Definition parse_v128_load_lane {n} : byte_parser basic_instruction n :=
+  assert_u32 84%N &> ((BI_load_vec_lane 8%N <$> parse_memarg) <*> parse_laneidx) <|>
+  assert_u32 85%N &> ((BI_load_vec_lane 16%N <$> parse_memarg) <*> parse_laneidx) <|>
+  assert_u32 86%N &> ((BI_load_vec_lane 32%N <$> parse_memarg) <*> parse_laneidx) <|>
+  assert_u32 87%N &> ((BI_load_vec_lane 64%N <$> parse_memarg) <*> parse_laneidx).
+
+Definition parse_v128_store_lane {n} : byte_parser basic_instruction n :=
+  assert_u32 88%N &> ((BI_store_vec_lane 8%N <$> parse_memarg) <*> parse_laneidx) <|>
+  assert_u32 89%N &> ((BI_store_vec_lane 16%N <$> parse_memarg) <*> parse_laneidx) <|>
+  assert_u32 90%N &> ((BI_store_vec_lane 32%N <$> parse_memarg) <*> parse_laneidx) <|>
+  assert_u32 91%N &> ((BI_store_vec_lane 64%N <$> parse_memarg) <*> parse_laneidx).
+             
+Definition parse_vector_memory_instruction {n} : byte_parser basic_instruction n :=
+  exact_byte xfd &>
+  (parse_v128_load <|>
+  parse_v128_load_packed <|>
+  parse_v128_load_splat <|>
+  parse_v128_load_zero <|>
+  parse_v128_store <|>
+  parse_v128_load_lane <|>
+  parse_v128_store_lane).
+
 Definition parse_memory_instruction {n} : byte_parser basic_instruction n :=
   parse_i32_load <|>
   parse_i64_load <|>
@@ -423,6 +481,7 @@ Definition parse_memory_instruction {n} : byte_parser basic_instruction n :=
   parse_i64_store8 <|>
   parse_i64_store16 <|>
   parse_i64_store32 <|>
+  parse_vector_memory_instruction <|>
   parse_memory_size <|>
   parse_memory_grow <|>
   parse_memory_init <|>
@@ -442,12 +501,16 @@ Definition parse_f32_const {n} : be_parser n :=
 Definition parse_f64_const {n} : be_parser n :=
   exact_byte x44 &> ((fun x => BI_const_num (VAL_float64 x)) <$> parse_f64).
 
+Definition parse_v128_const {n} : be_parser n :=
+  exact_byte xfd &> assert_u32 12%N &> ((fun x => BI_const_vec (VAL_vec128 x)) <$> parse_16bytes).
+
 (* :-( *)
 Definition parse_numeric_instruction {n} : be_parser n :=
   parse_i32_const <|>
   parse_i64_const <|>
   parse_f32_const <|>
   parse_f64_const <|>
+  parse_v128_const <|>
   exact_byte x45 $> BI_testop T_i32 TO_eqz <|>
   exact_byte x46 $> BI_relop T_i32 (Relop_i ROI_eq) <|>
   exact_byte x47 $> BI_relop T_i32 (Relop_i ROI_ne) <|>

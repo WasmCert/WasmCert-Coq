@@ -376,9 +376,12 @@ Definition pp_value_num (v : value_num) : string :=
   | VAL_float64 f => pp_number_type T_f64 ++ ".const " ++ with_fg FG_green (pp_f64 f) ++ newline
   end.
 
+Definition pp_v128 (v: SIMD.v128) : string :=
+  hex_small_no_prefix_of_bytes_compact (map byte_of_compcert_byte v).
+
 Definition pp_value_vec (v : value_vec) : string :=
   match v with
-  | VAL_vec128 t => pp_vector_type T_v128 ++ ".const" ++ with_fg FG_yellow " (unimplemented)" ++ newline
+  | VAL_vec128 bs => pp_vector_type T_v128 ++ ".const " ++ pp_v128 bs ++ newline
   end.
 
 Definition pp_value_ref (v : value_ref) : string :=
@@ -547,6 +550,9 @@ Definition pp_load_vec_lane (w: vwidth) (marg: memarg) (x: laneidx) :=
   "(not implemented)".
 
 (* store_vec_lane and load_vec uses the same args. Maybe it's better to find a new name *)
+Definition pp_store_vec (marg: memarg) :=
+  "(not implemented)".
+
 Definition pp_store_vec_lane (w: vwidth) (marg: memarg) (x: laneidx) :=
   "(not implemented)".
 
@@ -689,6 +695,8 @@ Fixpoint pp_basic_instruction (i : indentation) (be : basic_instruction) : strin
       indent i (pp_load_vec lvarg marg)
   | BI_load_vec_lane width marg lanex =>
       indent i (pp_load_vec_lane width marg lanex)
+  | BI_store_vec marg =>
+      indent i (pp_store_vec marg)
   | BI_store_vec_lane width marg lanex =>
       indent i (pp_store_vec_lane width marg lanex)
   end.
@@ -783,7 +791,6 @@ Definition pp_store (n : indentation) (s : store_record) : string :=
   indent n ("tables" ++ newline) ++
   pp_tables (n.+1) s.(s_tables).
 
-(* XXX disambiguate between cfg/res tuple with/without hs? *)
 Definition pp_config_tuple_except_store (cfg : store_record * frame * list administrative_instruction) : string :=
   let '(s, f, es) := cfg in
   pp_administrative_instructions_hint_empty 0 es ++
@@ -802,9 +809,9 @@ Definition pp_res_cfg_except_store {hs: host_state} {cfg: cfg_tuple_ctx} {d: N} 
   | RSC_trap _ _ _ =>
       "Trap" ++ newline
   | RSC_invalid _ =>
-      "Invalid context decomposition. This result should not be observed when invoking valid Wasm module functions without arguments. Please submit a bug report at GitHub/WasmCert-Coq." ++ newline
+      "Invalid context decomposition. This result should not be observed when invoking valid Wasm module functions. Please submit a bug report at GitHub/WasmCert-Coq." ++ newline
   | RSC_error _ =>
-      "Ill-typed input configuration. This result should not be observed when invoking valid Wasm module functions without arguments. Please submit a bug report at GitHub/WasmCert-Coq." ++ newline
+      "Ill-typed input configuration. This result should not be observed when invoking valid Wasm module functions. Please submit a bug report at GitHub/WasmCert-Coq." ++ newline
   end.
 
 End Host.

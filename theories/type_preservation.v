@@ -1287,6 +1287,51 @@ Proof.
     + by apply nth_error_Some_length in Hoption2; lias.
 Qed.
 
+Lemma smem_store_vec_extension: forall s f n v marg s' C mt,
+  store_typing s ->
+  smem_store_vec s (f_inst f) n v marg = Some s' ->
+  inst_typing s (f_inst f) = Some C -> 
+  lookup_N (tc_mems C) 0%N = Some mt ->
+  store_extension s s'.
+Proof.
+  move => s f n v marg s' C a Hst Hupd Hit Hnth.
+  unfold store_extension; unfold_store_operations => /=; resolve_store_extension; resolve_store_inst_lookup; remove_bools_options => /=.
+  rewrite Hnth in Hnthmt; injection Hnthmt as ->.
+  unfold store_vec in Hoption1.
+  destruct m0; simpl in *; remove_bools_options; simpl in *.
+  eapply component_extension_update; eauto; first by apply mem_extension_refl.
+  by apply mem_extension_refl.
+Qed.
+
+Lemma smem_store_vec_typing: forall s f n v marg s' C mt,
+  store_typing s ->
+  smem_store_vec s (f_inst f) n v marg = Some s' ->
+  inst_typing s (f_inst f) = Some C -> 
+  lookup_N (tc_mems C) 0%N = Some mt ->
+  store_typing s'.
+Proof.
+  move => s f n v marg s' C a Hst Hupd Hit Hnth.
+  assert (store_extension s s') as Hstext; first by eapply smem_store_vec_extension; eauto.
+  unfold_store_operations; remove_bools_options.
+  unfold store_vec in Hoption1.
+  resolve_store_inst_lookup; destruct m0; simpl in *; remove_bools_options; simpl in *.
+  rewrite Hnthmt in Hnth; injection Hnth as <-.
+  unfold store_typing in *; destruct s; simpl in *.
+  destruct Hst as [Hft [Htt [Hmt [Hgt [Het Hdt]]]]].
+  resolve_store_typing; simpl in *; clear Hft Htt Hgt Het Hdt.
+  apply List.Forall_forall.
+  move => x0 Hin.
+  apply set_nth_In in Hin.
+  destruct Hin as [-> | [m0 [Hneq Hnth']]] => //=.
+  - exists mt.
+    rewrite Hif.
+    resolve_if_true_eq.
+    by rewrite Hif0.
+  - eapply List.Forall_forall in Hmt; eauto.
+    + by apply List.nth_error_In in Hnth'.
+    + by apply nth_error_Some_length in Hoption2; lias.
+Qed.
+
 Lemma smem_store_vec_lane_extension: forall s f n v width marg x s' C mt,
   store_typing s ->
   smem_store_vec_lane s (f_inst f) n v width marg x = Some s' ->
@@ -1456,6 +1501,9 @@ Proof.
   - (* memory store_packed *)
     eapply smem_store_packed_extension; eauto.
     by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
+  - (* memory store_vec *)
+    eapply smem_store_vec_extension; eauto.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
   - (* memory store_vec_lane *)
     eapply smem_store_vec_lane_extension; eauto.
     by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
@@ -1510,7 +1558,10 @@ Proof.
   - (* memory store_packed *)
     eapply smem_store_packed_typing; eauto.
     by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
-  - (* memory store_vec_lane *)
+  - (* memory store_vec *)
+    eapply smem_store_vec_typing; eauto.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
+  - (* memory store_vec *)
     eapply smem_store_vec_lane_typing; eauto.
     by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
   - (* memory grow *)

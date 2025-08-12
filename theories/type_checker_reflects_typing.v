@@ -1380,6 +1380,8 @@ Proof.
     + by resolve_tc_be_typing.
     (* Store *)
     + by resolve_tc_be_typing.
+    (* Store_vec *)
+    + by resolve_tc_be_typing.
     (* Store_vec_lane *)
     + by resolve_tc_be_typing.
     (* Memory_size *)

@@ -564,6 +564,7 @@ Proof.
       (* BI_load_vec lvarg marg *) lvarg marg |
       (* BI_load_vec_lane width marg laneidx *) width marg x |
       (* BI_store t [Some tp|None] marg *) t op marg |
+      (* BI_store_vec marg *) marg |
       (* BI_store_vec_lane width marg laneidx *) width marg x |
       (* BI_memory_size *) |
       (* BI_memory_grow *) |
@@ -1266,6 +1267,18 @@ the condition that all values should live in the operand stack. *)
           resolve_reduce_ctx vs0 es0.
           by eapply r_store_failure; subst; eauto.
           
+    (* AI_basic (BI_store_vec marg) *)
+    - destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
+      assert_i32 v1.
+      assert_value_vec v2.
+      destruct (smem_store_vec s fc.(FC_frame).(f_inst) ($nou32 v1) v2 marg) as [s' | ] eqn:Hstore_vec.
+      - apply <<hs, (s', (fc, lcs) :: ccs', (vs0, es0), None), d>> => //.
+        resolve_reduce_ctx vs0 es0.
+        by eapply r_store_vec_success; subst; eauto.
+      - apply <<hs, (s, (fc, lcs) :: ccs', (vs0, es0), Some AI_trap), d>> => //.
+        resolve_reduce_ctx vs0 es0.
+        by eapply r_store_vec_failure; subst; eauto.
+        
     (* AI_basic (BI_store_vec_lane width marg x) *)
     - destruct vs0 as [|v2 [|v1 vs0]]; try by no_args.
       assert_i32 v1.

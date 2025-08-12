@@ -138,6 +138,9 @@ Definition binary_of_load_vec_lane (w: vwidth) (marg: memarg) (x: laneidx) :=
   xfd :: x0c :: (List.repeat x00 16).
 
 (* store_vec_lane and load_vec uses the same args. Maybe it's better to find a new name *)
+Definition binary_of_store_vec (marg: memarg) :=
+  xfd :: x0c :: (List.repeat x00 16).
+
 Definition binary_of_store_vec_lane (w: vwidth) (marg: memarg) (x: laneidx) :=
   xfd :: x0c :: (List.repeat x00 16).
 
@@ -405,6 +408,7 @@ Fixpoint binary_of_be (be : basic_instruction) : list byte :=
 
   | BI_load_vec lvarg marg => binary_of_load_vec lvarg marg
   | BI_load_vec_lane width marg lanex => binary_of_load_vec_lane width marg lanex
+  | BI_store_vec marg => binary_of_store_vec marg
   | BI_store_vec_lane width marg lanex => binary_of_store_vec_lane width marg lanex
   end.
 

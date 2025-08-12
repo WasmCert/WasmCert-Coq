@@ -3,7 +3,7 @@
     and https://webassembly.github.io/spec/core/exec/index.html **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
-From Wasm Require Export common numerics bytes memory.
+From Wasm Require Export common numerics bytes memory simd.
 From compcert Require common.Memdata.
 Require Import BinNat.
 
@@ -81,10 +81,9 @@ Inductive value_num : Type :=
 
 (* We are not implementing SIMD at the moment. *)
 Inductive value_vec : Set :=
-  | VAL_vec128: unit -> value_vec
+  | VAL_vec128: SIMD.v128 -> value_vec
 .
 
-(* TODO: Unicode support? *)
 Definition name := list Byte.byte.
 
 Section Types.
@@ -289,7 +288,14 @@ End Types.
 
 Definition static_offset := (* off *) u32. 
 
-Definition alignment_exponent := (* a *) u32. 
+Definition alignment_exponent := (* a *) u32.
+
+(* i8 and i16 are for v128 values *)
+Definition serialise_i8 (i : i32) : bytes :=
+  common.Memdata.encode_int 1%nat (numerics.Wasm_int.Int32.unsigned i).
+
+Definition serialise_i16 (i : i32) : bytes :=
+  common.Memdata.encode_int 2%nat (numerics.Wasm_int.Int32.unsigned i).
 
 Definition serialise_i32 (i : i32) : bytes :=
   common.Memdata.encode_int 4%nat (numerics.Wasm_int.Int32.unsigned i).
@@ -568,28 +574,20 @@ Inductive vshiftop : Set :=
   | VS_shr : sx -> vshiftop
   .
 
-Inductive vpacked_type :=
-  | Tptv_8_8
-  | Tptv_16_4
-  | Tptv_32_2
-.
+(* Available shapes: 8x8, 16x4, 32x2 *)
+Definition vpacked_type : Type := N * N.
 
-Inductive vzero_type :=
-  | Tztv_32
-  | Tztv_64
-.
+(* Available widths: 32, 64 *)
+Definition vzero_type := N.
 
-Inductive vwidth :=
-  | Twv_8
-  | Twv_16
-  | Twv_32
-  | Twv_64
-  .
+(* Available widths: 8, 16, 32, 64 *)
+Definition vwidth := N.
 
 Inductive load_vec_arg :=
-  | LVA_packed: vpacked_type -> sx -> load_vec_arg
-  | LVA_zero: vzero_type -> load_vec_arg
-  | LVA_splat: vwidth -> load_vec_arg
+  | LVA_packed: vpacked_type -> sx -> load_vec_arg (* v128.loadnxm_sx *)
+  | LVA_zero: vzero_type -> load_vec_arg (* v128.loadnn_zero *)
+  | LVA_splat: vwidth -> load_vec_arg (* v128.loadww_spat *)
+  | LVA_none (* v128.load *)
   .
 
 Record memarg : Set :=
@@ -668,6 +666,8 @@ Instructions in this group are concerned with linear memory.
   (* the lane version has a different type signature *)
   | BI_load_vec_lane : vwidth -> memarg -> laneidx -> basic_instruction
   | BI_store : number_type -> option packed_type -> memarg -> basic_instruction
+  (* v128.store *)
+  | BI_store_vec : memarg -> basic_instruction
   | BI_store_vec_lane : vwidth -> memarg -> laneidx -> basic_instruction
   | BI_memory_size
   | BI_memory_grow

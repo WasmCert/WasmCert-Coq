@@ -527,6 +527,14 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
     smem_store_packed s f.(f_inst) (Wasm_int.N_of_uint i32m k) marg.(memarg_offset) v tp = None ->
     typeof_num v = t ->
     reduce hs s f [::$VN (VAL_int32 k); $VN v; AI_basic (BI_store t (Some tp) marg)] hs s f [::AI_trap]
+| r_store_vec_success :
+  forall s s' f marg k v hs,
+    smem_store_vec s f.(f_inst) (Wasm_int.N_of_uint i32m k) v marg = Some s' ->
+    reduce hs s f [::$VN (VAL_int32 k); $VV v; AI_basic (BI_store_vec marg)] hs s' f [::]
+| r_store_vec_failure :
+  forall s f marg k v hs,
+    smem_store_vec s f.(f_inst) (Wasm_int.N_of_uint i32m k) v marg = None ->
+    reduce hs s f [::$VN (VAL_int32 k); $VV v; AI_basic (BI_store_vec marg)] hs s f [::AI_trap]
 | r_store_vec_lane_success :
   forall s s' f width marg x k v hs,
     smem_store_vec_lane s f.(f_inst) (Wasm_int.N_of_uint i32m k) v width marg x = Some s' ->
