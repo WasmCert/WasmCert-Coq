@@ -80,7 +80,7 @@ module type InterpreterType = sig
   val get_exports : frame -> (string * externval) list
 
   (** Parsing. *)
-  val run_parse_module : string -> Extract.module0 option
+  val run_parse_module_str : string -> Extract.module0 option
 
   val run_parse_arg : string -> Extract.value0 option
 

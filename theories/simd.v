@@ -58,3 +58,16 @@ Qed.
 End SIMD.
 
 Module Export simd_export := SIMD.
+
+Program Fixpoint v128_extract_bytes (width dim: N) (v: SIMD.v128) {measure (N.to_nat dim)}: list bytes :=
+  match dim with
+  | 0%N => nil
+  | _ =>
+      let bytes := take width v in
+      let bytes_remaining := drop width v in
+      cons bytes (v128_extract_bytes width (N.pred dim) bytes_remaining)
+  end.
+Next Obligation.
+  by lias.
+Qed.
+

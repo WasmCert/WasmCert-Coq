@@ -70,7 +70,7 @@ Inductive reduce_simple : seq administrative_instruction -> seq administrative_i
     reduce_simple [:: $VV v1; $VV v2; $VV v3; AI_basic (BI_vternop op)] [::$VV (app_vternop op v1 v2 v3)]
   | rs_vtestop: 
     forall v1 op,
-    reduce_simple [:: $VV v1; AI_basic (BI_vtestop op)] [::$VN (VAL_int32 (wasm_bool (app_vtestop op v1)))]
+    reduce_simple [:: $VV v1; AI_basic (BI_vtestop op)] [::$VN (app_vtestop op v1)]
   | rs_vshiftop: 
     forall v1 v2 op,
     reduce_simple [:: $VV v1; $VN (VAL_int32 v2); AI_basic (BI_vshiftop op)] [::$VV app_vshiftop op v1 v2]

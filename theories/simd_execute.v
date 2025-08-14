@@ -12,7 +12,10 @@ Module SIMD_ops.
 Parameter app_vunop_str : vunop -> string -> string.
 Parameter app_vbinop_str : vbinop -> string -> string -> string.
 Parameter app_vternop_str : vternop -> string -> string -> string -> string.
-  
+Parameter app_vtestop_str : vtestop -> string -> string.
+Parameter app_vshiftop_str : vtestop -> string -> string -> string.
+
 End SIMD_ops.
 
 Module Export simd_ops_export := SIMD_ops.
+

@@ -541,45 +541,21 @@ Definition encode_vec (v: value_vec) : String.string :=
 Definition decode_vec (s: String.string) : value_vec :=
   VAL_vec128 (decode_v128 s).
 
-Definition app_vunop (op: vunop) (v1: value_vec) : value_vec :=
-  decode_vec (app_vunop_str op (encode_vec v1)).
+Definition encode_i32 (v: i32) : String.string :=
+  let bs := List.map byte_of_compcert_byte (serialise_i32 v) in
+  String.string_of_list_byte bs.
 
-Definition app_vbinop (op: vbinop) (v1: value_vec) (v2: value_vec) : value_vec :=
-  let v1e := encode_vec v1 in
-  let v2e := encode_vec v2 in
-  decode_vec (app_vbinop_str op v1e v2e).
+Definition decode_i32 (s: String.string) : i32 :=
+  let bs := List.map compcert_byte_of_byte (String.list_byte_of_string s) in
+  Wasm_int.Int32.repr (Memdata.decode_int bs).
 
-Definition app_vternop (op: vternop) (v1: value_vec) (v2: value_vec) (v3: value_vec) : value_vec :=
-  let v1e := encode_vec v1 in
-  let v2e := encode_vec v2 in
-  let v3e := encode_vec v3 in
-  decode_vec (app_vternop_str op v1e v2e v3e).
-
-Definition app_vtestop (op: vtestop) (v1: value_vec) : bool :=
-  true.
-
-Definition app_vshiftop (op: vshiftop) (v1: value_vec) (v2: i32) : value_vec :=
-  v1.
-
-Definition app_splat_vec (sh: vshape) (v1: value_num) : value_vec :=
-  VAL_vec128 SIMD.v128_default.
-
-Definition app_extract_vec (sh: vshape) (s: option sx) (n: laneidx) (v1: value_vec) : value_num :=
-  match sh with
-  | VS_i vsi =>
-      match vsi with
-      | VSI_64_2 => bitzero T_i64
-      | _ => bitzero T_i32
-      end
-  | VS_f vsf =>
-      match vsf with
-      | VSF_32_4 => bitzero T_f32
-      | VSF_64_2 => bitzero T_f64
-      end
-  end.
-
-Definition app_replace_vec (sh: vshape) (n: laneidx) (v1: value_vec) (v2: value_num) : value_vec :=
-  v1.
+Definition unpacked (sh: vshape) : number_type :=
+    match sh with
+    | VS_i VSI_64_2 => T_i64
+    | VS_i _ => T_i32
+    | VS_f VSF_64_2 => T_f64
+    | VS_f VSF_32_4 => T_f32
+    end.
 
 Definition shape_width (sh: vshape) : N :=
   match sh with
@@ -619,6 +595,103 @@ Lemma shape_width_dim_match:
 Proof.
   by destruct sh as [[] | []].
 Qed.
+
+(* Extract values from a v128 *)
+Definition v128_extract_lanes_n (sh: vshape) (v: SIMD.v128) : list N :=
+  let byte_width := N.div (shape_width sh) 8%N in
+  let dim := shape_dim sh in
+  let v128_bytes_grouped := v128_extract_bytes byte_width dim v in
+  let vt := unpacked sh in
+  map (fun bs =>
+         BinInt.Z.to_N (common.Memdata.decode_int bs)) v128_bytes_grouped.
+
+(* Extract values from a v128 *)
+Definition v128_extract_lanes (sh: vshape) (v: SIMD.v128) : list value_num :=
+  let byte_width := N.div (shape_width sh) 8%N in
+  let dim := shape_dim sh in
+  let v128_bytes_grouped := v128_extract_bytes byte_width dim v in
+  let vt := unpacked sh in
+  match sh with
+  | VS_f _ =>
+      map (fun bs => wasm_deserialise bs vt) v128_bytes_grouped
+  | VS_i VSI_64_2 =>
+      map (fun bs =>
+             let val_n := BinInt.Z.to_N (common.Memdata.decode_int bs) in
+             let val_z := sign_extend_n val_n byte_width in
+             VAL_int64 (Wasm_int.Int64.repr val_z)) v128_bytes_grouped
+  (* All the other shapes extract to Int32. *)
+  | VS_i _ =>
+      map (fun bs =>
+             let val_n := BinInt.Z.to_N (common.Memdata.decode_int bs) in
+             let val_z := sign_extend_n val_n byte_width in
+             VAL_int32 (Wasm_int.Int32.repr val_z)) v128_bytes_grouped
+  end.
+
+Definition v128_serialise (sh: vshape) (vs: list value_num) : SIMD.v128 :=
+  let value_bytes := map bits vs in
+  match sh with
+  | VS_f _
+  | VS_i VSI_64_2
+  | VS_i VSI_32_4 =>
+      List.concat (map bits vs)
+  (* i16x8 and i8x16 needs truncating bytes before merging. *)
+  | VS_i VSI_16_8 =>
+      List.concat (map (fun v => match v with
+                              | VAL_int32 vi => serialise_i16 vi
+                              | _ => nil
+                              end
+                     ) vs)
+  | VS_i VSI_8_16 =>
+      List.concat (map (fun v => match v with
+                              | VAL_int32 vi => serialise_i8 vi
+                              | _ => nil
+                              end
+                     ) vs)
+  end.
+
+Definition app_vunop (op: vunop) (v1: value_vec) : value_vec :=
+  decode_vec (app_vunop_str op (encode_vec v1)).
+
+Definition app_vbinop (op: vbinop) (v1: value_vec) (v2: value_vec) : value_vec :=
+  let v1e := encode_vec v1 in
+  let v2e := encode_vec v2 in
+  decode_vec (app_vbinop_str op v1e v2e).
+
+Definition app_vternop (op: vternop) (v1: value_vec) (v2: value_vec) (v3: value_vec) : value_vec :=
+  let v1e := encode_vec v1 in
+  let v2e := encode_vec v2 in
+  let v3e := encode_vec v3 in
+  decode_vec (app_vternop_str op v1e v2e v3e).
+
+Definition app_vtestop (op: vtestop) (v1: value_vec) : value_num :=
+  let v1e := encode_vec v1 in
+  let bs := decode_v128 (app_vtestop_str op v1e) in
+  wasm_deserialise bs T_i32.
+
+Definition app_vshiftop (op: vshiftop) (v1: value_vec) (v2: i32) : value_vec :=
+  let v1e := encode_vec v1 in
+  let v2e := encode_i32 v2 in
+  decode_vec (app_vshiftop_str op v1e v2e).
+
+Definition app_splat_vec (sh: vshape) (v1: value_num) : value_vec :=
+  VAL_vec128 SIMD.v128_default.
+
+Definition app_extract_vec (sh: vshape) (s: option sx) (n: laneidx) (v1: value_vec) : value_num :=
+  match sh with
+  | VS_i vsi =>
+      match vsi with
+      | VSI_64_2 => bitzero T_i64
+      | _ => bitzero T_i32
+      end
+  | VS_f vsf =>
+      match vsf with
+      | VSF_32_4 => bitzero T_f32
+      | VSF_64_2 => bitzero T_f64
+      end
+  end.
+
+Definition app_replace_vec (sh: vshape) (n: laneidx) (v1: value_vec) (v2: value_num) : value_vec :=
+  v1.
 
 
 Definition rglob_is_mut (g : module_global) : bool :=
@@ -1367,70 +1440,6 @@ Definition cvtop_valid (t2: number_type) (op: cvtop) (t1: number_type) (s: optio
   ((op == CVO_demote) && (t2 == T_f32) && (t1 == T_f64) && (s == None)) ||
   ((op == CVO_promote) && (t2 == T_f64) && (t1 == T_f32) && (s == None)) ||
   ((op == CVO_reinterpret) && ((is_int_t t2 && is_float_t t1) || (is_float_t t2 && is_int_t t1)) && (s == None)).
-
-Program Fixpoint v128_extract_bytes (width dim: N) (v: SIMD.v128) {measure (N.to_nat dim)}: list bytes :=
-  match dim with
-  | 0%N => nil
-  | _ =>
-      let bytes := take width v in
-      let bytes_remaining := drop width v in
-      cons bytes (v128_extract_bytes width (N.pred dim) bytes_remaining)
-  end.
-Next Obligation.
-  by lias.
-Qed.
-
-Definition unpacked (sh: vshape) : number_type :=
-    match sh with
-    | VS_i VSI_64_2 => T_i64
-    | VS_i _ => T_i32
-    | VS_f VSF_64_2 => T_f64
-    | VS_f VSF_32_4 => T_f32
-    end.
-
-(* Extract values from a v128 *)
-Definition v128_extract_lanes (sh: vshape) (v: SIMD.v128) : list value_num :=
-  let byte_width := N.div (shape_width sh) 8%N in
-  let dim := shape_dim sh in
-  let v128_bytes_grouped := v128_extract_bytes byte_width dim v in
-  let vt := unpacked sh in
-  match sh with
-  | VS_f _ =>
-      map (fun bs => wasm_deserialise bs vt) v128_bytes_grouped
-  | VS_i VSI_64_2 =>
-      map (fun bs =>
-             let val_n := BinInt.Z.to_N (common.Memdata.decode_int bs) in
-             let val_z := sign_extend_n val_n byte_width in
-             VAL_int64 (Wasm_int.Int64.repr val_z)) v128_bytes_grouped
-  (* All the other shapes extract to Int32. *)
-  | VS_i _ =>
-      map (fun bs =>
-             let val_n := BinInt.Z.to_N (common.Memdata.decode_int bs) in
-             let val_z := sign_extend_n val_n byte_width in
-             VAL_int32 (Wasm_int.Int32.repr val_z)) v128_bytes_grouped
-  end.
-
-Definition v128_serialise (sh: vshape) (vs: list value_num) : SIMD.v128 :=
-  let value_bytes := map bits vs in
-  match sh with
-  | VS_f _
-  | VS_i VSI_64_2
-  | VS_i VSI_32_4 =>
-      List.concat (map bits vs)
-  (* i16x8 and i8x16 needs truncating bytes before merging. *)
-  | VS_i VSI_16_8 =>
-      List.concat (map (fun v => match v with
-                              | VAL_int32 vi => serialise_i16 vi
-                              | _ => nil
-                              end
-                     ) vs)
-  | VS_i VSI_8_16 =>
-      List.concat (map (fun v => match v with
-                              | VAL_int32 vi => serialise_i8 vi
-                              | _ => nil
-                              end
-                     ) vs)
-  end.
 
 End Operations.
 

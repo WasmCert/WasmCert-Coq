@@ -733,7 +733,7 @@ the condition that all values should live in the operand stack. *)
     (* AI_basic BI_vtestop tv *)
     - destruct vs0 as [|v vs0]; first by no_args.
       assert_value_vec v.
-      apply <<hs, (s, (fc,lcs) :: ccs', (VAL_num (VAL_int32 (wasm_bool (app_vtestop op v))) :: vs0, es0), None), d>> => //.
+      apply <<hs, (s, (fc,lcs) :: ccs', (VAL_num (app_vtestop op v) :: vs0, es0), None), d>> => //.
       resolve_reduce_ctx vs0 es0.
       by apply r_simple, rs_vtestop.
       

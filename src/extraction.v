@@ -43,10 +43,12 @@ Extract Constant memory_vec.arr_copy => "Parray.copy".
 Extract Constant SIMD_ops.app_vunop_str => "SIMD_ops.app_vunop_str".
 Extract Constant SIMD_ops.app_vbinop_str => "SIMD_ops.app_vbinop_str".
 Extract Constant SIMD_ops.app_vternop_str => "SIMD_ops.app_vternop_str".
+Extract Constant SIMD_ops.app_vtestop_str => "SIMD_ops.app_vtestop_str".
+Extract Constant SIMD_ops.app_vshiftop_str => "SIMD_ops.app_vshiftop_str".
 
 Extraction "extract"
   EfficientExtraction
-  run_parse_module
+  run_parse_module_str
   run_parse_arg
   Extraction_instance
   .

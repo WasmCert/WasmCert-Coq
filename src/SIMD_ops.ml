@@ -1,3 +1,5 @@
+(* Invoke the reference eval functions corresponding to the binary encodings (from parsing). *)
+
 open Wasm.V128
 
 let app_vunop_str op v =
@@ -210,3 +212,70 @@ let app_vternop_str op v1 v2 v3 =
     | _ -> assert false
   in
   to_bits (wasm_f v1w v2w v3w)
+
+let encode_bool b = 
+  if b then "\x01" else "\x00"
+
+let decode_int32 s = 
+  if String.length s < 4 then invalid_arg "int32_of_le_string: need at least 4 bytes";
+  let b0 = Char.code s.[0] in
+  let b1 = Char.code s.[1] in
+  let b2 = Char.code s.[2] in
+  let b3 = Char.code s.[3] in
+  let open Int32 in
+  logor (of_int b0)
+    (logor (shift_left (of_int b1) 8)
+      (logor (shift_left (of_int b2) 16)
+             (shift_left (of_int b3) 24)))
+
+let encode_int32 x =
+  let open Int32 in
+  String.init 4 (function
+    | 0 -> Char.chr (to_int (logand x 0xFFl))
+    | 1 -> Char.chr (to_int (logand (shift_right x 8) 0xFFl))
+    | 2 -> Char.chr (to_int (logand (shift_right x 16) 0xFFl))
+    | 3 -> Char.chr (to_int (logand (shift_right x 24) 0xFFl))
+    | _ -> assert false)
+
+let app_vtestop_str op v1 =
+  let v1w = of_bits v1 in
+  let op_i = Utils.int_of_z op in
+  match op_i with
+  | 83 -> encode_bool (I8x16.any_true v1w)
+
+  | 99 -> encode_bool (I8x16.all_true v1w)
+  | 131 -> encode_bool (I16x8.all_true v1w)
+  | 163 -> encode_bool (I32x4.all_true v1w)
+  | 195 -> encode_bool (I64x2.all_true v1w)
+
+  | 100 -> encode_int32 (I8x16.bitmask v1w)
+  | 132 -> encode_int32 (I16x8.bitmask v1w)
+  | 164 -> encode_int32 (I32x4.bitmask v1w)
+  | 196 -> encode_int32 (I64x2.bitmask v1w)
+
+  | _ -> assert false
+
+let app_vshiftop_str op v1 v2 =
+  let v1w = of_bits v1 in
+  let v2w = decode_int32 v2 in
+  let wasm_f = 
+    match Utils.int_of_z op with
+    | 107 -> I8x16.shl
+    | 108 -> I8x16.shr_s
+    | 109 -> I8x16.shr_u
+
+    | 139 -> I16x8.shl
+    | 140 -> I16x8.shr_s
+    | 141 -> I16x8.shr_u
+
+    | 171 -> I32x4.shl
+    | 172 -> I32x4.shr_s
+    | 173 -> I32x4.shr_u
+
+    | 203 -> I64x2.shl
+    | 204 -> I64x2.shr_s
+    | 205 -> I64x2.shr_u
+
+    | _ -> assert false
+  in
+  to_bits (wasm_f v1w v2w)

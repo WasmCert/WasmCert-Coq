@@ -75,22 +75,6 @@ Proof.
   - (* Cvtop *)
     erewrite eval_cvt_type_preserve; eauto.
     by resolve_subtyping.
-  - (* vunop *)
-    replace (typeof_vec (app_vunop op v)) with (typeof_vec v); last by destruct (app_vunop op v).
-    rewrite H0.
-    by resolve_subtyping.
-  - (* vbinop *)
-    replace (typeof_vec (app_vbinop op v1 v2)) with (typeof_vec v1); last by destruct (app_vbinop op v1 v2).
-    rewrite H0.
-    by resolve_subtyping.
-  - (* vternop *)
-    replace (typeof_vec (app_vternop op v1 v2 v3)) with (typeof_vec v1); last by destruct (app_vternop op v1 v2 v3).
-    rewrite H0.
-    by resolve_subtyping.
-  - (* vshiftop *)
-    replace (typeof_vec (app_vshiftop op v1 v2)) with (typeof_vec v1); last by destruct op, v1, v2.
-    rewrite H0.
-    by resolve_subtyping.
   - (* Extract_vec *)
     replace (typeof_num (app_extract_vec sh sx x v1)) with (typeof_shape_unpacked sh); last by destruct sh as [[] | []].
     by resolve_subtyping.

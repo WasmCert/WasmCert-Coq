@@ -73,7 +73,7 @@ module type InterpreterType = sig
   val get_import_path: Extract.module0 -> (string * string) list
   val get_exports : frame -> (string * externval) list
 
-  val run_parse_module : string -> Extract.module0 option
+  val run_parse_module_str : string -> Extract.module0 option
   val run_parse_arg : string -> value option
 
   val pp_values : value list -> string
@@ -154,7 +154,7 @@ functor (EH : Host) -> struct
     let exps = Extraction_instance.get_exports f in
     List.map (fun exp -> let (n, v) = exp in (n, v)) exps
 
-  let run_parse_module m = Extract.run_parse_module m
+  let run_parse_module_str m = Extract.run_parse_module_str m
 
   let run_parse_arg a = Extract.run_parse_arg a
 

@@ -582,7 +582,7 @@ Definition opcode_is_unop (n: N) : bool :=
     (* f64x2 *)
     ((n >= 116) && (n <= 117)) ||
     (n == 122) ||
-    (n == 248) ||
+    (n == 148) ||
     (n == 236) ||
     (n == 237) ||
     (n == 239) ||
@@ -623,7 +623,9 @@ Definition opcode_is_ternop (n: N) : bool :=
   (n == 82).
 
 Definition opcode_is_testop (n: N) : bool :=
+  (* all_true *)
   (n == 83) ||
+  (* any_true / bitmask *)
     (n == 99) || (n == 100) ||
     (n == 131) || (n == 132) ||
     (n == 163) || (n == 164) ||
@@ -1386,5 +1388,8 @@ Definition run_parse_expr (bs : list byte) : option (list basic_instruction) :=
 Definition run_parse_bes (bs : list byte) : option (list basic_instruction) :=
   run_parse_expr (bs ++ (x0b :: nil)).
 
-Definition run_parse_module (s : String.string) : option module :=
-  run (String.list_byte_of_string s) (fun n => parse_module).
+Definition run_parse_module (bs: list byte) : option module :=
+  run bs (fun n => parse_module).
+
+Definition run_parse_module_str (s : String.string) : option module :=
+  run_parse_module (String.list_byte_of_string s).
