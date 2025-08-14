@@ -4,8 +4,52 @@ let app_vunop_str op v =
   let vw = of_bits v in
   let wasm_f = 
     match Utils.int_of_z op with
+    | 77 -> V1x128.lognot
+    | 96 -> I8x16.abs
+    | 97 -> I8x16.neg
+    | 98 -> I8x16.popcnt
+    | 103 -> F32x4.ceil
+    | 104 -> F32x4.floor
+    | 105 -> F32x4.trunc
+    | 106 -> F32x4.nearest
+
+    | 116 -> F64x2.ceil
+    | 117 -> F64x2.floor
+    | 122 -> F64x2.trunc
+  
+    | 124 -> I16x8_convert.extadd_pairwise_s
+    | 125 -> I16x8_convert.extadd_pairwise_u
+
+    | 126 -> I32x4_convert.extadd_pairwise_s
+    | 127 -> I32x4_convert.extadd_pairwise_u
+
+    | 128 -> I16x8.abs
+    | 129 -> I16x8.neg
+    | 135 -> I16x8_convert.extend_low_s
+    | 136 -> I16x8_convert.extend_high_s
+    | 137 -> I16x8_convert.extend_low_u
+    | 138 -> I16x8_convert.extend_high_u
+
+    | 148 -> F64x2.nearest
+
     | 160 -> I32x4.abs
     | 161 -> I32x4.neg
+    | 167 -> I32x4_convert.extend_low_s
+    | 168 -> I32x4_convert.extend_high_s
+    | 169 -> I32x4_convert.extend_low_u
+    | 170 -> I32x4_convert.extend_high_u
+
+    | 192 -> I64x2.abs
+    | 193 -> I64x2.neg
+    | 199 -> I64x2_convert.extend_low_s
+    | 200 -> I64x2_convert.extend_high_s
+    | 201 -> I64x2_convert.extend_low_u
+    | 202 -> I64x2_convert.extend_high_u
+
+    | 224 -> F32x4.abs
+    | 225 -> F32x4.neg
+    | 227 -> F32x4.sqrt
+
     | 248 -> I32x4_convert.trunc_sat_f32x4_s
     | 249 -> I32x4_convert.trunc_sat_f32x4_u
     | 250 -> F32x4_convert.convert_i32x4_s
@@ -26,6 +70,27 @@ let app_vbinop_str op_args v1 v2 =
   let v2w = of_bits v2 in
   let wasm_f = 
     match Utils.int_of_z op with
+    | 14 -> V8x16.swizzle
+    | 35 -> I8x16.eq
+    | 36 -> I8x16.ne
+    | 37 -> I8x16.lt_s
+    | 38 -> I8x16.lt_u
+    | 39 -> I8x16.gt_s
+    | 40 -> I8x16.gt_u
+    | 41 -> I8x16.le_s
+    | 42 -> I8x16.le_u
+    | 43 -> I8x16.ge_s
+    | 44 -> I8x16.ge_u
+    | 45 -> I16x8.eq
+    | 46 -> I16x8.ne
+    | 47 -> I16x8.lt_s
+    | 48 -> I16x8.lt_u
+    | 49 -> I16x8.gt_s
+    | 50 -> I16x8.gt_u
+    | 51 -> I16x8.le_s
+    | 52 -> I16x8.le_u
+    | 53 -> I16x8.ge_s
+    | 54 -> I16x8.ge_u
     | 55 -> I32x4.eq
     | 56 -> I32x4.ne
     | 57 -> I32x4.lt_s
@@ -36,6 +101,54 @@ let app_vbinop_str op_args v1 v2 =
     | 62 -> I32x4.le_u
     | 63 -> I32x4.ge_s
     | 64 -> I32x4.ge_u
+    | 65 -> F32x4.eq
+    | 66 -> F32x4.ne
+    | 67 -> F32x4.lt
+    | 68 -> F32x4.gt
+    | 69 -> F32x4.le
+    | 70 -> F32x4.ge
+    | 71 -> F64x2.eq
+    | 72 -> F64x2.ne
+    | 73 -> F64x2.lt
+    | 74 -> F64x2.gt
+    | 75 -> F64x2.le
+    | 76 -> F64x2.ge
+    | 78 -> V1x128.and_
+    | 79 -> V1x128.andnot
+    | 80 -> V1x128.or_
+    | 81 -> V1x128.xor
+    | 101 -> I8x16_convert.narrow_s
+    | 102 -> I8x16_convert.narrow_u
+    | 110 -> I8x16.add
+    | 111 -> I8x16.add_sat_s
+    | 112 -> I8x16.add_sat_u
+    | 113 -> I8x16.sub
+    | 114 -> I8x16.sub_sat_u
+    | 115 -> I8x16.sub_sat_u
+    | 118 -> I8x16.min_s
+    | 119 -> I8x16.min_u
+    | 120 -> I8x16.max_s
+    | 121 -> I8x16.max_u
+    | 123 -> I8x16.avgr_u
+    | 130 -> I16x8.q15mulr_sat_s
+    | 133 -> I16x8_convert.narrow_s
+    | 134 -> I16x8_convert.narrow_u
+    | 142 -> I16x8.add
+    | 143 -> I16x8.add_sat_s
+    | 144 -> I16x8.add_sat_u
+    | 145 -> I16x8.sub
+    | 146 -> I16x8.sub_sat_u
+    | 147 -> I16x8.sub_sat_u
+    | 149 -> I16x8.mul
+    | 150 -> I16x8.min_s
+    | 151 -> I16x8.min_u
+    | 152 -> I16x8.max_s
+    | 153 -> I16x8.max_u
+    | 155 -> I16x8.avgr_u
+    | 156 -> I16x8_convert.extmul_low_s
+    | 157 -> I16x8_convert.extmul_high_s
+    | 158 -> I16x8_convert.extmul_low_u
+    | 159 -> I16x8_convert.extmul_high_u
     | 174 -> I32x4.add
     | 177 -> I32x4.sub
     | 181 -> I32x4.mul
@@ -43,11 +156,46 @@ let app_vbinop_str op_args v1 v2 =
     | 183 -> I32x4.min_u
     | 184 -> I32x4.max_s
     | 185 -> I32x4.max_u
+    | 186 -> I32x4_convert.dot_s
     | 188 -> I32x4_convert.extmul_low_s
     | 189 -> I32x4_convert.extmul_high_s
     | 190 -> I32x4_convert.extmul_low_u
     | 191 -> I32x4_convert.extmul_high_u
+
     | 206 -> I64x2.add
+    | 209 -> I64x2.sub
+    | 213 -> I64x2.mul
+
+    | 214 -> I64x2.eq
+    | 215 -> I64x2.ne
+    | 216 -> I64x2.lt_s
+    | 217 -> I64x2.gt_s
+    | 218 -> I64x2.le_s
+    | 219 -> I64x2.ge_s
+
+    | 220 -> I64x2_convert.extmul_low_s
+    | 221 -> I64x2_convert.extmul_high_s
+    | 222 -> I64x2_convert.extmul_low_u
+    | 223 -> I64x2_convert.extmul_high_u
+
+    | 228 -> F32x4.add
+    | 229 -> F32x4.sub
+    | 230 -> F32x4.mul
+    | 231 -> F32x4.div
+    | 232 -> F32x4.min
+    | 233 -> F32x4.max
+    | 234 -> F32x4.pmin
+    | 235 -> F32x4.pmax
+
+    | 240 -> F64x2.add
+    | 241 -> F64x2.sub
+    | 242 -> F64x2.mul
+    | 243 -> F64x2.div
+    | 244 -> F64x2.min
+    | 245 -> F64x2.max
+    | 246 -> F64x2.pmin
+    | 247 -> F64x2.pmax
+
     | _ -> assert false
   in
   to_bits (wasm_f v1w v2w)
