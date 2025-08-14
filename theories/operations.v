@@ -3,7 +3,7 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From compcert Require Floats.
-From Wasm Require Export common memory datatypes_properties list_extra.
+From Wasm Require Export common memory datatypes_properties list_extra simd_execute.
 From Coq Require Import BinNat.
 
 Set Implicit Arguments.
@@ -533,14 +533,27 @@ Definition app_relop (op: relop) (v1: value_num) (v2: value_num) :=
     end
   end.
 
+Definition encode_vec (v: value_vec) : String.string :=
+  match v with
+  | VAL_vec128 vv => encode_v128 vv
+  end.
+
+Definition decode_vec (s: String.string) : value_vec :=
+  VAL_vec128 (decode_v128 s).
+
 Definition app_vunop (op: vunop) (v1: value_vec) : value_vec :=
-  v1.
+  decode_vec (app_vunop_str op (encode_vec v1)).
 
-Definition app_vbinop (op: vbinop) (v1 v2: value_vec) : value_vec :=
-  v1.
+Definition app_vbinop (op: vbinop) (v1: value_vec) (v2: value_vec) : value_vec :=
+  let v1e := encode_vec v1 in
+  let v2e := encode_vec v2 in
+  decode_vec (app_vbinop_str op v1e v2e).
 
-Definition app_vternop (op: vternop) (v1 v2 v3: value_vec) : value_vec :=
-  v1.
+Definition app_vternop (op: vternop) (v1: value_vec) (v2: value_vec) (v3: value_vec) : value_vec :=
+  let v1e := encode_vec v1 in
+  let v2e := encode_vec v2 in
+  let v3e := encode_vec v3 in
+  decode_vec (app_vternop_str op v1e v2e v3e).
 
 Definition app_vtestop (op: vtestop) (v1: value_vec) : bool :=
   true.

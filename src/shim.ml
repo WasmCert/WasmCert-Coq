@@ -131,7 +131,7 @@ functor (EH : Host) -> struct
 
   (** Run one step of the interpreter. *)
   let run_one_step cfg d = 
-    Extraction_instance.run_one_step cfg (Convert.to_n d)
+    Extraction_instance.run_one_step cfg (Convert.z_of_int d)
 
   let run_v_init = Extraction_instance.run_v_init
 
@@ -172,7 +172,7 @@ functor (EH : Host) -> struct
     
 (* Depth doesn't matter for pretty printing cfg *)
   let pp_res_cfg_except_store cfg res =
-    Utils.implode (Extraction_instance.pp_res_cfg_except_store cfg Extract.N0 res)
+    Utils.implode (Extraction_instance.pp_res_cfg_except_store cfg (Convert.z_of_int 0) res)
 
   let pp_es es =
     Utils.implode (Extraction_instance.pp_administrative_instructions O es)

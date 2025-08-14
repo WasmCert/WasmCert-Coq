@@ -46,7 +46,7 @@ let wasm_val_to_string wval =
   match wval.it with
   | Num num -> Some (wasm_num_to_hexstring num)
   | Ref ref -> Some (wasm_ref_to_string ref)
-  | Vec vec -> 
+  | Vec _vec -> 
     (* Wasm ref interpreter always prints v128 as I32x4. *)
     let vec_string = "v128.const i32x4 " ^ string_of_value wval.it in
     (* Printf.printf "%s" vec_string; *)

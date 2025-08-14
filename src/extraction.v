@@ -2,6 +2,12 @@
 
 From Coq Require Extraction.
 From Coq Require PArray.
+From Coq Require Import
+  extraction.ExtrOcamlBasic
+  extraction.ExtrOcamlString
+  extraction.ExtrOcamlZBigInt
+  ExtrOCamlInt63
+.
 
 From Wasm Require Import
   efficient_extraction
@@ -13,14 +19,11 @@ From Wasm Require Import
   type_checker
   pp
   host
+  simd_execute
   extraction_instance
 .
 
-From Coq Require Import
-  extraction.ExtrOcamlBasic
-  extraction.ExtrOcamlString
-  ExtrOCamlInt63
-.
+Require Import compcert.lib.Integers.
 
 Extraction Language OCaml.
 
@@ -37,6 +40,9 @@ Extract Constant memory_vec.arr_set => "Parray.set".
 Extract Constant memory_vec.arr_length => "Parray.length".
 Extract Constant memory_vec.arr_copy => "Parray.copy".
 
+Extract Constant SIMD_ops.app_vunop_str => "SIMD_ops.app_vunop_str".
+Extract Constant SIMD_ops.app_vbinop_str => "SIMD_ops.app_vbinop_str".
+Extract Constant SIMD_ops.app_vternop_str => "SIMD_ops.app_vternop_str".
 
 Extraction "extract"
   EfficientExtraction
