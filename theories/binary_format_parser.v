@@ -1385,5 +1385,5 @@ Definition run_parse_expr (bs : list byte) : option (list basic_instruction) :=
 Definition run_parse_bes (bs : list byte) : option (list basic_instruction) :=
   run_parse_expr (bs ++ (x0b :: nil)).
 
-Definition run_parse_module (bs : list byte) : option module :=
-  run bs (fun n => parse_module).
+Definition run_parse_module (s : String.string) : option module :=
+  run (String.list_byte_of_string s) (fun n => parse_module).

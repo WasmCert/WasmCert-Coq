@@ -479,5 +479,5 @@ Definition run : list byte -> [ Parser (SizedList Tok) Tok M A ] -> option A := 
 
 End Run.
 
-Definition run_parse_arg (bs : list byte) : option datatypes.value :=
-  run bs (fun n => parse_arg).
+Definition run_parse_arg (s: String.string) : option datatypes.value :=
+  run (String.list_byte_of_string s) (fun n => parse_arg).

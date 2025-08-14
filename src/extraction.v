@@ -4,7 +4,7 @@ From Coq Require Extraction.
 From Coq Require PArray.
 From Coq Require Import
   extraction.ExtrOcamlBasic
-  extraction.ExtrOcamlString
+  extraction.ExtrOcamlNativeString
   extraction.ExtrOcamlZBigInt
   ExtrOCamlInt63
 .
