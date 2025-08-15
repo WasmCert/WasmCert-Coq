@@ -46,13 +46,17 @@ Definition write_bytes_meminst (m: meminst) (start_idx : N) (bs: bytes) : option
   | None => None
   end.
 
-Definition bits (v : value_num) : bytes :=
+Definition serialise_num (v : value_num) : bytes :=
   match v with
   | VAL_int32 c => serialise_i32 c
   | VAL_int64 c => serialise_i64 c
   | VAL_float32 c => serialise_f32 c
   | VAL_float64 c => serialise_f64 c
   end.
+
+#[deprecated(since="wasmcert-coq-v2.2", note="Use serialise_num instead.")]
+  Definition bits := serialise_num.
+
 
 Definition ml_valid (m: mem_t) : Prop :=
   N.modulo (mem_length m) page_size = 0%N.
@@ -596,6 +600,16 @@ Proof.
   by destruct sh as [[] | []].
 Qed.
 
+Definition serialise_num_shape (sh: vshape) (v: value_num) : bytes :=
+  match v with
+  | VAL_int64 c => serialise_i64 c
+  | VAL_float32 c => serialise_f32 c
+  | VAL_float64 c => serialise_f64 c
+  | VAL_int32 c => (* Could be i8/i16/i32 *)
+      let byte_width := N.div (shape_width sh) 8%N in
+      Memdata.encode_int byte_width (Wasm_int.Int32.unsigned c)
+  end.
+
 (* Extract values from a v128 *)
 Definition v128_extract_lanes_n (sh: vshape) (v: SIMD.v128) : list N :=
   let byte_width := N.div (shape_width sh) 8%N in
@@ -628,12 +642,12 @@ Definition v128_extract_lanes (sh: vshape) (v: SIMD.v128) : list value_num :=
   end.
 
 Definition v128_serialise (sh: vshape) (vs: list value_num) : SIMD.v128 :=
-  let value_bytes := map bits vs in
+  let value_bytes := map serialise_num vs in
   match sh with
   | VS_f _
   | VS_i VSI_64_2
   | VS_i VSI_32_4 =>
-      List.concat (map bits vs)
+      List.concat (map serialise_num vs)
   (* i16x8 and i8x16 needs truncating bytes before merging. *)
   | VS_i VSI_16_8 =>
       List.concat (map (fun v => match v with
@@ -673,8 +687,28 @@ Definition app_vshiftop (op: vshiftop) (v1: value_vec) (v2: i32) : value_vec :=
   let v2e := encode_i32 v2 in
   decode_vec (app_vshiftop_str op v1e v2e).
 
+(* Efficient splat, slightly faster than a simple loop but still slow due to string concatenation *)
+Fixpoint bytes_repeat_aux (bs: bytes) (p: positive) : bytes :=
+  match p with
+  | xH => bs
+  | xO p' =>
+      let bs' := bytes_repeat_aux bs p' in
+      bs' ++ bs'
+  | xI p' =>
+      let bs' := bytes_repeat_aux bs p' in
+      bs' ++ bs' ++ bs
+  end.
+      
+Definition bytes_repeat (bs: bytes) (n: N) : bytes :=
+  match n with
+  | N0 => nil
+  | Npos p => bytes_repeat_aux bs p
+  end.
+
 Definition app_splat_vec (sh: vshape) (v1: value_num) : value_vec :=
-  VAL_vec128 SIMD.v128_default.
+  let bs := serialise_num_shape sh v1 in
+  let dim := shape_dim sh in
+  VAL_vec128 (bytes_repeat bs dim).
 
 Definition app_extract_vec (sh: vshape) (s: option sx) (n: laneidx) (v1: value_vec) : value_num :=
   match sh with
@@ -849,7 +883,7 @@ Definition smem_store (s: store_record) (inst: moduleinst) (n: N) (off: static_o
   | Some addr =>
       match lookup_N s.(s_mems) addr with
       | Some mem =>
-        match store mem n off (bits v) (tnum_length t) with
+        match store mem n off (serialise_num v) (tnum_length t) with
         | Some mem' =>
            Some (upd_s_mem s (set_nth mem' s.(s_mems) (N.to_nat addr) mem'))
         | None => None
@@ -864,7 +898,7 @@ Definition smem_store_packed (s: store_record) (inst: moduleinst) (n: N) (off: s
   | Some addr =>
       match lookup_N s.(s_mems) addr with
       | Some mem =>
-        match store_packed mem n off (bits v) (tp_length tp) with
+        match store_packed mem n off (serialise_num v) (tp_length tp) with
         | Some mem' =>
            Some (upd_s_mem s (set_nth mem' s.(s_mems) (N.to_nat addr) mem'))
         | None => None
@@ -1427,7 +1461,7 @@ Definition eval_cvt (t : number_type) (op: cvtop) (s : option sx) (v : value_num
   | CVO_convert => cvt_convert t s v
   | CVO_demote => cvt_demote t v
   | CVO_promote => cvt_promote t v
-  | CVO_reinterpret => Some (wasm_deserialise (bits v) t)
+  | CVO_reinterpret => Some (wasm_deserialise (serialise_num v) t)
   end.
 
 (* Enumerates all the valid argument types for each convert operations *)
