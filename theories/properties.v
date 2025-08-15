@@ -48,6 +48,7 @@ Proof.
   intros; f_equal.
   by apply IHl1.
 Qed.
+
 Lemma app_eq_singleton: forall T (l1 l2 : list T) (a : T),
     l1 ++ l2 = [::a] ->
     (l1 = [::a] /\ l2 = [::]) \/ (l1 = [::] /\ l2 = [::a]).

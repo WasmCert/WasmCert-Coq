@@ -79,22 +79,6 @@ Definition value_typing (s: store_record) (v: value) (t: value_type) : bool :=
 Definition values_typing (s: store_record) (vs: list value) (tf: list value_type) : bool :=
   all2 (value_typing s) vs tf.
 
-Definition typeof_shape_unpacked (shape: vshape) : number_type :=
-  match shape with
-  | VS_i vsi =>
-      match vsi with
-      | VSI_8_16 => T_i32
-      | VSI_16_8 => T_i32
-      | VSI_32_4 => T_i32
-      | VSI_64_2 => T_i64
-      end
-  | VS_f vsf =>
-      match vsf with
-      | VSF_32_4 => T_f32
-      | VSF_64_2 => T_f64
-      end
-  end.
-  
 Definition result_types_agree (s: store_record) (ts : result_type) r : bool :=
   match r with
   | result_values vs => values_typing s vs ts

@@ -56,6 +56,13 @@ Proof.
   done.
 Qed.
 
+Lemma app_extract_vec_typing: forall sh os n v1,
+    typeof_num (app_extract_vec sh os n v1) = typeof_shape_unpacked sh.
+Proof.
+  intros; unfold app_extract_vec => /=.
+  destruct (lookup_N _ _) => //=; by destruct sh as [[] | []] => //=.
+Qed.
+
 (* It's better to just set `instr_subtyping` opaque and unset it when necessary, since most of the times we do not want to unfold this definition by simpl. But the simpl nomatch method doesn't prevent it from being unfolded for some reason. *)
 Opaque instr_subtyping.
 
@@ -76,8 +83,8 @@ Proof.
     erewrite eval_cvt_type_preserve; eauto.
     by resolve_subtyping.
   - (* Extract_vec *)
-    replace (typeof_num (app_extract_vec sh sx x v1)) with (typeof_shape_unpacked sh); last by destruct sh as [[] | []].
-    by resolve_subtyping.
+    replace (typeof_num (app_extract_vec sh sx x v1)) with (typeof_shape_unpacked sh); first by resolve_subtyping.
+    by rewrite app_extract_vec_typing.
   - (* Replace_vec *)
     replace (typeof_vec (app_replace_vec sh x v1 v2)) with (typeof_vec v1); last by destruct sh as [[] | []].
     rewrite H1.
