@@ -85,10 +85,6 @@ Proof.
   - (* Extract_vec *)
     replace (typeof_num (app_extract_vec sh sx x v1)) with (typeof_shape_unpacked sh); first by resolve_subtyping.
     by rewrite app_extract_vec_typing.
-  - (* Replace_vec *)
-    replace (typeof_vec (app_replace_vec sh x v1 v2)) with (typeof_vec v1); last by destruct sh as [[] | []].
-    rewrite H1.
-    by resolve_subtyping.
   - (* Br *)
     eapply et_composition'; eauto; resolve_e_typing.
     by eapply Lfilled_break_typing with (tss := nil) in Hconjl1; eauto => //=; try (by apply v_to_e_const); last by lias.
@@ -1105,7 +1101,7 @@ Proof.
 Qed.
 
 Lemma mem_extension_store: forall m k off v tlen mem,
-    store m k off (bits v) tlen = Some mem ->
+    store m k off (serialise_num v) tlen = Some mem ->
     mem_extension m mem.
 Proof.
   move => m k off v tlen mem HStore.
@@ -1457,7 +1453,7 @@ Proof.
     by apply List.nth_error_In in Hnthsdata; eauto.
 Qed.
     
-(* Note that although config_typing gives a much 1stronger constraint on C', we allow much more flexibility here due to the need in inductive cases. *)
+(* Note that although config_typing gives a much stronger constraint on C', we allow much more flexibility here due to the need in inductive cases. *)
 Lemma store_extension_reduce: forall s f es s' f' es' C C' tf hs hs',
     reduce hs s f es hs' s' f' es' ->
     inst_typing s f.(f_inst) = Some C ->

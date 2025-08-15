@@ -761,9 +761,13 @@ Definition app_extract_vec (sh: vshape) (os: option sx) (n: laneidx) (v1: value_
       wasm_deserialise bs_extend unpacked_shape
   | None => bitzero unpacked_shape (* Will not happen *)
   end.
-      
+
 Definition app_replace_vec (sh: vshape) (n: laneidx) (v1: value_vec) (v2: value_num) : value_vec :=
-  v1.
+  let vv := vec_get_v128 v1 in
+  let bss := v128_extract_bytes sh vv in
+  let bs_num := serialise_num_shape sh v2 in
+  let bss' := set_nth nil bss n bs_num in
+  VAL_vec128 (List.concat bss').
 
 
 Definition rglob_is_mut (g : module_global) : bool :=
