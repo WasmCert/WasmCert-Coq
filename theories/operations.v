@@ -10,6 +10,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Definition v128_size: N := 16%N.
+
 Section Operations.
   Context `{memory: Memory} `{hfc: host_function_class}.
 
@@ -97,7 +99,7 @@ Definition mem_grow (m : meminst) (len_delta : N) : option meminst :=
 
 Definition load_vec_bounds (lv_arg: load_vec_arg) (m_arg: memarg) : bool :=
   match lv_arg with
-  | LVA_packed ptv sx =>
+  | LVA_extend ptv sx =>
       let (n, m) := ptv in
       N.leb (N.pow 2 m_arg.(memarg_align)) (N.mul (N.div n 8) m)
   | LVA_zero ztv =>
@@ -105,15 +107,15 @@ Definition load_vec_bounds (lv_arg: load_vec_arg) (m_arg: memarg) : bool :=
   | LVA_splat width =>
       N.leb (N.pow 2 m_arg.(memarg_align)) (N.div (width) 8)
   | LVA_none =>
-      N.leb (N.pow 2 m_arg.(memarg_align)) 16%N
+      N.leb (N.pow 2 m_arg.(memarg_align)) v128_size
   end.
 
 Definition load_store_vec_lane_bounds (width: vwidth) (m_arg: memarg) (x: laneidx) : bool :=
-   (N.leb (N.pow 2 (memarg_align m_arg)) (width / 8))%N &&
-     (N.ltb x (128 / width)%N).
+   (N.leb (N.pow 2 (memarg_align m_arg)) (width / 8%N))%N &&
+     (N.ltb x (128%N / width)%N).
 
 Definition store_vec_bounds (m_arg: memarg) : bool :=
-      N.leb (N.pow 2 m_arg.(memarg_align)) 16%N.
+      N.leb (N.pow 2 m_arg.(memarg_align)) v128_size.
 
 (* TODO: We crucially need documentation here. *)
 
@@ -128,26 +130,11 @@ Definition load (m : meminst) (n : N) (off : static_offset) (l : N) : option byt
 Definition int_of_bytes (bs: list byte) (m: N) : value_num :=
   VAL_int32 int32_minus_one.
 
-(* TODO: placeholder for vector load -- currently unimplemented. *)
-Definition load_vec (m: meminst) (i: N) (lvarg: load_vec_arg) (marg: memarg) : option value_vec :=
-  (* Placeholder just so that this operation can return both successful and error result *)
-(*  let ea := i + marg.(memarg_offset) in
-  match load_vec_arg with
-  | LVA_packed ptv sx =>
-      let (m, n) := ptv_to_nm in
-      if N.leb (ea + (N.div (N.mul m n) 8%N)) (m.(mem_length)) then
-        let bs = int_of_bytes (take (drop m
-  if ea + *)
-  match (i == marg.(memarg_offset)) with
-  | true => Some (VAL_vec128 SIMD.v128_default)
-  | _ => None
+Definition vec_get_v128 (v: value_vec) : v128 :=
+  match v with
+  | VAL_vec128 vv => vv
   end.
 
-Definition load_vec_lane (m: meminst) (i: N) (v: value_vec) (width: vwidth) (marg: memarg) (x: laneidx) : option value_vec :=
-  match (i == marg.(memarg_offset)) with
-  | true => Some v
-  | _ => None
-  end.
 
 Definition store (m : meminst) (n : N) (off : static_offset) (bs : bytes) (l : nat) : option meminst :=
   if N.leb (n + off + N.of_nat l) (mem_length m)
@@ -157,18 +144,6 @@ Definition store (m : meminst) (n : N) (off : static_offset) (bs : bytes) (l : n
 (* The first argument of wrap doesn't affect the opsem at all, so this is fine.
 Might need a change in the future if this behaviour changes. *)
 Definition store_packed := store.
-
-Definition store_vec (m: meminst) (n: N) (v: value_vec) (marg: memarg) : option meminst :=
-  match (n == marg.(memarg_offset)) with
-  | true => Some m
-  | _ => None
-  end.
-
-Definition store_vec_lane (m: meminst) (n: N) (v: value_vec) (width: vwidth) (marg: memarg) (x: laneidx) : option meminst :=
-  match (n == marg.(memarg_offset)) with
-  | true => Some m
-  | _ => None
-  end.
 
 Definition wasm_deserialise (bs : bytes) (vt : number_type) : value_num :=
   match vt with
@@ -189,7 +164,7 @@ Definition sign_extend_n (n: N) (bytelen: N) : Z :=
   val_z.
 
 (* l is the byte length of the target type, therefore can only be 4/8 *)
-(* v128 also uses this function for i8/i16 decoding *)
+(* v128 also uses this function for i8/i16 decoding, so l can be 1/2 *)
 Definition sign_extend_bytes (s : sx) (l : N) (bs : bytes) : bytes :=
   match s with
   | SX_U => bytes_takefill #00 (N.to_nat l) bs
@@ -610,13 +585,13 @@ Definition serialise_num_shape (sh: vshape) (v: value_num) : bytes :=
       Memdata.encode_int byte_width (Wasm_int.Int32.unsigned c)
   end.
 
-Program Fixpoint v128_extract_bytes_aux (width dim: N) (v: SIMD.v128) {measure (N.to_nat dim)}: list bytes :=
+Program Fixpoint bs_extract_bytes (byte_width dim: N) (bs: bytes) {measure (N.to_nat dim)}: list bytes :=
   match dim with
   | 0%N => nil
   | _ =>
-      let bytes := take width v in
-      let bytes_remaining := drop width v in
-      cons bytes (v128_extract_bytes_aux width (N.pred dim) bytes_remaining)
+      let bs_prefix := take byte_width bs in
+      let bs_remaining := drop byte_width bs in
+      cons bs_prefix (bs_extract_bytes byte_width (N.pred dim) bs_remaining)
   end.
 Next Obligation.
   by lias.
@@ -625,17 +600,21 @@ Qed.
 Definition v128_extract_bytes (sh: vshape) (v: v128) : list bytes :=
   let byte_width := N.div (shape_width sh) 8%N in
   let dim := shape_dim sh in
-  v128_extract_bytes_aux byte_width dim v.
+  bs_extract_bytes byte_width dim v.
+
+Definition v128_extract_bytes_width (byte_width: N) (v: v128) : list bytes :=
+  let dim := N.div 16%N byte_width in
+  bs_extract_bytes byte_width dim v.
 
 (* Extract values from a v128 *)
-Definition v128_extract_lanes_n (sh: vshape) (v: SIMD.v128) : list N :=
+Definition v128_extract_lanes_n (sh: vshape) (v: v128) : list N :=
   let v128_bytes_grouped := v128_extract_bytes sh v in
   let vt := unpacked sh in
   map (fun bs =>
          BinInt.Z.to_N (common.Memdata.decode_int bs)) v128_bytes_grouped.
 
 (* Extract values from a v128 *)
-Definition v128_extract_lanes (sh: vshape) (v: SIMD.v128) : list value_num :=
+Definition v128_extract_lanes (sh: vshape) (v: v128) : list value_num :=
   let byte_width := N.div (shape_width sh) 8%N in
   let v128_bytes_grouped := v128_extract_bytes sh v in
   let vt := unpacked sh in
@@ -740,11 +719,6 @@ Definition typeof_shape_unpacked (shape: vshape) : number_type :=
       end
   end.
 
-Definition vec_get_v128 (v: value_vec) : v128 :=
-  match v with
-  | VAL_vec128 vv => vv
-  end.
-
 Definition app_extract_vec (sh: vshape) (os: option sx) (n: laneidx) (v1: value_vec) : value_num :=
   let vv := vec_get_v128 v1 in
   let bss := v128_extract_bytes sh vv in
@@ -768,7 +742,6 @@ Definition app_replace_vec (sh: vshape) (n: laneidx) (v1: value_vec) (v2: value_
   let bs_num := serialise_num_shape sh v2 in
   let bss' := set_nth nil bss n bs_num in
   VAL_vec128 (List.concat bss').
-
 
 Definition rglob_is_mut (g : module_global) : bool :=
   g.(modglob_type).(tg_mut) == MUT_var.
@@ -920,6 +893,72 @@ Definition stab_update (s: store_record) (inst: moduleinst) (x: tableidx) (i: el
   | None => None
   end.
 
+Definition load_vec (mem: meminst) (n: N) (lvarg: load_vec_arg) (marg: memarg) : option value_vec :=
+  let ea := N.add n marg.(memarg_offset) in
+  match lvarg with
+  | LVA_none =>
+    if N.leb (ea + v128_size)%N (mem_length mem)
+    then
+      match read_bytes mem ea v128_size with
+      | Some bs => Some (VAL_vec128 bs)
+      | None => None
+      end
+    else None
+  | LVA_extend (m, n) sx =>
+      let byte_width := N.div m 8%N in
+      let read_size := N.mul byte_width n in (* Should always be 8 *)
+      if N.leb (ea + read_size)%N (mem_length mem)
+      then
+        match read_bytes mem ea read_size with
+        | Some bs =>
+            (* Extract individual lanes, and sign extend to double the width *)
+            let bss := bs_extract_bytes byte_width n bs in
+            (* new width is 2 * original *)
+            let bss_new := List.map (sign_extend_bytes sx (2 * byte_width)%N) bss in
+            Some (VAL_vec128 (List.concat bss_new))
+        | None => None
+        end
+      else None
+  | LVA_splat n =>
+    let byte_width := N.div n 8%N in
+    if N.leb (ea + byte_width)%N (mem_length mem)
+    then
+      let dim := N.div 16%N byte_width in
+      match read_bytes mem ea byte_width with
+      | Some bs =>
+          let bs_repeat := bytes_repeat bs dim in
+          Some (VAL_vec128 bs_repeat)
+      | None => None
+      end
+    else None
+  | LVA_zero n =>
+    let byte_width := N.div n 8%N in
+    if N.leb (ea + byte_width)%N (mem_length mem)
+    then
+      match read_bytes mem ea byte_width with
+      | Some bs =>
+          let bs' := sign_extend_bytes SX_U 16%N bs in
+          Some (VAL_vec128 bs')
+      | None => None
+      end
+    else None
+  end.
+
+Definition load_vec_lane (m: meminst) (n: N) (v: value_vec) (width: vwidth) (marg: memarg) (x: laneidx) : option value_vec :=
+  let ea := N.add n marg.(memarg_offset) in
+  let byte_width := N.div width 8%N in
+  if N.leb (ea + byte_width)%N (mem_length m)
+  then
+    match read_bytes m ea byte_width with
+    | Some bs =>
+        let vv := vec_get_v128 v in
+        let bss := v128_extract_bytes_width byte_width vv in
+        let bss' := set_nth nil bss x bs in
+        Some (VAL_vec128 (List.concat bss'))
+    | None => None
+    end
+  else None.
+
 Definition smem_store (s: store_record) (inst: moduleinst) (n: N) (off: static_offset) (v: value_num) (t: number_type) : option store_record :=
   match lookup_N inst.(inst_mems) 0%N with
   | Some addr =>
@@ -949,6 +988,25 @@ Definition smem_store_packed (s: store_record) (inst: moduleinst) (n: N) (off: s
       end
   | None => None
   end.
+
+Definition store_vec (m: meminst) (n: N) (v: value_vec) (marg: memarg) : option meminst :=
+  if N.leb (n + marg.(memarg_offset) + v128_size) (mem_length m)
+  then write_bytes_meminst m (n + marg.(memarg_offset)) (vec_get_v128 v)
+  else None.
+
+Definition store_vec_lane (m: meminst) (n: N) (v: value_vec) (width: vwidth) (marg: memarg) (x: laneidx) : option meminst :=
+  let byte_width := N.div width 8%N in
+  if N.leb (n + marg.(memarg_offset) + byte_width) (mem_length m)
+  then
+    let vv := vec_get_v128 v in
+    let bss := v128_extract_bytes_width byte_width vv in
+    let obs := List.nth_error bss x in
+    match obs with
+    | Some bs =>
+        write_bytes_meminst m (n + marg.(memarg_offset)) bs
+    | None => None
+    end
+  else None.
 
 Definition smem_store_vec (s: store_record) (inst: moduleinst) (n: N) (v: value_vec) (marg: memarg) : option store_record :=
   match lookup_N inst.(inst_mems) 0%N with

@@ -179,7 +179,7 @@ Section Wast.
     | _ => false
     end.
 
-  Definition v128_extract_lanes (sh: vshape) (v: SIMD.v128) :=
+  Definition v128_extract_lanes (sh: vshape) (v: v128) :=
     v128_extract_lanes sh v.
   
 End Wast.

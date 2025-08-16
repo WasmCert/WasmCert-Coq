@@ -617,14 +617,14 @@ Definition vshiftop := N.
 Definition vpacked_type : Type := N * N.
 
 (* Available widths: 32, 64 *)
-Definition vzero_type := N.
+Definition vzero_width := N.
 
 (* Available widths: 8, 16, 32, 64 *)
 Definition vwidth := N.
 
 Inductive load_vec_arg :=
-  | LVA_packed: vpacked_type -> sx -> load_vec_arg (* v128.loadnxm_sx *)
-  | LVA_zero: vzero_type -> load_vec_arg (* v128.loadnn_zero *)
+  | LVA_extend: vpacked_type -> sx -> load_vec_arg (* v128.loadnxm_sx *)
+  | LVA_zero: vzero_width -> load_vec_arg (* v128.loadnn_zero *)
   | LVA_splat: vwidth -> load_vec_arg (* v128.loadww_spat *)
   | LVA_none (* v128.load *)
   .

@@ -415,12 +415,12 @@ Definition parse_v128_load {n} : byte_parser basic_instruction n :=
   assert_u32 0%N &> (BI_load_vec (LVA_none) <$> parse_memarg).
 
 Definition parse_v128_load_packed {n} : byte_parser basic_instruction n :=
-  assert_u32 1%N &> (BI_load_vec (LVA_packed (8%N, 8%N) SX_S) <$> parse_memarg) <|>
-  assert_u32 2%N &> (BI_load_vec (LVA_packed (8%N, 8%N) SX_U) <$> parse_memarg) <|>
-  assert_u32 3%N &> (BI_load_vec (LVA_packed (16%N, 4%N) SX_S) <$> parse_memarg) <|>
-  assert_u32 4%N &> (BI_load_vec (LVA_packed (16%N, 4%N) SX_U) <$> parse_memarg) <|>
-  assert_u32 5%N &> (BI_load_vec (LVA_packed (32%N, 2%N) SX_S) <$> parse_memarg) <|>
-  assert_u32 6%N &> (BI_load_vec (LVA_packed (32%N, 2%N) SX_U) <$> parse_memarg).
+  assert_u32 1%N &> (BI_load_vec (LVA_extend (8%N, 8%N) SX_S) <$> parse_memarg) <|>
+  assert_u32 2%N &> (BI_load_vec (LVA_extend (8%N, 8%N) SX_U) <$> parse_memarg) <|>
+  assert_u32 3%N &> (BI_load_vec (LVA_extend (16%N, 4%N) SX_S) <$> parse_memarg) <|>
+  assert_u32 4%N &> (BI_load_vec (LVA_extend (16%N, 4%N) SX_U) <$> parse_memarg) <|>
+  assert_u32 5%N &> (BI_load_vec (LVA_extend (32%N, 2%N) SX_S) <$> parse_memarg) <|>
+  assert_u32 6%N &> (BI_load_vec (LVA_extend (32%N, 2%N) SX_U) <$> parse_memarg).
 
 Definition parse_v128_load_splat {n} : byte_parser basic_instruction n :=
   assert_u32 7%N &> (BI_load_vec (LVA_splat 8%N) <$> parse_memarg) <|>
