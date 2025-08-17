@@ -539,14 +539,24 @@ Definition pp_vtestop (op: vtestop) :=
 Definition pp_vshiftop (op: vshiftop) :=
   "vshiftop: " ++ pp_N op.
 
+Definition pp_vshape (sh: vshape) :=
+  match sh with
+  | VS_i VSI_8_16 => "I8x16"
+  | VS_i VSI_16_8 => "I16x8"
+  | VS_i VSI_32_4 => "I32x4"
+  | VS_i VSI_64_2 => "I64x2"
+  | VS_f VSF_32_4 => "F32x4"
+  | VS_f VSF_64_2 => "F64x2"
+  end.
+    
 Definition pp_splat_vec (sh: vshape) :=
-  "(not implemented: splat)".
+  "splat " ++ pp_vshape sh.
 
 Definition pp_extract_vec (sh: vshape) (s: option sx) (x: laneidx) :=
-  "(not implemented: extract_lane)".
+  "extract_lane " ++ pp_vshape sh ++ " " ++ pp_sx_o s ++ " lane:" ++ pp_N x.
 
 Definition pp_replace_vec (sh: vshape) (x: laneidx) :=
-  "(not implemented: replace_lane)".
+  "replace_lane " ++ pp_vshape sh ++ " lane:" ++ pp_N x.
   
 Definition pp_load_vec (lvarg: load_vec_arg) (marg: memarg) :=
   "(not implemented: load_vec)".

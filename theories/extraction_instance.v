@@ -180,7 +180,7 @@ Section Wast.
     end.
 
   Definition v128_extract_lanes (sh: vshape) (v: v128) :=
-    v128_extract_lanes sh v.
+    v128_extract_lanes sh SX_S v.
   
 End Wast.
 

@@ -1115,6 +1115,38 @@ Proof.
   simpl in *; subst.
   by lias.
 Qed.
+
+Lemma mem_extension_store_vec: forall m n v marg mem,
+    store_vec m n v marg = Some mem ->
+    mem_extension m mem.
+Proof.
+  move => m n v marg mem HStore.
+  unfold mem_extension.
+  unfold store_vec in HStore.
+  remove_bools_options.
+  apply write_bytes_meminst_preserve_type in HStore as [Htype Hlen].
+  apply/andP; split; last by lias.
+  destruct m, mem.
+  unfold limits_extension.
+  simpl in *; subst.
+  by lias.
+Qed.
+
+Lemma mem_extension_store_vec_lane: forall m n v width marg x mem,
+    store_vec_lane m n v width marg x = Some mem ->
+    mem_extension m mem.
+Proof.
+  move => m n v width marg x mem HStore.
+  unfold mem_extension.
+  unfold store_vec_lane in HStore.
+  remove_bools_options.
+  apply write_bytes_meminst_preserve_type in HStore as [Htype Hlen].
+  apply/andP; split; last by lias.
+  destruct m, mem.
+  unfold limits_extension.
+  simpl in *; subst.
+  by lias.
+Qed.
   
 Lemma mem_extension_grow: forall s m c mem t,
     meminst_typing s m = Some t ->
@@ -1270,8 +1302,8 @@ Proof.
     resolve_if_true_eq.
     by lias.
   - eapply List.Forall_forall in Hmt; eauto.
-    + by apply List.nth_error_In in Hnth'.
-    + by apply nth_error_Some_length in Hoption2; lias.
+    by apply List.nth_error_In in Hnth'.
+  - by apply nth_error_Some_length in Hoption2; lias.
 Qed.
 
 Lemma smem_store_vec_extension: forall s f n v marg s' C mt,
@@ -1284,10 +1316,9 @@ Proof.
   move => s f n v marg s' C a Hst Hupd Hit Hnth.
   unfold store_extension; unfold_store_operations => /=; resolve_store_extension; resolve_store_inst_lookup; remove_bools_options => /=.
   rewrite Hnth in Hnthmt; injection Hnthmt as ->.
-  unfold store_vec in Hoption1.
   destruct m0; simpl in *; remove_bools_options; simpl in *.
   eapply component_extension_update; eauto; first by apply mem_extension_refl.
-  by apply mem_extension_refl.
+  by eapply mem_extension_store_vec in Hoption1.
 Qed.
 
 Lemma smem_store_vec_typing: forall s f n v marg s' C mt,
@@ -1298,9 +1329,9 @@ Lemma smem_store_vec_typing: forall s f n v marg s' C mt,
   store_typing s'.
 Proof.
   move => s f n v marg s' C a Hst Hupd Hit Hnth.
+
   assert (store_extension s s') as Hstext; first by eapply smem_store_vec_extension; eauto.
   unfold_store_operations; remove_bools_options.
-  unfold store_vec in Hoption1.
   resolve_store_inst_lookup; destruct m0; simpl in *; remove_bools_options; simpl in *.
   rewrite Hnthmt in Hnth; injection Hnth as <-.
   unfold store_typing in *; destruct s; simpl in *.
@@ -1310,13 +1341,19 @@ Proof.
   move => x0 Hin.
   apply set_nth_In in Hin.
   destruct Hin as [-> | [m0 [Hneq Hnth']]] => //=.
-  - exists mt.
+  - exists m1.(meminst_type).
+    unfold meminst_typing => /=.
+    destruct m1 => //=.
+    unfold store_vec, store in Hoption1; remove_bools_options.
+    apply write_bytes_meminst_preserve_type in Hoption1; simpl in *.
+    destruct Hoption1 as [-> Hmemlen].
+    unfold mem_length in *; simpl in *.
     rewrite Hif.
     resolve_if_true_eq.
-    by rewrite Hif0.
+    by lias.
   - eapply List.Forall_forall in Hmt; eauto.
-    + by apply List.nth_error_In in Hnth'.
-    + by apply nth_error_Some_length in Hoption2; lias.
+    by apply List.nth_error_In in Hnth'.
+  - by apply nth_error_Some_length in Hoption2; lias.
 Qed.
 
 Lemma smem_store_vec_lane_extension: forall s f n v width marg x s' C mt,
@@ -1329,10 +1366,9 @@ Proof.
   move => s f n v width marg x s' C a Hst Hupd Hit Hnth.
   unfold store_extension; unfold_store_operations => /=; resolve_store_extension; resolve_store_inst_lookup; remove_bools_options => /=.
   rewrite Hnth in Hnthmt; injection Hnthmt as ->.
-  unfold store_vec_lane in Hoption1.
   destruct m0; simpl in *; remove_bools_options; simpl in *.
   eapply component_extension_update; eauto; first by apply mem_extension_refl.
-  by apply mem_extension_refl.
+  by eapply mem_extension_store_vec_lane in Hoption1.
 Qed.
 
 Lemma smem_store_vec_lane_typing: forall s f n v width marg x s' C mt,
@@ -1343,9 +1379,9 @@ Lemma smem_store_vec_lane_typing: forall s f n v width marg x s' C mt,
   store_typing s'.
 Proof.
   move => s f n v width marg x s' C a Hst Hupd Hit Hnth.
+
   assert (store_extension s s') as Hstext; first by eapply smem_store_vec_lane_extension; eauto.
   unfold_store_operations; remove_bools_options.
-  unfold store_vec_lane in Hoption1.
   resolve_store_inst_lookup; destruct m0; simpl in *; remove_bools_options; simpl in *.
   rewrite Hnthmt in Hnth; injection Hnth as <-.
   unfold store_typing in *; destruct s; simpl in *.
@@ -1355,13 +1391,19 @@ Proof.
   move => x0 Hin.
   apply set_nth_In in Hin.
   destruct Hin as [-> | [m0 [Hneq Hnth']]] => //=.
-  - exists mt.
+  - exists m1.(meminst_type).
+    unfold meminst_typing => /=.
+    destruct m1 => //=.
+    unfold store_vec_lane, store in Hoption1; remove_bools_options.
+    apply write_bytes_meminst_preserve_type in Hoption1; simpl in *.
+    destruct Hoption1 as [-> Hmemlen].
+    unfold mem_length in *; simpl in *.
     rewrite Hif.
     resolve_if_true_eq.
-    by rewrite Hif0.
+    by lias.
   - eapply List.Forall_forall in Hmt; eauto.
-    + by apply List.nth_error_In in Hnth'.
-    + by apply nth_error_Some_length in Hoption2; lias.
+    by apply List.nth_error_In in Hnth'.
+  - by apply nth_error_Some_length in Hoption2; lias.
 Qed.
 
 Lemma smem_grow_extension: forall s f n s' sz C mt,

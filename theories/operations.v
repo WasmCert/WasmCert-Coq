@@ -582,7 +582,10 @@ Definition serialise_num_shape (sh: vshape) (v: value_num) : bytes :=
   | VAL_float64 c => serialise_f64 c
   | VAL_int32 c => (* Could be i8/i16/i32 *)
       let byte_width := N.div (shape_width sh) 8%N in
-      Memdata.encode_int byte_width (Wasm_int.Int32.unsigned c)
+      (* Need to normalise first *)
+      let val_n := BinInt.Z.to_N (Wasm_int.Int32.unsigned c) in
+      let val_z := sign_extend_n val_n byte_width in
+      Memdata.encode_int byte_width val_z
   end.
 
 Program Fixpoint bs_extract_bytes (byte_width dim: N) (bs: bytes) {measure (N.to_nat dim)}: list bytes :=
@@ -614,7 +617,7 @@ Definition v128_extract_lanes_n (sh: vshape) (v: v128) : list N :=
          BinInt.Z.to_N (common.Memdata.decode_int bs)) v128_bytes_grouped.
 
 (* Extract values from a v128 *)
-Definition v128_extract_lanes (sh: vshape) (v: v128) : list value_num :=
+Definition v128_extract_lanes (sh: vshape) (s: sx) (v: v128) : list value_num :=
   let byte_width := N.div (shape_width sh) 8%N in
   let v128_bytes_grouped := v128_extract_bytes sh v in
   let vt := unpacked sh in
@@ -628,10 +631,17 @@ Definition v128_extract_lanes (sh: vshape) (v: v128) : list value_num :=
              VAL_int64 (Wasm_int.Int64.repr val_z)) v128_bytes_grouped
   (* All the other shapes extract to Int32. *)
   | VS_i _ =>
-      map (fun bs =>
+      match s with
+      | SX_S => 
+        map (fun bs =>
              let val_n := BinInt.Z.to_N (common.Memdata.decode_int bs) in
              let val_z := sign_extend_n val_n byte_width in
              VAL_int32 (Wasm_int.Int32.repr val_z)) v128_bytes_grouped
+      | SX_U =>
+          map (fun bs =>
+                 let val_z := common.Memdata.decode_int bs in
+                 VAL_int32 (Wasm_int.Int32.repr val_z)) v128_bytes_grouped
+      end
   end.
 
 Definition v128_serialise (sh: vshape) (vs: list value_num) : SIMD.v128 :=
@@ -720,20 +730,18 @@ Definition typeof_shape_unpacked (shape: vshape) : number_type :=
   end.
 
 Definition app_extract_vec (sh: vshape) (os: option sx) (n: laneidx) (v1: value_vec) : value_num :=
+  let s :=
+    match os with
+    | Some SX_S => SX_S
+    | _ => SX_U
+    end in
   let vv := vec_get_v128 v1 in
-  let bss := v128_extract_bytes sh vv in
-  let unpacked_shape := typeof_shape_unpacked sh in
-  let obs := lookup_N bss n in
-  match obs with
-  | Some bs => 
-      let byte_width := N.div (shape_width sh) 8%N in
-      let bs_extend :=
-        match os with
-        | Some s => sign_extend_bytes s byte_width bs
-        | None => sign_extend_bytes SX_U byte_width bs
-        end in
-      wasm_deserialise bs_extend unpacked_shape
-  | None => bitzero unpacked_shape (* Will not happen *)
+  let vs := v128_extract_lanes sh s vv in
+  match lookup_N vs n with
+  | Some v => v
+  | None =>
+      let unpacked_shape := typeof_shape_unpacked sh in
+      bitzero unpacked_shape (* Will not happen *)
   end.
 
 Definition app_replace_vec (sh: vshape) (n: laneidx) (v1: value_vec) (v2: value_num) : value_vec :=
