@@ -751,6 +751,13 @@ Definition app_replace_vec (sh: vshape) (n: laneidx) (v1: value_vec) (v2: value_
   let bss' := set_nth nil bss n bs_num in
   VAL_vec128 (List.concat bss').
 
+(* Check the laneidx of shuffle *)
+Definition vbinop_valid (op: vbinop) : bool :=
+  let '(opcode, args) := op in
+  if (opcode == 13%N) then (* shuffle *)
+    if (List.forallb (fun n => N.ltb n 32%N) args) then true else false
+  else true.
+             
 Definition rglob_is_mut (g : module_global) : bool :=
   g.(modglob_type).(tg_mut) == MUT_var.
 

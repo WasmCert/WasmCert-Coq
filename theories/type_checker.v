@@ -193,7 +193,9 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
       | BI_vunop op =>
           type_update ts [::T_vec T_v128] [::T_vec T_v128]
       | BI_vbinop op =>
-          type_update ts [::T_vec T_v128; T_vec T_v128] [::T_vec T_v128]
+          if vbinop_valid op then
+            type_update ts [::T_vec T_v128; T_vec T_v128] [::T_vec T_v128]
+          else None
       | BI_vternop op =>
           type_update ts [::T_vec T_v128; T_vec T_v128; T_vec T_v128] [::T_vec T_v128]
       | BI_vtestop tv =>

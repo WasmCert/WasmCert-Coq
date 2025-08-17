@@ -208,6 +208,7 @@ Inductive be_typing : t_context -> seq basic_instruction -> instr_type -> Prop :
 | bet_vunop: forall C op,
     be_typing C [::BI_vunop op] (Tf [::T_vec T_v128] [::T_vec T_v128])
 | bet_vbinop: forall C op,
+    vbinop_valid op -> (* Check against laneids for shuffle *)
     be_typing C [::BI_vbinop op] (Tf [::T_vec T_v128; T_vec T_v128] [::T_vec T_v128])
 | bet_vternop: forall C op,
     be_typing C [::BI_vternop op] (Tf [::T_vec T_v128; T_vec T_v128; T_vec T_v128] [::T_vec T_v128])

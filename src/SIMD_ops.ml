@@ -52,6 +52,10 @@ let app_vunop_str op v =
     | 225 -> F32x4.neg
     | 227 -> F32x4.sqrt
 
+    | 236 -> F64x2.abs
+    | 237 -> F64x2.neg
+    | 239 -> F64x2.sqrt
+
     | 248 -> I32x4_convert.trunc_sat_f32x4_s
     | 249 -> I32x4_convert.trunc_sat_f32x4_u
     | 250 -> F32x4_convert.convert_i32x4_s
@@ -67,11 +71,16 @@ let app_vunop_str op v =
   to_bits (wasm_f vw)
 
 let app_vbinop_str op_args v1 v2 = 
-  let (op, _args) = op_args in
+  let (op, args) = op_args in
   let v1w = of_bits v1 in
   let v2w = of_bits v2 in
+  let iop = Utils.int_of_z op in
+  let iargs = List.map Utils.int_of_z args in
+  if iop = 13 then (* shuffle *)
+    to_bits (V8x16.shuffle v1w v2w iargs)
+  else
   let wasm_f = 
-    match Utils.int_of_z op with
+    match iop with
     | 14 -> V8x16.swizzle
     | 35 -> I8x16.eq
     | 36 -> I8x16.ne
@@ -125,7 +134,7 @@ let app_vbinop_str op_args v1 v2 =
     | 111 -> I8x16.add_sat_s
     | 112 -> I8x16.add_sat_u
     | 113 -> I8x16.sub
-    | 114 -> I8x16.sub_sat_u
+    | 114 -> I8x16.sub_sat_s
     | 115 -> I8x16.sub_sat_u
     | 118 -> I8x16.min_s
     | 119 -> I8x16.min_u
@@ -139,7 +148,7 @@ let app_vbinop_str op_args v1 v2 =
     | 143 -> I16x8.add_sat_s
     | 144 -> I16x8.add_sat_u
     | 145 -> I16x8.sub
-    | 146 -> I16x8.sub_sat_u
+    | 146 -> I16x8.sub_sat_s
     | 147 -> I16x8.sub_sat_u
     | 149 -> I16x8.mul
     | 150 -> I16x8.min_s
