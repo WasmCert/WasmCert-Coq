@@ -56,11 +56,22 @@ Proof.
   done.
 Qed.
 
+Lemma v128_extract_lanes_typing: forall sh s vv vs,
+    v128_extract_lanes sh s vv = vs ->
+    List.Forall (fun v => typeof_num v = typeof_shape_unpacked sh) vs.
+Proof.
+  move => sh s vv vs; unfold v128_extract_lanes.
+  destruct sh as [[] | []];
+  destruct s; move => <-; apply List.Forall_map => /=;
+  by apply List.Forall_forall.
+Qed.
+  
 Lemma app_extract_vec_typing: forall sh os n v1,
     typeof_num (app_extract_vec sh os n v1) = typeof_shape_unpacked sh.
 Proof.
-  intros; unfold app_extract_vec => /=.
-  destruct (lookup_N _ _) => //=; by destruct sh as [[] | []] => //=.
+  intros; unfold app_extract_vec.
+  destruct (lookup_N _ _) eqn:Hlookup; last by destruct sh as [[] | []].
+  by eapply Forall_lookup in Hlookup; last by eapply v128_extract_lanes_typing; eauto.
 Qed.
 
 (* It's better to just set `instr_subtyping` opaque and unset it when necessary, since most of the times we do not want to unfold this definition by simpl. But the simpl nomatch method doesn't prevent it from being unfolded for some reason. *)
