@@ -552,24 +552,36 @@ Definition pp_vshape (sh: vshape) :=
 Definition pp_splat_vec (sh: vshape) :=
   "splat " ++ pp_vshape sh.
 
+Definition pp_laneidx (x: laneidx) :=
+  "lane:" ++ pp_N x.
+
 Definition pp_extract_vec (sh: vshape) (s: option sx) (x: laneidx) :=
-  "extract_lane " ++ pp_vshape sh ++ " " ++ pp_sx_o s ++ " lane:" ++ pp_N x.
+  "extract_lane " ++ pp_vshape sh ++ " " ++ pp_sx_o s ++ " " ++ pp_laneidx x.
 
 Definition pp_replace_vec (sh: vshape) (x: laneidx) :=
-  "replace_lane " ++ pp_vshape sh ++ " lane:" ++ pp_N x.
-  
+  "replace_lane " ++ pp_vshape sh ++ " " ++ pp_laneidx x.
+
 Definition pp_load_vec (lvarg: load_vec_arg) (marg: memarg) :=
-  "(not implemented: load_vec)".
+  match lvarg with
+  | LVA_extend (n, m) s =>
+      "load_vec_extend_" ++ pp_N n ++ "x" ++ pp_N m ++ " " ++ pp_memarg marg
+  | LVA_zero ww =>
+      "load_vec_zero_" ++ pp_N ww ++ " " ++ pp_memarg marg
+  | LVA_splat ww =>
+      "load_vec_splat_" ++ pp_N ww ++ " " ++ pp_memarg marg
+  | LVA_none =>
+      " v128.load_vec " ++ pp_memarg marg
+  end.
 
 Definition pp_load_vec_lane (w: vwidth) (marg: memarg) (x: laneidx) :=
-  "(not implemented: load_vec_lane)".
+  "load_vec_lane_" ++ pp_N w ++ " " ++ pp_memarg marg ++ " " ++ pp_laneidx x.
 
 (* store_vec_lane and load_vec uses the same args. Maybe it's better to find a new name *)
 Definition pp_store_vec (marg: memarg) :=
-  "(not implemented: store_vec)".
+  "v128.store " ++ pp_memarg marg.
 
 Definition pp_store_vec_lane (w: vwidth) (marg: memarg) (x: laneidx) :=
-  "(not implemented: store_vec_lane)".
+  "store_vec_lane_" ++ pp_N w ++ " " ++ pp_memarg marg ++ " " ++ pp_laneidx x.
 
 Fixpoint pp_basic_instruction (i : indentation) (be : basic_instruction) : string :=
   let pp_basic_instructions bes i :=

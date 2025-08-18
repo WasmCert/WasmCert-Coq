@@ -1364,10 +1364,11 @@ Fixpoint split_n (es : seq value) (n : nat) : seq value * seq value :=
     (e :: es', es'')
   end.
 
-(* TODO: eliminate the use of this *)
+#[deprecated(since="wasmcert-coq-v2.2", note="Use serialise_num instead.")]
 Definition expect {A B : Type} (ao : option A) (f : A -> B) (b : B) : B :=
   oapp f b ao.
 
+#[deprecated(since="wasmcert-coq-v2.2", note="Use serialise_num instead.")]
 Definition expect' {A B : Type} (ao : option A) (f : A -> B) (b : B) : B :=
   match ao as ao0 return (ao = ao0) -> B with
   | Some a => (fun _ => f a)
