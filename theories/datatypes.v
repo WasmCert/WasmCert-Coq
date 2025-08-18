@@ -417,167 +417,13 @@ Inductive packed_type : Set := (* tp *)
   | Tp_i32
   .
 
-(** SIMD Definitions and Instructions **)
-  (*
-Inductive vshape_i: Set :=
-  | VSI_8_16
-  | VSI_16_8
-  | VSI_32_4
-  | VSI_64_2
-  .
-  
-Inductive vshape_f: Set :=
-  | VSF_32_4
-  | VSF_64_2
-  .
-  
-Inductive vshape : Set := (* shape *)
-  | VS_i: vshape_i -> vshape
-  | VS_f: vshape_f -> vshape
-  .
-
-Inductive vec_half : Set :=
-  | VH_low
-  | VH_high
-  .
-
-Definition laneidx : Set := u8. 
-
-Inductive vvunop : Set :=
-  | VVU_not
-  .
-
-Inductive viunop : Set :=
-  | VUOI_abs
-  | VUOI_neg
-  | VUOI_popcnt (* has shape constraints: i8x16 *)
-  .
-
-Inductive vfunop : Set :=
-  | VUOF_abs
-  | VUOF_neg
-  | VUOF_sqrt
-  | VUOF_ceil
-  | VUOF_floor
-  | VUOF_trunc
-  | VUOF_nearest
-  .
-
-(* Indicate whether a cvtop has a zero flag. *)
-Inductive vec_zero : Set :=
-  | VZ_zero
-  .
-  
-Inductive vcvtop : Set :=
-  | VCVT_extend : vec_half -> sx -> vcvtop
-  | VCVT_trunc_sat : sx -> option vec_zero -> vcvtop
-  | VCVT_convert : option vec_half -> sx -> vcvtop
-  | VCVT_demote : vec_zero -> vcvtop (* Superficial tag since zero has to be present for demote; only available on f64x2 *)
-  | VCVT_promote (* only available on LOW half and f32x4 *)
-  .
-  
-Inductive vunop : Set :=
-  | VI_unop: viunop -> vunop
-  | VF_unop: vfunop -> vunop
-  | VV_unop: vvunop -> vunop
-  | V_cvtop: vcvtop -> vunop
-  | V_extadd_pairwise: sx -> vunop (* i16 and i32 only *)
-  .
-  
-Inductive vvbinop : Set :=
-  | VVB_and
-  | VVB_andnot
-  | VVB_or
-  | VVB_xor
-  .
-  
-Inductive vibinop : Set :=
-  | VBOI_add
-  | VBOI_sub
-  | VBOI_add_sat: sx -> vibinop (* i8 and i16 only *)
-  | VBOI_sub_sat: sx -> vibinop (* i8 and i16 only *)
-  | VBOI_mul (* i16/i32/i64 only *)
-  | VBOI_avgr (* unsigned only, i8/i16 only *)
-  | VBOI_q15mulr_sat (* signed only, i8/i16 only *)
-  | VBOI_min: sx -> vibinop (* i8/i16/i32 only *)
-  | VBOI_max: sx -> vibinop (* i8/i16/i32 only *)
-  .
-
-Inductive vfbinop : Set :=
-  | VBOF_add
-  | VBOF_sub
-  | VBOF_mul
-  | VBOF_div
-  | VBOF_min
-  | VBOF_max
-  | VBOF_pmin
-  | VBOF_pmax
-  .
-
-Inductive vextbinop: Set :=
-  | VBOE_extmul: vec_half -> sx -> vextbinop
-  | VBOE_dot (* signed only, i32 only *)
-.
-  
-Inductive vbinop : Set :=
-  | VI_binop: vibinop -> vbinop
-  | VF_binop: vfbinop -> vbinop
-  | VV_binop: vvbinop -> vbinop
-  | VE_binop: vextbinop -> vbinop
-  | V_narrow: vshape_i -> sx -> vbinop (* resulting width needs to be 2x original and at most i32 *)
-  | V_shuffle: list laneidx -> vbinop (* i8x16 only *)
-  | V_swizzle (* i8x16 only *)
-  .
-
-(* Technically this is vvternop. But this is the only ternary operation. *)
-Inductive vternop : Set :=
-  | VT_bitselect
-  .
-
-Inductive vvtestop : Set :=
-  | VVT_any_true
-  .
-  
-Inductive vitestop : Set :=
-  | VIT_all_true
-  .
-
-Inductive vtestop : Set :=
-  | VI_testop: vitestop -> vtestop
-  | VV_testop: vvtestop -> vtestop
-  | V_bitmask
-  .
-
-Inductive virelop : Set :=
-  | VIR_eq
-  | VIR_ne
-  | VIR_lt: sx -> virelop (* not available on i64x2 unsigned *)
-  | VIR_gt: sx -> virelop (* not available on i64x2 unsigned *)
-  | VIR_le: sx -> virelop (* not available on i64x2 unsigned *)
-  | VIR_ge: sx -> virelop (* not available on i64x2 unsigned *)
-  .
-  
-Inductive vfrelop : Set :=
-  | VFR_eq
-  | VFR_ne
-  | VFR_lt: sx -> vfrelop 
-  | VFR_gt: sx -> vfrelop
-  | VFR_le: sx -> vfrelop
-  | VFR_ge: sx -> vfrelop
-  .
-
-Inductive vrelop : Set :=
-  | VI_relop: virelop -> vrelop
-  | VF_relop: vfrelop -> vrelop
-  .
-
-(* Technically vishiftop, but shifts are only available for integers *)
-Inductive vshiftop : Set :=
-  | VS_shl
-  | VS_shr : sx -> vshiftop
-  .
+(** SIMD Interface **)
+(* SIMD instructions are grouped according to their type signatures. The Rocq
+formalisation skips the concrete AST of them but instead uses the binary format
+to represent the insturctions via an 'opcode'. Execution of these instructions
+is delegated to the reference implementation. Check src/SIMD_ops.ml for the
+interface.
 *)
-  
 Inductive vshape_i: Set :=
   | VSI_8_16
   | VSI_16_8
@@ -604,7 +450,7 @@ Definition laneidx : Set := u8.
 
 Definition vunop := N.
 
-(* Shuffle is included in this type, which needs to encode an additional list of laneidx. *)
+(* Shuffle is also a binop, but it needs an additional list of laneidx. *)
 Definition vbinop : Type := N * list N.
 
 Definition vternop := N.

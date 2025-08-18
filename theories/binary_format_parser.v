@@ -504,48 +504,6 @@ Definition parse_f64_const {n} : be_parser n :=
 Definition parse_v128_const {n} : be_parser n :=
   exact_byte xfd &> assert_u32 12%N &> ((fun x => BI_const_vec (VAL_vec128 x)) <$> parse_16bytes).
 
-(*
-Inductive vvunop : Set :=
-  | VVU_not
-  .
-
-Inductive viunop : Set :=
-  | VUOI_abs
-  | VUOI_neg
-  | VUOI_popcnt (* has shape constraints: i8x16 *)
-  .
-
-Inductive vfunop : Set :=
-  | VUOF_abs
-  | VUOF_neg
-  | VUOF_sqrt
-  | VUOF_ceil
-  | VUOF_floor
-  | VUOF_trunc
-  | VUOF_nearest
-  .
-
-(* Indicate whether a cvtop has a zero flag. *)
-Inductive vec_zero : Set :=
-  | VZ_zero
-  .
-  
-Inductive vcvtop : Set :=
-  | VCVT_extend : vec_half -> sx -> vcvtop
-  | VCVT_trunc_sat : sx -> option vec_zero -> vcvtop
-  | VCVT_convert : option vec_half -> sx -> vcvtop
-  | VCVT_demote : vec_zero -> vcvtop (* Superficial tag since zero has to be present for demote; only available on f64x2 *)
-  | VCVT_promote (* only available on LOW half and f32x4 *)
-  .
-  
-Inductive vunop : Set :=
-  | VI_unop: viunop -> vunop
-  | VF_unop: vfunop -> vunop
-  | VV_unop: vvunop -> vunop
-  | V_cvtop: vcvtop -> vunop
-  | V_extadd_pairwise: sx -> vunop (* i16 and i32 only *)
-*)
-
 (* Slightly stupid, but no better solution without defining the concrete constructors *)
 
 Section Opcode_classes.
