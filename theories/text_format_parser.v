@@ -349,12 +349,83 @@ Definition parse_ref {n} : byte_parser value_ref n :=
     exact_string "ref.func " &> ((fun a => VAL_ref_func a) <$> parse_addr_text) <|>
     exact_string "ref.extern " &> ((fun a => VAL_ref_extern a) <$> parse_addr_text).
 
+Definition parse_vshape {n} : byte_parser vshape n :=
+  exact_string "i8x16" $> VS_i VSI_8_16 <|>
+  exact_string "i16x8" $> VS_i VSI_16_8 <|>
+  exact_string "i32x4" $> VS_i VSI_32_4 <|>
+  exact_string "i64x2" $> VS_i VSI_64_2 <|>
+  exact_string "f32x4" $> VS_f VSF_32_4 <|>
+  exact_string "f64x2" $> VS_f VSF_64_2.
+
+Fixpoint parse_vec_aux_positive {B} {n} (f: byte_parser B n) (p: positive) :
+  byte_parser (list B) n :=
+  match p with
+  | xH => (fun x => cons x nil) <$> f
+  | xO p' => (fun '(l1, l2) => List.app l1 l2) <$> (parse_vec_aux_positive f p' &>>= (fun _ => parse_vec_aux_positive f p'))
+  | xI p' => (((fun '(h, (l1, l2)) => cons h (List.app l1 l2))) <$> (f &>>= (fun _ => (parse_vec_aux_positive f p' &>>= (fun _ => parse_vec_aux_positive f p')))))
+  end.
+
+Definition parse_lanes_int {n} (lanes_p: positive) : byte_parser (list Z) n :=
+  parse_vec_aux_positive
+    (exact_string " " &> parse_uninterpreted_int) lanes_p.
+
+Definition parse_lanes_float {n} ftype fmixin (lanes_p: positive): byte_parser (list ftype) n :=
+  parse_vec_aux_positive
+    (exact_string " " &> parse_float ftype fmixin) lanes_p.
+
+Definition shape_dim_pos (sh: vshape) : positive :=
+  match sh with
+  | VS_i vsi =>
+      match vsi with
+      | VSI_8_16 => 16
+      | VSI_16_8 => 8
+      | VSI_32_4 => 4
+      | VSI_64_2 => 2
+      end
+  | VS_f vsf =>
+      match vsf with
+      | VSF_32_4 => 4
+      | VSF_64_2 => 2
+      end
+  end.
+
+Definition parse_lanes {n} (sh: vshape) : byte_parser (list value_num) n :=
+  match sh with
+  | VS_i VSI_64_2 =>
+      (fun zs => List.map (fun z => VAL_int64 (Wasm_int.Int64.repr z)) zs) <$>
+      (parse_lanes_int 2%positive)
+  | VS_f VSF_64_2 =>
+      (fun fs => List.map (fun f => VAL_float64 f) fs) <$>
+      (parse_lanes_float f64 f64m 2%positive)
+  | VS_f VSF_32_4 =>
+      (fun fs => List.map (fun f => VAL_float32 f) fs) <$>
+      (parse_lanes_float f32 f32m 4%positive)
+  | VS_i _ =>
+      (fun zs => List.map (fun z => VAL_int32 (Wasm_int.Int32.repr z)) zs) <$>
+      (parse_lanes_int (shape_dim_pos sh))
+  end.
+
+Definition parse_shape {n} : byte_parser vshape n :=
+  exact_string "i8x16" $> VS_i VSI_8_16 <|>
+  exact_string "i16x8" $> VS_i VSI_16_8 <|>
+  exact_string "i32x4" $> VS_i VSI_32_4 <|>
+  exact_string "i64x2" $> VS_i VSI_64_2 <|>
+  exact_string "f32x4" $> VS_f VSF_32_4 <|>
+  exact_string "f64x2" $> VS_f VSF_64_2.
+
+Definition parse_v128 {n} : byte_parser value_vec n :=
+  exact_string "v128.const " &>
+    parse_shape >>=
+    (fun sh => (VAL_vec128 <$> ((v128_serialise sh) <$> (parse_lanes sh)
+      ))).
+
 Definition parse_arg {n} : byte_parser datatypes.value n :=
   parse_i32_sym &> parse_dotconst &> exact_byte " " &> ((fun z => VAL_num (VAL_int32 (Wasm_int.Int32.repr z))) <$> parse_uninterpreted_int) <|>
   parse_i64_sym &> parse_dotconst &> exact_byte " " &> ((fun z => VAL_num (VAL_int64 (Wasm_int.Int64.repr z))) <$> parse_uninterpreted_int) <|>
   parse_f32_sym &> parse_dotconst &> exact_byte " " &> ((fun f => VAL_num (VAL_float32 f)) <$> parse_float f32 f32m) <|>
   parse_f64_sym &> parse_dotconst &> exact_byte " " &> ((fun f => VAL_num (VAL_float64 f)) <$> parse_float f64 f64m) <|>
-  VAL_ref <$> parse_ref.
+  VAL_ref <$> parse_ref <|>
+  VAL_vec <$> parse_v128.
 
 Record Language (n : nat) : Type := MkLanguage {
   _parse_arg: byte_parser datatypes.value n;
@@ -408,5 +479,5 @@ Definition run : list byte -> [ Parser (SizedList Tok) Tok M A ] -> option A := 
 
 End Run.
 
-Definition run_parse_arg (bs : list byte) : option datatypes.value :=
-  run bs (fun n => parse_arg).
+Definition run_parse_arg (s: String.string) : option datatypes.value :=
+  run (String.list_byte_of_string s) (fun n => parse_arg).

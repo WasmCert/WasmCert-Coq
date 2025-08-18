@@ -79,22 +79,6 @@ Definition value_typing (s: store_record) (v: value) (t: value_type) : bool :=
 Definition values_typing (s: store_record) (vs: list value) (tf: list value_type) : bool :=
   all2 (value_typing s) vs tf.
 
-Definition typeof_shape_unpacked (shape: shape_vec) : number_type :=
-  match shape with
-  | SV_ishape svi =>
-      match svi with
-      | SVI_8_16 => T_i32
-      | SVI_16_8 => T_i32
-      | SVI_32_4 => T_i32
-      | SVI_64_2 => T_i64
-      end
-  | SV_fshape svf =>
-      match svf with
-      | SVF_32_4 => T_f32
-      | SVF_64_2 => T_f64
-      end
-  end.
-  
 Definition result_types_agree (s: store_record) (ts : result_type) r : bool :=
   match r with
   | result_values vs => values_typing s vs ts
@@ -221,21 +205,22 @@ Inductive be_typing : t_context -> seq basic_instruction -> instr_type -> Prop :
 | bet_cvtop : forall C op t1 t2 sx,
     cvtop_valid t2 op t1 sx ->
     be_typing C [::BI_cvtop t2 op t1 sx] (Tf [::T_num t1] [::T_num t2])
-| bet_unop_vec: forall C op,
-    be_typing C [::BI_unop_vec op] (Tf [::T_vec T_v128] [::T_vec T_v128])
-| bet_binop_vec: forall C op,
-    be_typing C [::BI_binop_vec op] (Tf [::T_vec T_v128; T_vec T_v128] [::T_vec T_v128])
-| bet_ternop_vec: forall C op,
-    be_typing C [::BI_ternop_vec op] (Tf [::T_vec T_v128; T_vec T_v128; T_vec T_v128] [::T_vec T_v128])
-| bet_test_vec: forall C op,
-    be_typing C [::BI_test_vec op] (Tf [::T_vec T_v128] [::T_num T_i32])
-| bet_shift_vec: forall C op,
-    be_typing C [::BI_shift_vec op] (Tf [::T_vec T_v128; T_num T_i32] [::T_vec T_v128])
-| bet_splat_vec: forall C shape,
-    be_typing C [::BI_splat_vec shape] (Tf [::T_num (typeof_shape_unpacked shape)] [::T_vec T_v128])
-| bet_extract_vec: forall C shape sx x,
-    N.ltb x (shape_dim shape) = true ->
-    be_typing C [::BI_extract_vec shape sx x] (Tf [::T_vec T_v128] [::T_num (typeof_shape_unpacked shape)])
+| bet_vunop: forall C op,
+    be_typing C [::BI_vunop op] (Tf [::T_vec T_v128] [::T_vec T_v128])
+| bet_vbinop: forall C op,
+    vbinop_valid op -> (* Check against laneids for shuffle *)
+    be_typing C [::BI_vbinop op] (Tf [::T_vec T_v128; T_vec T_v128] [::T_vec T_v128])
+| bet_vternop: forall C op,
+    be_typing C [::BI_vternop op] (Tf [::T_vec T_v128; T_vec T_v128; T_vec T_v128] [::T_vec T_v128])
+| bet_vtestop: forall C op,
+    be_typing C [::BI_vtestop op] (Tf [::T_vec T_v128] [::T_num T_i32])
+| bet_vshiftop: forall C op,
+    be_typing C [::BI_vshiftop op] (Tf [::T_vec T_v128; T_num T_i32] [::T_vec T_v128])
+| bet_splat_vec: forall C sh,
+    be_typing C [::BI_splat_vec sh] (Tf [::T_num (typeof_shape_unpacked sh)] [::T_vec T_v128])
+| bet_extract_vec: forall C sh sx x,
+    N.ltb x (shape_dim sh) = true ->
+    be_typing C [::BI_extract_vec sh sx x] (Tf [::T_vec T_v128] [::T_num (typeof_shape_unpacked sh)])
 | bet_replace_vec: forall C shape x,
     N.ltb x (shape_dim shape) = true ->
     be_typing C [::BI_replace_vec shape x] (Tf [::T_vec T_v128; T_num (typeof_shape_unpacked shape)] [::T_vec T_v128])
@@ -349,15 +334,19 @@ Inductive be_typing : t_context -> seq basic_instruction -> instr_type -> Prop :
   be_typing C [::BI_load_vec lv_arg m_arg] (Tf [::T_num T_i32] [::T_vec T_v128])
 | bet_load_vec_lane : forall C width m_arg x mem,
   lookup_N (tc_mems C) 0%N = Some mem ->
-  load_vec_lane_bounds width m_arg x ->
+  load_store_vec_lane_bounds width m_arg x ->
   be_typing C [::BI_load_vec_lane width m_arg x] (Tf [::T_num T_i32; T_vec T_v128] [::T_vec T_v128])
 | bet_store : forall C m_arg tp t mem,
   lookup_N (tc_mems C) 0%N = Some mem ->
   load_store_t_bounds m_arg.(memarg_align) tp t ->
   be_typing C [::BI_store t tp m_arg] (Tf [::T_num T_i32; T_num t] [::])
+| bet_store_vec : forall C m_arg mem,
+  lookup_N (tc_mems C) 0%N = Some mem ->
+  store_vec_bounds m_arg ->
+  be_typing C [::BI_store_vec m_arg] (Tf [::T_num T_i32; T_vec T_v128] [::])
 | bet_store_vec_lane : forall C width m_arg x mem,
   lookup_N (tc_mems C) 0%N = Some mem ->
-  load_vec_lane_bounds width m_arg x ->
+  load_store_vec_lane_bounds width m_arg x ->
   be_typing C [::BI_store_vec_lane width m_arg x] (Tf [::T_num T_i32; T_vec T_v128] [::])
 | bet_memory_size : forall C mem,
   lookup_N (tc_mems C) 0%N = Some mem ->

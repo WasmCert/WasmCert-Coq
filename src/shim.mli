@@ -80,7 +80,7 @@ module type InterpreterType = sig
   val get_exports : frame -> (string * externval) list
 
   (** Parsing. *)
-  val run_parse_module : string -> Extract.module0 option
+  val run_parse_module_str : string -> Extract.module0 option
 
   val run_parse_arg : string -> Extract.value0 option
 
@@ -102,6 +102,8 @@ module type InterpreterType = sig
   val is_canonical_nan: Extract.number_type -> value -> bool
 
   val is_arithmetic_nan: Extract.number_type -> value -> bool
+
+  val v128_extract_lanes: Extract.vshape -> Extract.SIMD.v128 -> Extract.value_num list
 
 end
 

@@ -3,7 +3,7 @@
     and https://webassembly.github.io/spec/core/exec/index.html **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
-From Wasm Require Export common numerics bytes memory.
+From Wasm Require Export common numerics bytes memory simd.
 From compcert Require common.Memdata.
 Require Import BinNat.
 
@@ -32,6 +32,8 @@ Definition u8: Set := N.
 
 (* 2^32 *)
 Definition u32_bound : N := 4294967296%N.
+
+Definition u8_bound : N := 256%N.
 
 Definition typeidx : Set := u32.
 Definition funcidx : Set := u32.
@@ -79,10 +81,9 @@ Inductive value_num : Type :=
 
 (* We are not implementing SIMD at the moment. *)
 Inductive value_vec : Set :=
-  | VAL_vec128: unit -> value_vec
+  | VAL_vec128: SIMD.v128 -> value_vec
 .
 
-(* TODO: Unicode support? *)
 Definition name := list Byte.byte.
 
 Section Types.
@@ -287,7 +288,14 @@ End Types.
 
 Definition static_offset := (* off *) u32. 
 
-Definition alignment_exponent := (* a *) u32. 
+Definition alignment_exponent := (* a *) u32.
+
+(* i8 and i16 are for v128 values *)
+Definition serialise_i8 (i : i32) : bytes :=
+  common.Memdata.encode_int 1%nat (numerics.Wasm_int.Int32.unsigned i).
+
+Definition serialise_i16 (i : i32) : bytes :=
+  common.Memdata.encode_int 2%nat (numerics.Wasm_int.Int32.unsigned i).
 
 Definition serialise_i32 (i : i32) : bytes :=
   common.Memdata.encode_int 4%nat (numerics.Wasm_int.Int32.unsigned i).
@@ -409,67 +417,62 @@ Inductive packed_type : Set := (* tp *)
   | Tp_i32
   .
 
-Inductive shape_vec_i: Set :=
-  | SVI_8_16
-  | SVI_16_8
-  | SVI_32_4
-  | SVI_64_2
+(** SIMD Interface **)
+(* SIMD instructions are grouped according to their type signatures. The Rocq
+formalisation skips the concrete AST of them but instead uses the binary format
+to represent the insturctions via an 'opcode'. Execution of these instructions
+is delegated to the reference implementation. Check src/SIMD_ops.ml for the
+interface.
+*)
+Inductive vshape_i: Set :=
+  | VSI_8_16
+  | VSI_16_8
+  | VSI_32_4
+  | VSI_64_2
   .
   
-Inductive shape_vec_f: Set :=
-  | SVF_32_4
-  | SVF_64_2
+Inductive vshape_f: Set :=
+  | VSF_32_4
+  | VSF_64_2
   .
   
-Inductive shape_vec : Set := (* shape *)
-  | SV_ishape: shape_vec_i -> shape_vec
-  | SV_fshape: shape_vec_f -> shape_vec
+Inductive vshape : Set := (* shape *)
+  | VS_i: vshape_i -> vshape
+  | VS_f: vshape_f -> vshape
   .
 
-Inductive unop_vec : Set :=
-  | VUO_not
-  .
-  
-Inductive binop_vec : Set :=
-  | VBO_and
-  .
-  
-Inductive ternop_vec : Set :=
-  | VTO_bitselect
-  .
-  
-Inductive test_vec : Set :=
-  | VT_any_true
-  .
-  
-Inductive shift_vec : Set :=
-  | VSH_any_true
+Inductive vec_half : Set :=
+  | VH_low
+  | VH_high
   .
 
-Definition laneidx := u8.
+Definition laneidx : Set := u8. 
 
-Inductive packed_type_vec :=
-  | Tptv_8_8
-  | Tptv_16_4
-  | Tptv_32_2
-.
+Definition vunop := N.
 
-Inductive zero_type_vec :=
-  | Tztv_32
-  | Tztv_64
-.
+(* Shuffle is also a binop, but it needs an additional list of laneidx. *)
+Definition vbinop : Type := N * list N.
 
-Inductive width_vec :=
-  | Twv_8
-  | Twv_16
-  | Twv_32
-  | Twv_64
-  .
+Definition vternop := N.
+
+Definition vtestop := N.
+
+Definition vshiftop := N.
+
+(* Available shapes: 8x8, 16x4, 32x2 *)
+Definition vpacked_type : Type := N * N.
+
+(* Available widths: 32, 64 *)
+Definition vzero_width := N.
+
+(* Available widths: 8, 16, 32, 64 *)
+Definition vwidth := N.
 
 Inductive load_vec_arg :=
-  | LVA_packed: packed_type_vec -> sx -> load_vec_arg
-  | LVA_zero: zero_type_vec -> load_vec_arg
-  | LVA_splat: width_vec -> load_vec_arg
+  | LVA_extend: vpacked_type -> sx -> load_vec_arg (* v128.loadnxm_sx *)
+  | LVA_zero: vzero_width -> load_vec_arg (* v128.loadnn_zero *)
+  | LVA_splat: vwidth -> load_vec_arg (* v128.loadww_spat *)
+  | LVA_none (* v128.load *)
   .
 
 Record memarg : Set :=
@@ -502,14 +505,14 @@ Extract lanes: consume a v128 operand and return the numeric value in a given la
 Replace lanes: consume a v128 operand and a numeric value for a given lane, and produce a v128 result.
 **)
   | BI_const_vec : value_vec -> basic_instruction
-  | BI_unop_vec: unop_vec -> basic_instruction
-  | BI_binop_vec: binop_vec -> basic_instruction
-  | BI_ternop_vec: ternop_vec -> basic_instruction
-  | BI_test_vec: test_vec -> basic_instruction
-  | BI_shift_vec: shift_vec -> basic_instruction
-  | BI_splat_vec: shape_vec -> basic_instruction
-  | BI_extract_vec: shape_vec -> option sx -> laneidx -> basic_instruction
-  | BI_replace_vec: shape_vec -> laneidx -> basic_instruction
+  | BI_vunop: vunop -> basic_instruction
+  | BI_vbinop: vbinop -> basic_instruction
+  | BI_vternop: vternop -> basic_instruction
+  | BI_vtestop: vtestop -> basic_instruction
+  | BI_vshiftop: vshiftop -> basic_instruction
+  | BI_splat_vec: vshape -> basic_instruction
+  | BI_extract_vec: vshape -> option sx -> laneidx -> basic_instruction (* sx only available for i8/i16 *)
+  | BI_replace_vec: vshape -> laneidx -> basic_instruction
 (** std-doc:
 Instructions in this group are concerned with accessing references.
 **)
@@ -546,9 +549,11 @@ Instructions in this group are concerned with linear memory.
   | BI_load : number_type -> option (packed_type * sx) -> memarg -> basic_instruction
   | BI_load_vec : load_vec_arg -> memarg -> basic_instruction
   (* the lane version has a different type signature *)
-  | BI_load_vec_lane : width_vec -> memarg -> laneidx -> basic_instruction
+  | BI_load_vec_lane : vwidth -> memarg -> laneidx -> basic_instruction
   | BI_store : number_type -> option packed_type -> memarg -> basic_instruction
-  | BI_store_vec_lane : width_vec -> memarg -> laneidx -> basic_instruction
+  (* v128.store *)
+  | BI_store_vec : memarg -> basic_instruction
+  | BI_store_vec_lane : vwidth -> memarg -> laneidx -> basic_instruction
   | BI_memory_size
   | BI_memory_grow
   | BI_memory_fill
@@ -1069,6 +1074,7 @@ the current function originates from.
 Definition thread : Type := frame * list administrative_instruction.
 
 Definition config_tuple : Type := store_record * thread.
+
 End Host.
 End Memory.
 

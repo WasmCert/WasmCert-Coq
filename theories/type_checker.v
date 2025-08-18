@@ -190,15 +190,17 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
           if cvtop_valid t2 op t1 sx
           then type_update ts [::(T_num t1)] [::(T_num t2)]
           else None
-      | BI_unop_vec op =>
+      | BI_vunop op =>
           type_update ts [::T_vec T_v128] [::T_vec T_v128]
-      | BI_binop_vec op =>
-          type_update ts [::T_vec T_v128; T_vec T_v128] [::T_vec T_v128]
-      | BI_ternop_vec op =>
+      | BI_vbinop op =>
+          if vbinop_valid op then
+            type_update ts [::T_vec T_v128; T_vec T_v128] [::T_vec T_v128]
+          else None
+      | BI_vternop op =>
           type_update ts [::T_vec T_v128; T_vec T_v128; T_vec T_v128] [::T_vec T_v128]
-      | BI_test_vec tv =>
+      | BI_vtestop tv =>
           type_update ts [::T_vec T_v128] [::T_num T_i32]
-      | BI_shift_vec sv =>
+      | BI_vshiftop sv =>
           type_update ts [::T_num T_i32; T_vec T_v128] [::T_vec T_v128]
       | BI_splat_vec shape =>
           type_update ts [::T_num (typeof_shape_unpacked shape)] [::T_vec T_v128]
@@ -413,7 +415,7 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
       | BI_load_vec_lane width marg x =>
           match lookup_N C.(tc_mems) 0%N with
           | Some _ =>
-              if load_vec_lane_bounds width marg x
+              if load_store_vec_lane_bounds width marg x
               then type_update ts [:: T_vec T_v128; T_num T_i32] [::T_vec T_v128]
               else None
           | None => None
@@ -426,10 +428,18 @@ Fixpoint check_single (C : t_context) (ct : option checker_type) (be : basic_ins
               else None
           | None => None
           end
+      | BI_store_vec marg =>
+          match lookup_N C.(tc_mems) 0%N with
+          | Some _ =>
+              if store_vec_bounds marg
+              then type_update ts [::T_vec T_v128; T_num T_i32] [::]
+              else None
+          | None => None
+          end
       | BI_store_vec_lane width marg x =>
           match lookup_N C.(tc_mems) 0%N with
           | Some _ =>
-              if load_vec_lane_bounds width marg x
+              if load_store_vec_lane_bounds width marg x
               then type_update ts [::T_vec T_v128; T_num T_i32] [::]
               else None
           | None => None

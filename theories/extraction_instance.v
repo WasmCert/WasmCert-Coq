@@ -178,6 +178,9 @@ Section Wast.
     | VAL_ref (VAL_ref_extern _) => true
     | _ => false
     end.
+
+  Definition v128_extract_lanes (sh: vshape) (v: v128) :=
+    v128_extract_lanes sh SX_S v.
   
 End Wast.
 

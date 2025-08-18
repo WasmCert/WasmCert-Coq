@@ -45,6 +45,12 @@ Definition exact_byte (b : byte) {n} : byte_parser byte n :=
       else None)
     anyTok.
 
+Definition parse_u8_as_N {n} : byte_parser N n :=
+  guardM
+    (fun n => if (N.leb n 255%N) then Some n
+           else None)
+    (assert_sized (extract parse_unsigned n) (fun sz => N.leb sz 2)).
+
 Definition parse_u32_as_N {n} : byte_parser N n :=
   guardM
     (fun n => if (N.leb n 4294967295%N) then Some n
@@ -98,6 +104,9 @@ Definition parse_vec {B} {n} (f : byte_parser B n) : byte_parser (list B) n :=
   exact_byte x00 $> nil <|>
   (parse_vec_length >>= (fun k => parse_vec_aux f k)).
 
+Definition parse_16bytes {n} : byte_parser SIMD.v128 n :=
+  (fun bs => List.map compcert_byte_of_byte bs) <$> parse_vec_aux anyTok 16.
+
 Definition parse_f32 {n} : byte_parser Wasm_float.FloatSize32.T n :=
   (fun bs => Floats.Float32.of_bits (Integers.Int.repr (common.Memdata.decode_int (List.map compcert_byte_of_byte bs)))) <$> (parse_vec_aux anyTok 4%N).
 
@@ -131,6 +140,9 @@ Definition parse_elemidx {n} : byte_parser elemidx n :=
 
 Definition parse_dataidx {n} : byte_parser dataidx n :=
   parse_u32_as_N.
+
+Definition parse_laneidx {n} : byte_parser laneidx n :=
+  parse_u8_as_N.
 
 Definition parse_number_type {n} : byte_parser number_type n :=
   (exact_byte x7f $> T_i32) <|>
@@ -399,6 +411,52 @@ Definition parse_memory_copy {n} : byte_parser basic_instruction n :=
 Definition parse_memory_fill {n} : byte_parser basic_instruction n :=
   exact_byte xfc &> assert_u32 11%N &> ((fun _ => BI_memory_fill) <$> exact_byte x00).
 
+Definition parse_v128_load {n} : byte_parser basic_instruction n :=
+  assert_u32 0%N &> (BI_load_vec (LVA_none) <$> parse_memarg).
+
+Definition parse_v128_load_packed {n} : byte_parser basic_instruction n :=
+  assert_u32 1%N &> (BI_load_vec (LVA_extend (8%N, 8%N) SX_S) <$> parse_memarg) <|>
+  assert_u32 2%N &> (BI_load_vec (LVA_extend (8%N, 8%N) SX_U) <$> parse_memarg) <|>
+  assert_u32 3%N &> (BI_load_vec (LVA_extend (16%N, 4%N) SX_S) <$> parse_memarg) <|>
+  assert_u32 4%N &> (BI_load_vec (LVA_extend (16%N, 4%N) SX_U) <$> parse_memarg) <|>
+  assert_u32 5%N &> (BI_load_vec (LVA_extend (32%N, 2%N) SX_S) <$> parse_memarg) <|>
+  assert_u32 6%N &> (BI_load_vec (LVA_extend (32%N, 2%N) SX_U) <$> parse_memarg).
+
+Definition parse_v128_load_splat {n} : byte_parser basic_instruction n :=
+  assert_u32 7%N &> (BI_load_vec (LVA_splat 8%N) <$> parse_memarg) <|>
+  assert_u32 8%N &> (BI_load_vec (LVA_splat 16%N) <$> parse_memarg) <|>
+  assert_u32 9%N &> (BI_load_vec (LVA_splat 32%N) <$> parse_memarg) <|>
+  assert_u32 10%N &> (BI_load_vec (LVA_splat 64%N) <$> parse_memarg).
+
+Definition parse_v128_load_zero {n} : byte_parser basic_instruction n :=
+  assert_u32 92%N &> (BI_load_vec (LVA_zero 32%N) <$> parse_memarg) <|>
+  assert_u32 93%N &> (BI_load_vec (LVA_zero 64%N) <$> parse_memarg).
+
+Definition parse_v128_store {n} : byte_parser basic_instruction n :=
+  assert_u32 11%N &> (BI_store_vec <$> parse_memarg).
+
+Definition parse_v128_load_lane {n} : byte_parser basic_instruction n :=
+  assert_u32 84%N &> ((BI_load_vec_lane 8%N <$> parse_memarg) <*> parse_laneidx) <|>
+  assert_u32 85%N &> ((BI_load_vec_lane 16%N <$> parse_memarg) <*> parse_laneidx) <|>
+  assert_u32 86%N &> ((BI_load_vec_lane 32%N <$> parse_memarg) <*> parse_laneidx) <|>
+  assert_u32 87%N &> ((BI_load_vec_lane 64%N <$> parse_memarg) <*> parse_laneidx).
+
+Definition parse_v128_store_lane {n} : byte_parser basic_instruction n :=
+  assert_u32 88%N &> ((BI_store_vec_lane 8%N <$> parse_memarg) <*> parse_laneidx) <|>
+  assert_u32 89%N &> ((BI_store_vec_lane 16%N <$> parse_memarg) <*> parse_laneidx) <|>
+  assert_u32 90%N &> ((BI_store_vec_lane 32%N <$> parse_memarg) <*> parse_laneidx) <|>
+  assert_u32 91%N &> ((BI_store_vec_lane 64%N <$> parse_memarg) <*> parse_laneidx).
+             
+Definition parse_vector_memory_instruction {n} : byte_parser basic_instruction n :=
+  exact_byte xfd &>
+  (parse_v128_load <|>
+  parse_v128_load_packed <|>
+  parse_v128_load_splat <|>
+  parse_v128_load_zero <|>
+  parse_v128_store <|>
+  parse_v128_load_lane <|>
+  parse_v128_store_lane).
+
 Definition parse_memory_instruction {n} : byte_parser basic_instruction n :=
   parse_i32_load <|>
   parse_i64_load <|>
@@ -423,6 +481,7 @@ Definition parse_memory_instruction {n} : byte_parser basic_instruction n :=
   parse_i64_store8 <|>
   parse_i64_store16 <|>
   parse_i64_store32 <|>
+  parse_vector_memory_instruction <|>
   parse_memory_size <|>
   parse_memory_grow <|>
   parse_memory_init <|>
@@ -442,12 +501,174 @@ Definition parse_f32_const {n} : be_parser n :=
 Definition parse_f64_const {n} : be_parser n :=
   exact_byte x44 &> ((fun x => BI_const_num (VAL_float64 x)) <$> parse_f64).
 
+Definition parse_v128_const {n} : be_parser n :=
+  exact_byte xfd &> assert_u32 12%N &> ((fun x => BI_const_vec (VAL_vec128 x)) <$> parse_16bytes).
+
+(* Slightly stupid, but no better solution without defining the concrete constructors *)
+
+Section Opcode_classes.
+
+  Open Scope N_scope.
+
+  Local Notation " x == y " := (N.eqb x y) (at level 5).
+  Local Notation " x >= y " := (N.leb y x) (at level 70).
+  Local Notation " x <= y " := (N.leb x y) (at level 70).
+
+Definition opcode_is_unop (n: N) : bool :=
+  (* v128 *)
+  (n == 77) ||
+  (* i8*16 *)
+    (n == 96) ||
+    (n == 97) ||
+    (n == 98) ||
+    (* i16x8 *)
+    ((n >= 124) && (n <= 125)) ||
+    (n == 128) ||
+    (n == 129) ||
+    (* i32x2 *)
+    ((n >= 126) && (n <= 127)) ||
+    (n == 160) ||
+    (n == 161) ||
+    (* i64x2 *)
+    (n == 192) ||
+    (n == 193) ||
+    (* f32x4 *)
+    ((n >= 103) && (n <= 106)) ||
+    (n == 224) ||
+    (n == 225) ||
+    (n == 227) ||
+    (* f64x2 *)
+    ((n >= 116) && (n <= 117)) ||
+    (n == 122) ||
+    (n == 148) ||
+    (n == 236) ||
+    (n == 237) ||
+    (n == 239) ||
+    (* cvtop *)
+    ((n >= 248) && (n <= 255)) ||
+    ((n >= 94) && (n <= 95)) ||
+    (* extend *)
+    ((n >= 135) && (n <= 138)) ||
+    ((n >= 167) && (n <= 170)) ||
+    ((n >= 199) && (n <= 202)).
+    
+Definition opcode_is_binop (n: N) : bool :=
+  (n == 14) ||
+    ((n >= 35) && (n <= 76)) ||
+    ((n >= 78) && (n <= 81)) ||
+    ((n >= 214) && (n <= 219)) ||
+    ((n >= 101) && (n <= 102)) ||
+    ((n >= 110) && (n <= 115)) ||
+    ((n >= 118) && (n <= 121)) || (n == 123) ||
+    (n == 130) ||
+    ((n >= 133) && (n <= 134)) ||
+    ((n >= 142) && (n <= 147)) ||
+    ((n >= 149) && (n <= 153)) ||
+    ((n >= 155) && (n <= 159)) ||
+    (n == 174) ||
+    (n == 177) ||
+    ((n >= 181) && (n <= 186)) ||
+    ((n >= 188) && (n <= 191)) ||
+    (n == 206) ||
+    (n == 209) ||
+    (n == 213) ||
+    ((n >= 220) && (n <= 223)) ||
+    ((n >= 228) && (n <= 235)) ||
+    ((n >= 240) && (n <= 247)).
+
+
+Definition opcode_is_ternop (n: N) : bool :=
+  (n == 82).
+
+Definition opcode_is_testop (n: N) : bool :=
+  (* all_true *)
+  (n == 83) ||
+  (* any_true / bitmask *)
+    (n == 99) || (n == 100) ||
+    (n == 131) || (n == 132) ||
+    (n == 163) || (n == 164) ||
+    (n == 195) || (n == 196).
+
+Definition opcode_is_shiftop (n: N) : bool :=
+  ((n >= 107) && (n <= 109)) ||
+    ((n >= 139) && (n <= 141)) ||
+    ((n >= 171) && (n <= 173)) ||
+    ((n >= 203) && (n <= 205)).
+
+Close Scope N_scope.
+
+End Opcode_classes.
+
+Definition parse_simd_unop {n} : be_parser n :=
+  guardM
+    (fun n => if opcode_is_unop n then Some (BI_vunop n) else None)
+    parse_u32_as_N.
+
+Definition parse_simd_binop {n} : be_parser n :=
+  (* shuffle: carries a list of laneids *)
+  assert_u32 13%N &> ((fun bs => BI_vbinop (13%N, List.map to_N bs)) <$> parse_vec_aux anyTok 16%N) <|>
+  (* others *)
+  guardM
+    (fun n => if opcode_is_binop n then Some (BI_vbinop (n, nil)) else None)
+    parse_u32_as_N.
+
+Definition parse_simd_ternop {n} : be_parser n :=
+  guardM
+    (fun n => if opcode_is_ternop n then Some (BI_vternop n) else None)
+    parse_u32_as_N.
+
+Definition parse_simd_testop {n} : be_parser n :=
+  guardM
+    (fun n => if opcode_is_testop n then Some (BI_vtestop n) else None)
+    parse_u32_as_N.
+
+Definition parse_simd_shiftop {n} : be_parser n :=
+  guardM
+    (fun n => if opcode_is_shiftop n then Some (BI_vshiftop n) else None)
+    parse_u32_as_N.
+
+Definition parse_simd_splat {n} : be_parser n :=
+  assert_u32 15%N $> BI_splat_vec (VS_i VSI_8_16) <|>
+  assert_u32 16%N $> BI_splat_vec (VS_i VSI_16_8) <|>
+  assert_u32 17%N $> BI_splat_vec (VS_i VSI_32_4) <|>
+  assert_u32 18%N $> BI_splat_vec (VS_i VSI_64_2) <|>
+  assert_u32 19%N $> BI_splat_vec (VS_f VSF_32_4) <|>
+  assert_u32 20%N $> BI_splat_vec (VS_f VSF_64_2).
+
+(* TBC *)
+Definition parse_extract_replace_lane {n} : be_parser n :=
+  assert_u32 21%N &> ((BI_extract_vec (VS_i VSI_8_16) (Some SX_S)) <$> parse_laneidx) <|>
+  assert_u32 22%N &> ((BI_extract_vec (VS_i VSI_8_16) (Some SX_U)) <$> parse_laneidx) <|>
+  assert_u32 23%N &> ((BI_replace_vec (VS_i VSI_8_16)) <$> parse_laneidx) <|>
+  assert_u32 24%N &> ((BI_extract_vec (VS_i VSI_16_8) (Some SX_S)) <$> parse_laneidx) <|>
+  assert_u32 25%N &> ((BI_extract_vec (VS_i VSI_16_8) (Some SX_U)) <$> parse_laneidx) <|>
+  assert_u32 26%N &> ((BI_replace_vec (VS_i VSI_16_8)) <$> parse_laneidx) <|>
+  assert_u32 27%N &> ((BI_extract_vec (VS_i VSI_32_4) None) <$> parse_laneidx) <|>
+  assert_u32 28%N &> ((BI_replace_vec (VS_i VSI_32_4)) <$> parse_laneidx) <|>
+  assert_u32 29%N &> ((BI_extract_vec (VS_i VSI_64_2) None) <$> parse_laneidx) <|>
+  assert_u32 30%N &> ((BI_replace_vec (VS_i VSI_64_2)) <$> parse_laneidx) <|>
+  assert_u32 31%N &> ((BI_extract_vec (VS_f VSF_32_4) None) <$> parse_laneidx) <|>
+  assert_u32 32%N &> ((BI_replace_vec (VS_f VSF_32_4)) <$> parse_laneidx) <|>
+  assert_u32 33%N &> ((BI_extract_vec (VS_f VSF_64_2) None) <$> parse_laneidx) <|>
+  assert_u32 34%N &> ((BI_replace_vec (VS_f VSF_64_2)) <$> parse_laneidx).
+
+(* It is only important to parse the instructions into categories by their type signatures. Execution will be delegated outside Coq. *)
+Definition parse_simd_instruction {n}: be_parser n :=
+  parse_simd_unop <|>
+  parse_simd_binop <|>
+  parse_simd_ternop <|>
+  parse_simd_testop <|>
+  parse_simd_shiftop <|>
+  parse_simd_splat <|>
+  parse_extract_replace_lane.
+
 (* :-( *)
 Definition parse_numeric_instruction {n} : be_parser n :=
   parse_i32_const <|>
   parse_i64_const <|>
   parse_f32_const <|>
   parse_f64_const <|>
+  parse_v128_const <|>
   exact_byte x45 $> BI_testop T_i32 TO_eqz <|>
   exact_byte x46 $> BI_relop T_i32 (Relop_i ROI_eq) <|>
   exact_byte x47 $> BI_relop T_i32 (Relop_i ROI_ne) <|>
@@ -594,7 +815,10 @@ Definition parse_numeric_instruction {n} : be_parser n :=
   (exact_byte xfc &> assert_u32 4%N $> (BI_cvtop T_i64 CVO_trunc_sat T_f32 (Some SX_S))) <|>
   (exact_byte xfc &> assert_u32 5%N $> (BI_cvtop T_i64 CVO_trunc_sat T_f32 (Some SX_U))) <|>
   (exact_byte xfc &> assert_u32 6%N $> (BI_cvtop T_i64 CVO_trunc_sat T_f64 (Some SX_S))) <|>
-  (exact_byte xfc &> assert_u32 7%N $> (BI_cvtop T_i64 CVO_trunc_sat T_f64 (Some SX_U))).
+  (exact_byte xfc &> assert_u32 7%N $> (BI_cvtop T_i64 CVO_trunc_sat T_f64 (Some SX_U))) <|>
+
+  (* SIMD instructions, all starting with 0xfd *)
+  exact_byte xfd &> parse_simd_instruction.
 
 Record Language (n : nat) : Type := MkLanguage {
   _be : byte_parser basic_instruction n;
@@ -1122,5 +1346,8 @@ Definition run_parse_expr (bs : list byte) : option (list basic_instruction) :=
 Definition run_parse_bes (bs : list byte) : option (list basic_instruction) :=
   run_parse_expr (bs ++ (x0b :: nil)).
 
-Definition run_parse_module (bs : list byte) : option module :=
+Definition run_parse_module (bs: list byte) : option module :=
   run bs (fun n => parse_module).
+
+Definition run_parse_module_str (s : String.string) : option module :=
+  run_parse_module (String.list_byte_of_string s).

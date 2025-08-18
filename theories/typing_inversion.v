@@ -96,15 +96,15 @@ Definition be_principal_typing (C: t_context) (be: basic_instruction) (tf: instr
   | BI_cvtop t2 op t1 sx =>
       tf = (Tf [::T_num t1] [::T_num t2]) /\
         cvtop_valid t2 op t1 sx
-  | BI_unop_vec op =>
+  | BI_vunop op =>
       tf = (Tf [::T_vec T_v128] [::T_vec T_v128])
-  | BI_binop_vec op =>
+  | BI_vbinop op =>
       tf = (Tf [::T_vec T_v128; T_vec T_v128] [::T_vec T_v128])
-  | BI_ternop_vec op =>
+  | BI_vternop op =>
       tf = (Tf [::T_vec T_v128; T_vec T_v128; T_vec T_v128] [::T_vec T_v128])
-  | BI_test_vec op =>
+  | BI_vtestop op =>
       tf = (Tf [::T_vec T_v128] [::T_num T_i32])
-  | BI_shift_vec op =>
+  | BI_vshiftop op =>
       tf = (Tf [::T_vec T_v128; T_num T_i32] [::T_vec T_v128])
   | BI_splat_vec shape =>
       tf = (Tf [::T_num (typeof_shape_unpacked shape)] [::T_vec T_v128])
@@ -259,17 +259,22 @@ Definition be_principal_typing (C: t_context) (be: basic_instruction) (tf: instr
       exists mt,
       tf = (Tf [::T_num T_i32; T_vec T_v128] [::T_vec T_v128]) /\
         lookup_N (tc_mems C) 0%N = Some mt /\
-        load_vec_lane_bounds width marg x
+        load_store_vec_lane_bounds width marg x
   | BI_store t tp marg =>
       exists mt,
       tf = (Tf [::T_num T_i32; T_num t] [::]) /\
         lookup_N (tc_mems C) 0%N = Some mt /\
         load_store_t_bounds marg.(memarg_align) tp t
+  | BI_store_vec marg =>
+      exists mt,
+      tf = (Tf [::T_num T_i32; T_vec T_v128] [::]) /\
+        lookup_N (tc_mems C) 0%N = Some mt /\
+        load_vec_bounds LVA_none marg
   | BI_store_vec_lane width marg x =>
       exists mt,
       tf = (Tf [::T_num T_i32; T_vec T_v128] [::]) /\
         lookup_N (tc_mems C) 0%N = Some mt /\
-        load_vec_lane_bounds width marg x
+        load_store_vec_lane_bounds width marg x
   | BI_memory_size =>
       exists mt,
       tf = (Tf [::] [::T_num T_i32]) /\

@@ -1,11 +1,9 @@
 (** Wasm AST to binary.
 Breaks non-determinism ties; see binary_format_spec.v for the spec. *)
-Require Import datatypes_properties numerics common list_extra.
-From compcert Require Integers.
-Require Import Strings.Byte.
-Require leb128.
-Require Import BinNat.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+From Wasm Require Import datatypes_properties numerics common list_extra leb128.
+From compcert Require Integers.
+From Coq Require Import BinNat Strings.Byte.
 
 Definition binary_of_number_type (t: number_type) : byte :=
   match t with
@@ -34,8 +32,11 @@ Definition binary_of_value_type (t : value_type) : byte :=
   | T_bot => x00 (* will not happen *)
   end.
 
-Definition binary_of_u32 (n: BinNums.N) : list byte :=
+Definition binary_of_N (n: BinNums.N) : list byte :=
   leb128.encode_unsigned n.
+
+Definition binary_of_u32 (n: u32) : list byte :=
+  binary_of_N n.
 
 Definition binary_of_u32_nat (n : nat) : list byte :=
   leb128.encode_unsigned (BinNatDef.N.of_nat n).
@@ -102,44 +103,101 @@ Proof. exact (x00 :: x00 :: x00 :: nil). Qed.
 
 (* placeholder for vector values, not implemented *)
 Definition binary_of_valvec (v: value_vec) :=
-  xfd :: x0c :: (List.repeat x00 16).
+  match v with
+  | VAL_vec128 vv =>
+      xfd :: x0c :: (List.map byte_of_compcert_byte vv)
+  end.
 
-(* placeholder for vector operations added in 2.0, to be filled in a future update
+(*
+Most vector insturctions are opaquely represented by their binary format opcode in the Rocq formalisation.
 https://webassembly.github.io/spec/core/binary/instructions.html#vector-instructions
 *)
-Definition binary_of_unop_vec (op: unop_vec) :=
-  xfd :: x0c :: (List.repeat x00 16).
+Definition binary_of_vunop (op: vunop) :=
+  xfd :: binary_of_N op.
 
-Definition binary_of_binop_vec (op: binop_vec) :=
-  xfd :: x0c :: (List.repeat x00 16).
+Definition binary_of_vbinop (op: vbinop) :=
+  let '(opcode, args) := op in
+  if N.eqb opcode 13%N then (* shuffle *)
+    xfd :: x0d :: binary_of_vec (binary_of_N) args
+  else
+    xfd :: binary_of_N opcode.
 
-Definition binary_of_ternop_vec (op: ternop_vec) :=
-  xfd :: x0c :: (List.repeat x00 16).
+Definition binary_of_vternop (op: vternop) :=
+  xfd :: binary_of_N op.
 
-Definition binary_of_test_vec (op: test_vec) :=
-  xfd :: x0c :: (List.repeat x00 16).
+Definition binary_of_vtestop (op: vtestop) :=
+  xfd :: binary_of_N op.
 
-Definition binary_of_shift_vec (op: shift_vec) :=
-  xfd :: x0c :: (List.repeat x00 16).
+Definition binary_of_vshiftop (op: vshiftop) :=
+  xfd :: binary_of_N op.
 
-Definition binary_of_splat_vec (sh: shape_vec) :=
-  xfd :: x0c :: (List.repeat x00 16).
+Definition binary_of_splat_vec (sh: vshape) :=
+  xfd ::
+  (match sh with
+   | VS_i VSI_8_16 => x0e
+   | VS_i VSI_16_8 => x0f
+   | VS_i VSI_32_4 => x10
+   | VS_i VSI_64_2 => x11
+   | VS_f VSF_32_4 => x12
+   | VS_f VSF_64_2 => x13
+   end
+  ) :: nil.
 
-Definition binary_of_extract_vec (sh: shape_vec) (s: option sx) (x: laneidx) :=
-  xfd :: x0c :: (List.repeat x00 16).
+Definition binary_of_extract_vec (sh: vshape) (s: option sx) (x: laneidx) :=
+  xfd ::
+  (match sh, s with
+   | VS_i VSI_8_16, Some SX_S => x15
+   | VS_i VSI_8_16, Some SX_U => x16
+   | VS_i VSI_16_8, Some SX_S => x18
+   | VS_i VSI_16_8, Some SX_U => x19
+   | VS_i VSI_32_4, None => x1b
+   | VS_i VSI_64_2, None => x1d
+   | VS_f VSF_32_4, None => x1f
+   | VS_f VSF_64_2, None => x21
+   | _, _ => x00 (* will not happen due to well formedness *)
+   end
+  ) :: binary_of_N x.
 
-Definition binary_of_replace_vec (sh: shape_vec) (x: laneidx) :=
-  xfd :: x0c :: (List.repeat x00 16).
+Definition binary_of_replace_vec (sh: vshape) (x: laneidx) :=
+  xfd ::
+  (match sh with
+   | VS_i VSI_8_16 => x17
+   | VS_i VSI_16_8 => x1a
+   | VS_i VSI_32_4 => x1c
+   | VS_i VSI_64_2 => x1e
+   | VS_f VSF_32_4 => x20
+   | VS_f VSF_64_2 => x22
+   end
+  ) :: binary_of_N x.
   
 Definition binary_of_load_vec (lvarg: load_vec_arg) (marg: memarg) :=
   xfd :: x0c :: (List.repeat x00 16).
 
-Definition binary_of_load_vec_lane (w: width_vec) (marg: memarg) (x: laneidx) :=
-  xfd :: x0c :: (List.repeat x00 16).
+Definition binary_of_load_vec_lane (w: vwidth) (marg: memarg) (x: laneidx) :=
+  xfd :: 
+  (match w with
+  | 8%N => x54 
+  | 16%N => x55
+  | 32%N => x56 
+  | 64%N => x57
+  | _ => x00 (* will not happen due to wellformedness *)
+  end
+  ) :: binary_of_memarg marg ++ binary_of_N x.
 
 (* store_vec_lane and load_vec uses the same args. Maybe it's better to find a new name *)
-Definition binary_of_store_vec_lane (w: width_vec) (marg: memarg) (x: laneidx) :=
-  xfd :: x0c :: (List.repeat x00 16).
+Definition binary_of_store_vec (marg: memarg) :=
+  xfd :: x0b :: binary_of_memarg marg.
+
+Definition binary_of_store_vec_lane (w: vwidth) (marg: memarg) (x: laneidx) :=
+  xfd :: 
+  (match w with
+  | 8%N => x58
+  | 16%N => x59
+  | 32%N => x5a 
+  | 64%N => x5b
+  | _ => x00 (* will not happen due to wellformedness *)
+  end
+  ) :: binary_of_memarg marg ++ binary_of_N x.
 
 Fixpoint binary_of_be (be : basic_instruction) : list byte :=
   let binary_of_instrs bes := List.concat (List.map binary_of_be bes) in
@@ -394,17 +452,18 @@ Fixpoint binary_of_be (be : basic_instruction) : list byte :=
 
   | BI_const_vec v => binary_of_valvec v
 
-  | BI_unop_vec op => binary_of_unop_vec op
-  | BI_binop_vec op => binary_of_binop_vec op
-  | BI_ternop_vec op => binary_of_ternop_vec op
-  | BI_test_vec op => binary_of_test_vec op
-  | BI_shift_vec op => binary_of_shift_vec op
+  | BI_vunop op => binary_of_vunop op
+  | BI_vbinop op => binary_of_vbinop op
+  | BI_vternop op => binary_of_vternop op
+  | BI_vtestop op => binary_of_vtestop op
+  | BI_vshiftop op => binary_of_vshiftop op
   | BI_splat_vec sh => binary_of_splat_vec sh
   | BI_extract_vec sh s lanex => binary_of_extract_vec sh s lanex
   | BI_replace_vec sh lanex => binary_of_replace_vec sh lanex
 
   | BI_load_vec lvarg marg => binary_of_load_vec lvarg marg
   | BI_load_vec_lane width marg lanex => binary_of_load_vec_lane width marg lanex
+  | BI_store_vec marg => binary_of_store_vec marg
   | BI_store_vec_lane width marg lanex => binary_of_store_vec_lane width marg lanex
   end.
 

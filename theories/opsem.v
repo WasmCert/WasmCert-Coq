@@ -59,32 +59,32 @@ Inductive reduce_simple : seq administrative_instruction -> seq administrative_i
     reduce_simple [::$VN v; AI_basic (BI_cvtop t2 op t1 sx)] [::AI_trap]
 
   (** vector instructions **)
-  | rs_unop_vec: 
+  | rs_vunop: 
     forall v op,
-    reduce_simple [:: $VV v; AI_basic (BI_unop_vec op)] [::$VV (app_unop_vec op v)]
-  | rs_binop_vec: 
+    reduce_simple [:: $VV v; AI_basic (BI_vunop op)] [::$VV (app_vunop op v)]
+  | rs_vbinop: 
     forall v1 v2 op,
-    reduce_simple [:: $VV v1; $VV v2; AI_basic (BI_binop_vec op)] [::$VV (app_binop_vec op v1 v2)]
-  | rs_ternop_vec: 
+    reduce_simple [:: $VV v1; $VV v2; AI_basic (BI_vbinop op)] [::$VV (app_vbinop op v1 v2)]
+  | rs_vternop: 
     forall v1 v2 v3 op,
-    reduce_simple [:: $VV v1; $VV v2; $VV v3; AI_basic (BI_ternop_vec op)] [::$VV (app_ternop_vec op v1 v2 v3)]
-  | rs_test_vec: 
+    reduce_simple [:: $VV v1; $VV v2; $VV v3; AI_basic (BI_vternop op)] [::$VV (app_vternop op v1 v2 v3)]
+  | rs_vtestop: 
     forall v1 op,
-    reduce_simple [:: $VV v1; AI_basic (BI_test_vec op)] [::$VN (VAL_int32 (wasm_bool (app_test_vec op v1)))]
-  | rs_shift_vec: 
+    reduce_simple [:: $VV v1; AI_basic (BI_vtestop op)] [::$VN (app_vtestop op v1)]
+  | rs_vshiftop: 
     forall v1 v2 op,
-    reduce_simple [:: $VV v1; $VN (VAL_int32 v2); AI_basic (BI_shift_vec op)] [::$VV app_shift_vec op v1 v2]
+    reduce_simple [:: $VV v1; $VN (VAL_int32 v2); AI_basic (BI_vshiftop op)] [::$VV app_vshiftop op v1 v2]
   | rs_splat_vec: 
-    forall v1 shape,
-    reduce_simple [:: $VN v1; AI_basic (BI_splat_vec shape)] [::$VV (app_splat_vec shape v1)]
+    forall v1 sh,
+    reduce_simple [:: $VN v1; AI_basic (BI_splat_vec sh)] [::$VV (app_splat_vec sh v1)]
   | rs_extract_vec: 
-    forall v1 shape sx x,
-    N.ltb x (shape_dim shape) = true ->
-    reduce_simple [:: $VV v1; AI_basic (BI_extract_vec shape sx x)] [::$VN (app_extract_vec shape sx x v1)]
+    forall v1 sh sx x,
+    N.ltb x (shape_dim sh) = true ->
+    reduce_simple [:: $VV v1; AI_basic (BI_extract_vec sh sx x)] [::$VN (app_extract_vec sh sx x v1)]
   | rs_replace_vec: 
-    forall v1 v2 shape x,
-    N.ltb x (shape_dim shape) = true ->
-    reduce_simple [:: $VV v1; $VN v2; AI_basic (BI_replace_vec shape x)] [::$VV (app_replace_vec shape x v1 v2)]
+    forall v1 v2 sh x,
+    N.ltb x (shape_dim sh) = true ->
+    reduce_simple [:: $VV v1; $VN v2; AI_basic (BI_replace_vec sh x)] [::$VV (app_replace_vec sh x v1 v2)]
     
   (** reference operations **)
   | rs_ref_is_null_true:
@@ -527,6 +527,14 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
     smem_store_packed s f.(f_inst) (Wasm_int.N_of_uint i32m k) marg.(memarg_offset) v tp = None ->
     typeof_num v = t ->
     reduce hs s f [::$VN (VAL_int32 k); $VN v; AI_basic (BI_store t (Some tp) marg)] hs s f [::AI_trap]
+| r_store_vec_success :
+  forall s s' f marg k v hs,
+    smem_store_vec s f.(f_inst) (Wasm_int.N_of_uint i32m k) v marg = Some s' ->
+    reduce hs s f [::$VN (VAL_int32 k); $VV v; AI_basic (BI_store_vec marg)] hs s' f [::]
+| r_store_vec_failure :
+  forall s f marg k v hs,
+    smem_store_vec s f.(f_inst) (Wasm_int.N_of_uint i32m k) v marg = None ->
+    reduce hs s f [::$VN (VAL_int32 k); $VV v; AI_basic (BI_store_vec marg)] hs s f [::AI_trap]
 | r_store_vec_lane_success :
   forall s s' f width marg x k v hs,
     smem_store_vec_lane s f.(f_inst) (Wasm_int.N_of_uint i32m k) v width marg x = Some s' ->

@@ -23,7 +23,7 @@ let binary_of_text textstr =
   | _ -> None
 
 let parse_binary_module bin_module = 
-  match Execute.Interpreter.run_parse_module bin_module with
+  match Execute.Interpreter.run_parse_module_str bin_module with
   | None -> Error "error in parsing module"
   | Some m -> OK m
 

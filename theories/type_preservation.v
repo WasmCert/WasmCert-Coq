@@ -56,6 +56,24 @@ Proof.
   done.
 Qed.
 
+Lemma v128_extract_lanes_typing: forall sh s vv vs,
+    v128_extract_lanes sh s vv = vs ->
+    List.Forall (fun v => typeof_num v = typeof_shape_unpacked sh) vs.
+Proof.
+  move => sh s vv vs; unfold v128_extract_lanes.
+  destruct sh as [[] | []];
+  destruct s; move => <-; apply List.Forall_map => /=;
+  by apply List.Forall_forall.
+Qed.
+  
+Lemma app_extract_vec_typing: forall sh os n v1,
+    typeof_num (app_extract_vec sh os n v1) = typeof_shape_unpacked sh.
+Proof.
+  intros; unfold app_extract_vec.
+  destruct (lookup_N _ _) eqn:Hlookup; last by destruct sh as [[] | []].
+  by eapply Forall_lookup in Hlookup; last by eapply v128_extract_lanes_typing; eauto.
+Qed.
+
 (* It's better to just set `instr_subtyping` opaque and unset it when necessary, since most of the times we do not want to unfold this definition by simpl. But the simpl nomatch method doesn't prevent it from being unfolded for some reason. *)
 Opaque instr_subtyping.
 
@@ -75,29 +93,9 @@ Proof.
   - (* Cvtop *)
     erewrite eval_cvt_type_preserve; eauto.
     by resolve_subtyping.
-  - (* Unop_vec *)
-    replace (typeof_vec (app_unop_vec op v)) with (typeof_vec v); last by destruct op, v.
-    rewrite H0.
-    by resolve_subtyping.
-  - (* Binop_vec *)
-    replace (typeof_vec (app_binop_vec op v1 v2)) with (typeof_vec v1); last by destruct op, v1, v2.
-    rewrite H0.
-    by resolve_subtyping.
-  - (* Ternop_vec *)
-    replace (typeof_vec (app_ternop_vec op v1 v2 v3)) with (typeof_vec v1); last by destruct op, v1, v2, v3.
-    rewrite H0.
-    by resolve_subtyping.
-  - (* Shift_vec *)
-    replace (typeof_vec (app_shift_vec op v1 v2)) with (typeof_vec v1); last by destruct op, v1, v2.
-    rewrite H0.
-    by resolve_subtyping.
   - (* Extract_vec *)
-    replace (typeof_num (app_extract_vec shape sx x v1)) with (typeof_shape_unpacked shape); last by destruct shape as [shape | shape]; destruct shape.
-    by resolve_subtyping.
-  - (* Replace_vec *)
-    replace (typeof_vec (app_replace_vec shape x v1 v2)) with (typeof_vec v1); last by destruct shape as [shape | shape]; destruct shape.
-    rewrite H1.
-    by resolve_subtyping.
+    replace (typeof_num (app_extract_vec sh sx x v1)) with (typeof_shape_unpacked sh); first by resolve_subtyping.
+    by rewrite app_extract_vec_typing.
   - (* Br *)
     eapply et_composition'; eauto; resolve_e_typing.
     by eapply Lfilled_break_typing with (tss := nil) in Hconjl1; eauto => //=; try (by apply v_to_e_const); last by lias.
@@ -1114,12 +1112,44 @@ Proof.
 Qed.
 
 Lemma mem_extension_store: forall m k off v tlen mem,
-    store m k off (bits v) tlen = Some mem ->
+    store m k off (serialise_num v) tlen = Some mem ->
     mem_extension m mem.
 Proof.
   move => m k off v tlen mem HStore.
   unfold mem_extension.
   unfold store in HStore.
+  remove_bools_options.
+  apply write_bytes_meminst_preserve_type in HStore as [Htype Hlen].
+  apply/andP; split; last by lias.
+  destruct m, mem.
+  unfold limits_extension.
+  simpl in *; subst.
+  by lias.
+Qed.
+
+Lemma mem_extension_store_vec: forall m n v marg mem,
+    store_vec m n v marg = Some mem ->
+    mem_extension m mem.
+Proof.
+  move => m n v marg mem HStore.
+  unfold mem_extension.
+  unfold store_vec in HStore.
+  remove_bools_options.
+  apply write_bytes_meminst_preserve_type in HStore as [Htype Hlen].
+  apply/andP; split; last by lias.
+  destruct m, mem.
+  unfold limits_extension.
+  simpl in *; subst.
+  by lias.
+Qed.
+
+Lemma mem_extension_store_vec_lane: forall m n v width marg x mem,
+    store_vec_lane m n v width marg x = Some mem ->
+    mem_extension m mem.
+Proof.
+  move => m n v width marg x mem HStore.
+  unfold mem_extension.
+  unfold store_vec_lane in HStore.
   remove_bools_options.
   apply write_bytes_meminst_preserve_type in HStore as [Htype Hlen].
   apply/andP; split; last by lias.
@@ -1283,8 +1313,58 @@ Proof.
     resolve_if_true_eq.
     by lias.
   - eapply List.Forall_forall in Hmt; eauto.
-    + by apply List.nth_error_In in Hnth'.
-    + by apply nth_error_Some_length in Hoption2; lias.
+    by apply List.nth_error_In in Hnth'.
+  - by apply nth_error_Some_length in Hoption2; lias.
+Qed.
+
+Lemma smem_store_vec_extension: forall s f n v marg s' C mt,
+  store_typing s ->
+  smem_store_vec s (f_inst f) n v marg = Some s' ->
+  inst_typing s (f_inst f) = Some C -> 
+  lookup_N (tc_mems C) 0%N = Some mt ->
+  store_extension s s'.
+Proof.
+  move => s f n v marg s' C a Hst Hupd Hit Hnth.
+  unfold store_extension; unfold_store_operations => /=; resolve_store_extension; resolve_store_inst_lookup; remove_bools_options => /=.
+  rewrite Hnth in Hnthmt; injection Hnthmt as ->.
+  destruct m0; simpl in *; remove_bools_options; simpl in *.
+  eapply component_extension_update; eauto; first by apply mem_extension_refl.
+  by eapply mem_extension_store_vec in Hoption1.
+Qed.
+
+Lemma smem_store_vec_typing: forall s f n v marg s' C mt,
+  store_typing s ->
+  smem_store_vec s (f_inst f) n v marg = Some s' ->
+  inst_typing s (f_inst f) = Some C -> 
+  lookup_N (tc_mems C) 0%N = Some mt ->
+  store_typing s'.
+Proof.
+  move => s f n v marg s' C a Hst Hupd Hit Hnth.
+
+  assert (store_extension s s') as Hstext; first by eapply smem_store_vec_extension; eauto.
+  unfold_store_operations; remove_bools_options.
+  resolve_store_inst_lookup; destruct m0; simpl in *; remove_bools_options; simpl in *.
+  rewrite Hnthmt in Hnth; injection Hnth as <-.
+  unfold store_typing in *; destruct s; simpl in *.
+  destruct Hst as [Hft [Htt [Hmt [Hgt [Het Hdt]]]]].
+  resolve_store_typing; simpl in *; clear Hft Htt Hgt Het Hdt.
+  apply List.Forall_forall.
+  move => x0 Hin.
+  apply set_nth_In in Hin.
+  destruct Hin as [-> | [m0 [Hneq Hnth']]] => //=.
+  - exists m1.(meminst_type).
+    unfold meminst_typing => /=.
+    destruct m1 => //=.
+    unfold store_vec, store in Hoption1; remove_bools_options.
+    apply write_bytes_meminst_preserve_type in Hoption1; simpl in *.
+    destruct Hoption1 as [-> Hmemlen].
+    unfold mem_length in *; simpl in *.
+    rewrite Hif.
+    resolve_if_true_eq.
+    by lias.
+  - eapply List.Forall_forall in Hmt; eauto.
+    by apply List.nth_error_In in Hnth'.
+  - by apply nth_error_Some_length in Hoption2; lias.
 Qed.
 
 Lemma smem_store_vec_lane_extension: forall s f n v width marg x s' C mt,
@@ -1297,10 +1377,9 @@ Proof.
   move => s f n v width marg x s' C a Hst Hupd Hit Hnth.
   unfold store_extension; unfold_store_operations => /=; resolve_store_extension; resolve_store_inst_lookup; remove_bools_options => /=.
   rewrite Hnth in Hnthmt; injection Hnthmt as ->.
-  unfold store_vec_lane in Hoption1.
   destruct m0; simpl in *; remove_bools_options; simpl in *.
   eapply component_extension_update; eauto; first by apply mem_extension_refl.
-  by apply mem_extension_refl.
+  by eapply mem_extension_store_vec_lane in Hoption1.
 Qed.
 
 Lemma smem_store_vec_lane_typing: forall s f n v width marg x s' C mt,
@@ -1311,9 +1390,9 @@ Lemma smem_store_vec_lane_typing: forall s f n v width marg x s' C mt,
   store_typing s'.
 Proof.
   move => s f n v width marg x s' C a Hst Hupd Hit Hnth.
+
   assert (store_extension s s') as Hstext; first by eapply smem_store_vec_lane_extension; eauto.
   unfold_store_operations; remove_bools_options.
-  unfold store_vec_lane in Hoption1.
   resolve_store_inst_lookup; destruct m0; simpl in *; remove_bools_options; simpl in *.
   rewrite Hnthmt in Hnth; injection Hnth as <-.
   unfold store_typing in *; destruct s; simpl in *.
@@ -1323,13 +1402,19 @@ Proof.
   move => x0 Hin.
   apply set_nth_In in Hin.
   destruct Hin as [-> | [m0 [Hneq Hnth']]] => //=.
-  - exists mt.
+  - exists m1.(meminst_type).
+    unfold meminst_typing => /=.
+    destruct m1 => //=.
+    unfold store_vec_lane, store in Hoption1; remove_bools_options.
+    apply write_bytes_meminst_preserve_type in Hoption1; simpl in *.
+    destruct Hoption1 as [-> Hmemlen].
+    unfold mem_length in *; simpl in *.
     rewrite Hif.
     resolve_if_true_eq.
-    by rewrite Hif0.
+    by lias.
   - eapply List.Forall_forall in Hmt; eauto.
-    + by apply List.nth_error_In in Hnth'.
-    + by apply nth_error_Some_length in Hoption2; lias.
+    by apply List.nth_error_In in Hnth'.
+  - by apply nth_error_Some_length in Hoption2; lias.
 Qed.
 
 Lemma smem_grow_extension: forall s f n s' sz C mt,
@@ -1421,7 +1506,7 @@ Proof.
     by apply List.nth_error_In in Hnthsdata; eauto.
 Qed.
     
-(* Note that although config_typing gives a much 1stronger constraint on C', we allow much more flexibility here due to the need in inductive cases. *)
+(* Note that although config_typing gives a much stronger constraint on C', we allow much more flexibility here due to the need in inductive cases. *)
 Lemma store_extension_reduce: forall s f es s' f' es' C C' tf hs hs',
     reduce hs s f es hs' s' f' es' ->
     inst_typing s f.(f_inst) = Some C ->
@@ -1455,6 +1540,9 @@ Proof.
     by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
   - (* memory store_packed *)
     eapply smem_store_packed_extension; eauto.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
+  - (* memory store_vec *)
+    eapply smem_store_vec_extension; eauto.
     by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
   - (* memory store_vec_lane *)
     eapply smem_store_vec_lane_extension; eauto.
@@ -1510,7 +1598,10 @@ Proof.
   - (* memory store_packed *)
     eapply smem_store_packed_typing; eauto.
     by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
-  - (* memory store_vec_lane *)
+  - (* memory store_vec *)
+    eapply smem_store_vec_typing; eauto.
+    by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
+  - (* memory store_vec *)
     eapply smem_store_vec_lane_typing; eauto.
     by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
   - (* memory grow *)

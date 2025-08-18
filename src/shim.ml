@@ -73,7 +73,7 @@ module type InterpreterType = sig
   val get_import_path: Extract.module0 -> (string * string) list
   val get_exports : frame -> (string * externval) list
 
-  val run_parse_module : string -> Extract.module0 option
+  val run_parse_module_str : string -> Extract.module0 option
   val run_parse_arg : string -> value option
 
   val pp_values : value list -> string
@@ -90,6 +90,8 @@ module type InterpreterType = sig
   val is_canonical_nan: Extract.number_type -> value -> bool
 
   val is_arithmetic_nan: Extract.number_type -> value -> bool
+
+  val v128_extract_lanes: Extract.vshape -> Extract.SIMD.v128 -> Extract.value_num list
 
 end
 
@@ -129,7 +131,7 @@ functor (EH : Host) -> struct
 
   (** Run one step of the interpreter. *)
   let run_one_step cfg d = 
-    Extraction_instance.run_one_step cfg (Convert.to_n d)
+    Extraction_instance.run_one_step cfg (Utils.z_of_int d)
 
   let run_v_init = Extraction_instance.run_v_init
 
@@ -143,44 +145,44 @@ functor (EH : Host) -> struct
 
   let interp_instantiate_wrapper s m extvals =
     let (res, msg) = Extraction_instance.interp_instantiate_wrapper s m extvals in
-    (res, Utils.implode msg)
+    (res, msg)
 
   let get_import_path m = 
-    let implode_pair p =
-      let (m, imp) = p in
-      (Utils.implode m, Utils.implode imp) in
-    List.map implode_pair (Extraction_instance.get_import_path m)
+    Extraction_instance.get_import_path m
 
   let get_exports f = 
     let exps = Extraction_instance.get_exports f in
-    List.map (fun exp -> let (n, v) = exp in (Utils.implode n, v)) exps
+    List.map (fun exp -> let (n, v) = exp in (n, v)) exps
 
-  let run_parse_module m = Extract.run_parse_module (Utils.explode m)
+  let run_parse_module_str m = Extract.run_parse_module_str m
 
-  let run_parse_arg a = Extract.run_parse_arg (Utils.explode a)
+  let run_parse_arg a = Extract.run_parse_arg a
 
   let pp_values l =
-    Utils.implode (Extraction_instance.pp_values l)
+    Extraction_instance.pp_values l
 
   let pp_store i st =
-    Utils.implode (Extraction_instance.pp_store (Convert.to_nat i) st)
+    Extraction_instance.pp_store (Convert.to_nat i) st
 
   let pp_cfg_tuple_ctx_except_store r =
-    Utils.implode (Extraction_instance.pp_cfg_tuple_ctx_except_store r)  
+    Extraction_instance.pp_cfg_tuple_ctx_except_store r
     
 (* Depth doesn't matter for pretty printing cfg *)
   let pp_res_cfg_except_store cfg res =
-    Utils.implode (Extraction_instance.pp_res_cfg_except_store cfg Extract.N0 res)
+    Extraction_instance.pp_res_cfg_except_store cfg (Utils.z_of_int 0) res
 
   let pp_es es =
-    Utils.implode (Extraction_instance.pp_administrative_instructions O es)
+    Extraction_instance.pp_administrative_instructions O es
 
   let pp_externval extval = 
-    Utils.implode (Extraction_instance.pp_extern_value extval)
+    Extraction_instance.pp_extern_value extval
 
   let is_canonical_nan =
     Extraction_instance.is_canonical_nan
 
   let is_arithmetic_nan =
     Extraction_instance.is_arithmetic_nan
+
+  let v128_extract_lanes sh v = 
+    Extraction_instance.v128_extract_lanes sh v
 end
