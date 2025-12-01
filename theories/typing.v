@@ -10,7 +10,7 @@ Unset Printing Implicit Defensive.
 
 Section Host.
 
-Context `{hfc: host_function_class} `{memory: Memory}.
+Context `{hfc: host_function_class} `{memory: BlockUpdateMemory}.
 
 (** std-doc:
 For the purpose of checking external values against imports, such values are classified by external types. The following auxiliary typing rules specify this typing relation relative to a store S in which the referenced instances live.

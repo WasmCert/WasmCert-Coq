@@ -37,6 +37,7 @@ Extract Constant memory_vec.arr_make_copy => "Parray.make_copy".
 Extract Constant memory_vec.arr_get => "Parray.get".
 Extract Constant memory_vec.arr_default => "Parray.default".
 Extract Constant memory_vec.arr_set => "Parray.set".
+Extract Constant memory_vec.arr_set_gen => "Parray.set_gen".
 Extract Constant memory_vec.arr_length => "Parray.length".
 Extract Constant memory_vec.arr_copy => "Parray.copy".
 

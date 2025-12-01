@@ -10,7 +10,7 @@ Unset Printing Implicit Defensive.
 
 Section Typing_inversion_be.
 
-Context `{memory: Memory}.
+Context `{memory: BlockUpdateMemory}.
   
 (* Some quality of life lemmas *)
 (* Upd: these lemmas are deprecated; it is encouraged to directly use subtyping rule. *)
@@ -470,7 +470,7 @@ Ltac e_typing_ind HType :=
 
 Section Typing_inversion_e.
              
-Context `{hfc: host_function_class} `{memory: Memory}.
+Context `{hfc: host_function_class} `{memory: BlockUpdateMemory}.
 
 (** Typing lemmas **)
 
@@ -852,7 +852,7 @@ Ltac invert_e_typing :=
 (* Some more complicated lemmas *)
 Section Typing_inversion_e.
 
-Context `{hfc: host_function_class} `{memory: Memory}.
+Context `{hfc: host_function_class} `{memory: BlockUpdateMemory}.
   
 (* inst_typing inversion *)
 Lemma inst_t_context_local_empty: forall s i C,

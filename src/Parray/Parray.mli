@@ -20,6 +20,13 @@ val length  : 'a t -> Uint63.t
 val length_int : 'a t -> int
 val get     : 'a t -> Uint63.t -> 'a
 val set     : 'a t -> Uint63.t -> 'a -> 'a t
+
+val set_gen : 'a t -> Uint63.t -> Uint63.t -> (Uint63.t -> 'a) -> 'a t
+(** [set_gen p start_pos block_len generator] returns a new persistent array
+    based on [p] where the range of length [block_len] starting at [start_pos]
+    is updated by calling [generator] for each index 0 to [block_len - 1].
+    [block_len] must be greater than 0. *)
+
 val default : 'a t -> 'a
 val make    : Uint63.t -> 'a -> 'a t
 val make_copy    : Uint63.t -> 'a -> 'a t -> Uint63.t -> 'a t

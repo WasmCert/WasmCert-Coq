@@ -35,6 +35,8 @@ Parameter arr_make_copy: PrimInt63.int -> A -> array A -> PrimInt63.int -> array
 Parameter arr_get : array A -> PrimInt63.int -> A.
 Parameter arr_default : array A -> A.
 Parameter arr_set : array A -> PrimInt63.int -> A -> array A.
+(* Takes the length and the generator for the block *)
+Parameter arr_set_gen : array A -> PrimInt63.int -> PrimInt63.int -> (PrimInt63.int -> A) -> array A.
 Parameter arr_length : array A -> PrimInt63.int.
 Parameter arr_copy : array A -> array A.
 
@@ -84,6 +86,50 @@ Parameter length_make_copy :
 Parameter length_set :
   forall (t : array A) (i : PrimInt63.int) (a : A),
     arr_length t.[i<-a] = arr_length t.
+
+(* Some added axioms for set_gen *)
+Parameter length_set_gen :
+  forall (t : array A) (i : PrimInt63.int) (len: PrimInt63.int) (gen: PrimInt63.int -> A),
+    arr_length (arr_set_gen t i len gen) = arr_length t.
+
+(*
+Definition pointwise_set_gen (t: array A) (start_pos : PrimInt63.int) (len : N) (generator : N -> A) : option (array A) :=
+  let A := option (array A * N) in
+  let update_step (current_result : A) : A :=
+    match current_result with
+    | Some (current_arr, idx) => 
+        if N.ltb idx len then
+          let pos := N.add start_pos idx in
+          let val := generator idx in
+          match arr_set current_arr pos val with
+          | Some next_mem => 
+              (* Success: increment the index and pass the new memory *)
+              Some (next_mem, N.succ idx)
+          | None => 
+              (* Failure *)
+              None
+          end
+        else
+          current_result 
+    | None => None
+    end
+  in
+  let initial_state : A := Some (t, N.zero) in
+  let final_result := N.iter len update_step initial_state in
+  match final_result with
+  | Some (final_arr, _) => Some final_arr
+  | None => None
+  end.
+
+Parameter mem_update_gen_none_eq:
+  forall (t : array A) (i : PrimInt63.int) (len: N) (gen: N -> A),
+    (arr_set_gen t i len gen = None) = (pointwise_set t i len gen = None).
+Parameter mem_update_gen_spec:
+  forall n len gen m m' m'' i,
+    mem_update_gen n len gen m = Some m' ->
+    pointwise_update_gen n len gen m = Some m'' ->
+    mem_lookup i m' = mem_lookup i m''.
+  *)      
 Parameter get_copy :
   forall (t : array A) (i : PrimInt63.int),
     (arr_copy t).[i] = t.[i].
@@ -149,18 +195,29 @@ Section vector.
   Defined.
     
   Definition vector_lookup vec n : option T :=
-    if n <? vector_length vec then
+    if N.ltb n (vector_length vec) then
       Some (arr_get vec.(v_data) (Uint63_of_N n))
     else None.
 
   Definition vector_update (vec: vector) (n: N) (x: T) : option vector.
   Proof.
     refine
-    (if n <? vector_length vec then
+    (if N.ltb n (vector_length vec) then
       Some (@Build_vector (arr_set vec.(v_data) (Uint63_of_N n) x) vec.(v_size) vec.(v_capacity) vec.(v_init) _ _)
      else None).
     - by apply v_size_valid.
     - rewrite length_set.
+      by apply v_capacity_eq.
+  Defined.
+  
+  Definition vector_update_gen (vec: vector) (n: N) (len: N) (gen: N -> T) : option vector.
+  Proof.
+    refine
+    (if N.leb (N.add n len) (vector_length vec) then
+      Some (@Build_vector (arr_set_gen vec.(v_data) (Uint63_of_N n) (Uint63_of_N len) (fun offset => gen (Uint63_to_N offset))) vec.(v_size) vec.(v_capacity) vec.(v_init) _ _)
+     else None).
+    - by apply v_size_valid.
+    - rewrite length_set_gen.
       by apply v_capacity_eq.
   Defined.
 
@@ -226,7 +283,8 @@ Section MemoryVec.
   Definition mv_length := @vector_length byte.
   Definition mv_make n b := @vector_make byte b n.
   Definition mv_lookup i v := @vector_lookup byte v i.
-  Definition mv_update i b v:= @vector_update byte v i b.
+  Definition mv_update i b v := @vector_update byte v i b.
+  Definition mv_update_gen i n gen m := @vector_update_gen byte m i n gen.
   Definition mv_grow n v:= @vector_grow byte v n.
 
   Lemma mv_lookup_ib:
@@ -384,6 +442,43 @@ Proof.
   by rewrite H.
 Qed.
 
+Lemma mv_update_gen_ib:
+  forall (n len : N) (gen : N -> byte) (m : vector),
+  n + len <= mv_length m -> mv_update_gen n len gen m <> None.
+Proof.
+Admitted.
+
+Lemma mv_update_gen_oob:
+  forall (n len : N) (gen : N -> byte) (m : vector),
+  n + len > mv_length m -> mv_update_gen n len gen m = None.
+Proof.
+Admitted.
+
+Lemma mv_update_gen_lookup:
+  forall n len gen m m' i,
+    mv_update_gen n len gen m = Some m' ->
+    N.lt i len ->
+    mv_lookup (N.add n i) m' = Some (gen i).
+Proof.
+Admitted.
+
+Lemma mv_update_gen_lookup_lt:
+  forall n len gen m m' i,
+    mv_update_gen n len gen m = Some m' ->
+    N.lt i n ->
+    mv_lookup i m' = mv_lookup i m.
+Proof.
+Admitted.
+
+
+Lemma mv_update_gen_lookup_ge:
+  forall n len gen m m' i,
+    mv_update_gen n len gen m = Some m' ->
+    N.ge i (N.add n len) ->
+    mv_lookup i m' = mv_lookup i m.
+Proof.
+Admitted.
+  
 Lemma mv_grow_lookup :
   forall i n mem mem',
     (i < mv_length mem)%N ->
@@ -431,9 +526,15 @@ Proof.
 Qed.
   
 #[export]
-  Instance Memory_vec: Memory.
+  Instance Memory_vec: BlockUpdateMemory.
 Proof.
-  apply (@Build_Memory memory_vec mv_make mv_length mv_lookup mv_grow mv_update).
+  eapply (@Build_BlockUpdateMemory (@Build_Memory memory_vec mv_make mv_length mv_lookup mv_grow mv_update _ _ _ _ _ _ _ _ _ _ _) mv_update_gen).
+  Unshelve.
+  - exact mv_update_gen_ib.
+  - exact mv_update_gen_oob.
+  - exact mv_update_gen_lookup.
+  - exact mv_update_gen_lookup_lt.
+  - exact mv_update_gen_lookup_ge.
   - exact mv_lookup_ib.
   - exact mv_lookup_oob.
   - exact mv_make_length.
@@ -446,5 +547,5 @@ Proof.
   - exact mv_grow_lookup.
   - exact mv_grow_length.
 Qed.
-
+    
 End MemoryVec.

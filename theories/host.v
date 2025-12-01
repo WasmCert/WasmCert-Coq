@@ -24,7 +24,7 @@ Set Implicit Arguments.
 
 Section Predicate.
 
-Context `{hfc: host_function_class} `{memory: Memory}.
+Context `{hfc: host_function_class} `{memory: BlockUpdateMemory}.
 (** We assume a set of host functions. **)
 
 (** The application of a host function either:
