@@ -92,44 +92,21 @@ Parameter length_set_gen :
   forall (t : array A) (i : PrimInt63.int) (len: PrimInt63.int) (gen: PrimInt63.int -> A),
     arr_length (arr_set_gen t i len gen) = arr_length t.
 
-(*
-Definition pointwise_set_gen (t: array A) (start_pos : PrimInt63.int) (len : N) (generator : N -> A) : option (array A) :=
-  let A := option (array A * N) in
-  let update_step (current_result : A) : A :=
-    match current_result with
-    | Some (current_arr, idx) => 
-        if N.ltb idx len then
-          let pos := N.add start_pos idx in
-          let val := generator idx in
-          match arr_set current_arr pos val with
-          | Some next_mem => 
-              (* Success: increment the index and pass the new memory *)
-              Some (next_mem, N.succ idx)
-          | None => 
-              (* Failure *)
-              None
-          end
-        else
-          current_result 
-    | None => None
-    end
-  in
-  let initial_state : A := Some (t, N.zero) in
-  let final_result := N.iter len update_step initial_state in
-  match final_result with
-  | Some (final_arr, _) => Some final_arr
-  | None => None
-  end.
+Parameter arr_set_gen_lookup:
+  forall n len gen m i,
+    PrimInt63.ltb i len ->
+    arr_get (arr_set_gen m n len gen) (PrimInt63.add n i) = (gen i).
 
-Parameter mem_update_gen_none_eq:
-  forall (t : array A) (i : PrimInt63.int) (len: N) (gen: N -> A),
-    (arr_set_gen t i len gen = None) = (pointwise_set t i len gen = None).
-Parameter mem_update_gen_spec:
-  forall n len gen m m' m'' i,
-    mem_update_gen n len gen m = Some m' ->
-    pointwise_update_gen n len gen m = Some m'' ->
-    mem_lookup i m' = mem_lookup i m''.
-  *)      
+Parameter arr_set_gen_lt:
+  forall n len gen m i,
+    PrimInt63.ltb i n ->
+    arr_get (arr_set_gen m n len gen) i = arr_get m i.
+
+Parameter arr_set_gen_ge:
+  forall n len gen m i,
+    PrimInt63.ltb (PrimInt63.add n len) i ->
+    arr_get (arr_set_gen m n len gen) i = arr_get m i.
+                                         
 Parameter get_copy :
   forall (t : array A) (i : PrimInt63.int),
     (arr_copy t).[i] = t.[i].
@@ -446,20 +423,35 @@ Lemma mv_update_gen_ib:
   forall (n len : N) (gen : N -> byte) (m : vector),
   n + len <= mv_length m -> mv_update_gen n len gen m <> None.
 Proof.
-Admitted.
-
+  move => n len gen m Hle.
+  rewrite /mv_update_gen /vector_update_gen.
+  move/N.leb_spec0 in Hle.
+  by rewrite Hle.
+Qed.
+  
 Lemma mv_update_gen_oob:
   forall (n len : N) (gen : N -> byte) (m : vector),
   n + len > mv_length m -> mv_update_gen n len gen m = None.
 Proof.
-Admitted.
-
+  move => n len gen m Hgt.
+  rewrite /mv_update_gen /vector_update_gen.
+  move/N.leb_spec0 in Hgt.
+  destruct (n + len <=? mv_length m) eqn:Hle => //.
+  - exfalso; by apply Hgt.
+  - by rewrite Hle.
+Qed.
+    
 Lemma mv_update_gen_lookup:
   forall n len gen m m' i,
     mv_update_gen n len gen m = Some m' ->
     N.lt i len ->
     mv_lookup (N.add n i) m' = Some (gen i).
 Proof.
+  move => n len gen m m' i Hupdate Hlt.
+  rewrite /mv_update_gen /vector_update_gen /vector_length in Hupdate.
+  remove_bools_options.
+  rewrite /mv_lookup /vector_lookup => /=.
+  replace (n + i <? v_size m) with true; last by lias.
 Admitted.
 
 Lemma mv_update_gen_lookup_lt:

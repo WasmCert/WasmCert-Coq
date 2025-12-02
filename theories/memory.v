@@ -57,7 +57,7 @@ Section Memory.
         mem_update i' b mem = Some mem' ->
         mem_lookup i mem' = mem_lookup i mem;
 
-      (* Technically derivable from the others *)
+      (* Technically derivable from the lookup axioms; see the proofs for mem_check_gen *)
       mem_update_length :
       forall i b mem mem',
         mem_update i b mem = Some mem' ->
@@ -98,6 +98,15 @@ Section Memory.
     by apply mem_lookup_oob in Hlt.
   Qed.
   
+  Lemma mem_lookup_some_length': forall m i b,
+      mem_lookup i m = Some b ->
+      N.lt i (mem_length m).
+  Proof.
+    move => m i b Hlookup.
+    apply mem_lookup_some_length.
+    by rewrite Hlookup.
+  Qed.
+  
   Lemma mem_lookup_none_length: forall m i,
       mem_lookup i m = None ->
       N.ge i (mem_length m).
@@ -108,9 +117,9 @@ Section Memory.
   Qed.
   
   Lemma mem_length_boundary : forall m i,
-      mem_lookup (N.pred i) m <> None ->
-      mem_lookup i m = None ->
-      mem_length m = i.
+      mem_lookup i m <> None ->
+      mem_lookup (N.succ i) m = None ->
+      mem_length m = N.succ i.
   Proof.
     move => m i Hlookup1 Hlookup2.
     apply mem_lookup_some_length in Hlookup1.
@@ -118,7 +127,31 @@ Section Memory.
     apply N.le_succ_l in Hlookup1.
     by lias.
   Qed.
+
+  Lemma mem_length_extensional_aux: forall m m',
+      (forall i, (mem_lookup i m == None) = (mem_lookup i m' == None)) ->
+      ~ (mem_length m < mem_length m')%N.
+  Proof.
+    move => m m' Heq Hlt.
+    specialize (Heq (mem_length m)).
+    rewrite mem_lookup_oob in Heq; last by lias.
+    rewrite eq_refl in Heq; symmetry in Heq; move/eqP in Heq.
+    by specialize (mem_lookup_ib Hlt).
+  Qed.
   
+  Lemma mem_length_extensional : forall m m',
+      (forall i, (mem_lookup i m == None) = (mem_lookup i m' == None)) ->
+      mem_length m = mem_length m'.
+  Proof.
+    move => m m' Heq.
+    specialize (mem_length_extensional_aux Heq) as Hbound1.
+    assert (~ (mem_length m' < mem_length m)%N) as Hbound2.
+    { apply mem_length_extensional_aux.
+      by move => i; specialize (Heq i).
+    }
+    by lias.
+  Qed.
+
 End Memory.
 
 Section BlockUpdateMemory.
@@ -161,18 +194,66 @@ Section BlockUpdateMemory.
   
   Hint Resolve memory_from_bum : typeclass_instances.
 
-  Lemma mem_update_gen_length `{BlockUpdateMemory}: forall n len gen m m',
+  Context `{BlockUpdateMemory}.
+
+  Lemma mem_update_gen_some_length: forall n len gen m,
+      mem_update_gen n len gen m <> None ->
+      N.le (N.add n len) (mem_length m).
+  Proof.
+    move => n len gen m Hupdate.
+    destruct (N.leb (N.add n len) (mem_length m)) eqn:Hle; move/N.leb_spec0 in Hle => //.
+    exfalso.
+    apply Hupdate, mem_update_gen_oob.
+    by lias.
+  Qed.
+  
+  Lemma mem_update_gen_some_length': forall n len gen m b,
+      mem_update_gen n len gen m = Some b ->
+      N.le (N.add n len) (mem_length m).
+  Proof.
+    move => n len gen m b Hupdate.
+    apply mem_update_gen_some_length with (gen := gen); eauto.
+    by rewrite Hupdate.
+  Qed.
+  
+  Lemma mem_update_gen_lookup_ex: forall n len gen m m' i,
+      mem_update_gen n len gen m = Some m' ->
+      (mem_lookup i m == None) = (mem_lookup i m' == None).
+  Proof.
+    move => n len gen m m' i Hupdate.
+    destruct (N.ltb i n) eqn:Hlt; move/N.ltb_spec0 in Hlt.
+    - specialize (mem_update_gen_lookup_lt Hupdate Hlt) as Heq.
+      by rewrite Heq.
+    - destruct (N.ltb i (N.add n len)) eqn:Hlt2; move/N.ltb_spec0 in Hlt2.
+      + assert (N.lt (N.sub i n) len) as Hlt3; first by lias.
+        specialize (mem_update_gen_lookup Hupdate Hlt3) as Hlookupgen.
+        replace (n+(i-n)%N)%N with i in Hlookupgen; last by lias.
+        rewrite Hlookupgen.
+        assert (mem_lookup i m <> None) as Hlookup.
+        { apply mem_lookup_ib.
+          apply mem_update_gen_some_length' in Hupdate.
+          by lias.
+        }
+        by lias.
+      + specialize (mem_update_gen_lookup_ge Hupdate Hlt2) as Heq.
+        by rewrite Heq.
+  Qed.
+        
+  Lemma mem_update_gen_length : forall n len gen m m',
       mem_update_gen n len gen m = Some m' ->
       mem_length m = mem_length m'.
   Proof.
     move => n len gen m m' Hupdate.
-    apply mem_length_boundary.
-    - destruct (N.ltb (N.pred (mem_length m')) (N.add n len)) eqn:Hlt; move/N.ltb_spec0 in Hlt.
-      + destruct (N.ltb (N.pred (mem_length m')) n) eqn:Hlt2; move/N.ltb_spec0 in Hlt2.
-        { eapply mem_update_gen_lookup_lt in Hlt2; eauto.
-          admit.
-        }
-        
-  Admitted.
+    apply mem_length_extensional.
+    move => i.
+    destruct (mem_lookup i m) eqn:Hlookup1; 
+      destruct (mem_lookup i m') eqn:Hlookup2 => //=; exfalso.
+    - move/eqP in Hlookup2.
+      erewrite <- mem_update_gen_lookup_ex in Hlookup2; eauto.
+      by rewrite Hlookup1 in Hlookup2.
+    - move/eqP in Hlookup1.
+      erewrite -> mem_update_gen_lookup_ex in Hlookup1; eauto.
+      by rewrite Hlookup2 in Hlookup1.
+  Qed.
   
 End BlockUpdateMemory.
