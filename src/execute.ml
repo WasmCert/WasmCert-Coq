@@ -63,8 +63,8 @@ let rec eval_interp_cfg verbosity gen max_call_depth cfg d =
       (fun _ -> pp_res_cfg_except_store cfg cfg_res);
     match cfg_res with
     | RSC_normal (_hs', cfg', d') ->
-      let d_int = Utils.int_of_z d' in
-      if (d_int > max_call_depth) && (max_call_depth != -1) then begin
+      let d_int = d' in
+      if (d_int > max_call_depth) && (max_call_depth != (-1)) then begin
         debug_info verbosity stage ~style:red (fun _ -> "Call stack exhaustion\n");
         Cfg_exhaustion
       end

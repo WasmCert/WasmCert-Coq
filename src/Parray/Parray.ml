@@ -74,15 +74,15 @@ struct
 
 end
 
-(* Changed to full 32 bit to match Wasm's memory limit *)
-let max_array_length = 4294967296
+(* Changed to 2^32 bit to match Wasm's memory limit. This needs 64-bit OCaml to work *)
+let max_array_length = max_int
 
-let max_length = Uint63.of_int max_array_length
+let max_length = max_array_length
 
-let to_int i = snd (Uint63.to_int2 i)
+let to_int i = i
 
 let trunc_size n =
-  if Uint63.le Uint63.zero n && Uint63.lt n (Uint63.of_int max_array_length) then
+  if 0<=n && n < max_array_length then
     to_int n
   else max_array_length
 
@@ -136,12 +136,12 @@ let reroot t = rerootk t (fun a -> a)
 let length_int p =
   UArray.length (reroot p)
 
-let length p = Uint63.of_int @@ length_int p
+let length p = length_int p
 
 let get p n =
   let t = reroot p in
   let l = UArray.length t in
-  if Uint63.le Uint63.zero n && Uint63.lt n (Uint63.of_int l) then
+  if 0 <= n && n < l then
     UArray.unsafe_get t (to_int n)
   else
     match !p with
@@ -151,8 +151,8 @@ let get p n =
 
 let set p n e =
   let a = reroot p in
-  let l = Uint63.of_int (UArray.length a) in
-  if Uint63.le Uint63.zero n && Uint63.lt n l then
+  let l = (UArray.length a) in
+  if 0 <= n && n < l then
     let i = to_int n in
     let v' = UArray.unsafe_get a i in
     UArray.unsafe_set a i e;
@@ -169,10 +169,10 @@ let set_gen p start_pos block_len generator =
   let len = to_int block_len in
   let total_len = UArray.length a in
   (* Check bounds and block size *)
-  if Uint63.le Uint63.zero start_pos && Uint63.le (Uint63.add start_pos block_len) (Uint63.of_int total_len) then
+  if 0 <= start_pos && (start_pos + block_len) <= (total_len) then
   let old_vals = uarray_get_range a i len in
   for j = 0 to len - 1 do
-    let new_val = generator (Uint63.of_int j) in
+    let new_val = generator (j) in
     UArray.unsafe_set a (i + j) new_val
   done;
   let t = ref !p in 
@@ -195,13 +195,13 @@ let make n def = make_int (trunc_size n) def
 
 (* An addition to the kernel Parray extraction that initialises with another array acting as an initialiser *)
     let make_copy n init arr initlen =
-      if Uint63.le initlen (length arr) then
+      if initlen <= (length arr) then
         let trunc_n = trunc_size n in
-        if Uint63.le (length arr) (Uint63.of_int trunc_n) then
+        if (length arr) <= (trunc_n) then
           let marr = UArray.make trunc_n init in
           let initlen_int = to_int initlen in
           for i = 0 to initlen_int - 1 do
-            UArray.unsafe_set marr i (get arr (Uint63.of_int i))
+            UArray.unsafe_set marr i (get arr (i))
           done;
           ref (Array (marr, init))
         else assert false

@@ -98,6 +98,7 @@ end
 module Interpreter =
 functor (EH : Host) -> struct
 
+
   module Host = EH
   include Host
 
@@ -131,7 +132,7 @@ functor (EH : Host) -> struct
 
   (** Run one step of the interpreter. *)
   let run_one_step cfg d = 
-    Extraction_instance.run_one_step cfg (Utils.z_of_int d)
+    Extraction_instance.run_one_step cfg d
 
   let run_v_init = Extraction_instance.run_v_init
 
@@ -162,17 +163,17 @@ functor (EH : Host) -> struct
     Extraction_instance.pp_values l
 
   let pp_store i st =
-    Extraction_instance.pp_store (Convert.to_nat i) st
+    Extraction_instance.pp_store i st
 
   let pp_cfg_tuple_ctx_except_store r =
     Extraction_instance.pp_cfg_tuple_ctx_except_store r
     
 (* Depth doesn't matter for pretty printing cfg *)
   let pp_res_cfg_except_store cfg res =
-    Extraction_instance.pp_res_cfg_except_store cfg (Utils.z_of_int 0) res
+    Extraction_instance.pp_res_cfg_except_store cfg 0 res
 
   let pp_es es =
-    Extraction_instance.pp_administrative_instructions O es
+    Extraction_instance.pp_administrative_instructions 0 es
 
   let pp_externval extval = 
     Extraction_instance.pp_extern_value extval
