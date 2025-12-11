@@ -22,37 +22,26 @@ From Coq Require PArray.
 From Coq Require Import
   extraction.ExtrOcamlBasic
   extraction.ExtrOcamlNativeString
-  extraction.ExtrOcamlNatInt
-  extraction.ExtrOcamlZInt
+  extraction.ExtrOcamlZBigInt
 .
 
 Extraction Language OCaml.
 
-Extract Inductive positive => "Coq_types.ocaml_int"
-[ "(fun p->1+2*p)" "(fun p->2*p)" "1" ]
-"(fun f2p1 f2p f1 p -> if p<=1 then f1 () else if p mod 2 = 0 then f2p (p/2) else f2p1 (p/2))".
-
-Extract Inductive Z => "Coq_types.ocaml_int"
-[ "0" "" "(~-)" ]
-"(fun f0 fp fn z -> if z=0 then f0 () else if z>0 then fp z else fn (-z))".
-
-Extract Inductive N => "Coq_types.ocaml_int"
-[ "0" "" ]
-"(fun f0 fp n -> if n=0 then f0 () else fp n)".
-
 Extract Constant lookup_N => "EfficientExtraction.lookup_N_safe".
 
-Extract Constant memory_vec.array "'a" => "Parray.t".
+Extract Constant memory_vec.array "'a" => "Parray_shim.t".
 Extraction Inline memory_vec.array.
 
-Extract Constant memory_vec.arr_make => "Parray.make".
-Extract Constant memory_vec.arr_make_copy => "Parray.make_copy".
-Extract Constant memory_vec.arr_get => "Parray.get".
-Extract Constant memory_vec.arr_default => "Parray.default".
-Extract Constant memory_vec.arr_set => "Parray.set".
-Extract Constant memory_vec.arr_set_gen => "Parray.set_gen".
-Extract Constant memory_vec.arr_length => "Parray.length".
-Extract Constant memory_vec.arr_copy => "Parray.copy".
+(* Requires some custom rerouting *)
+
+Extract Constant memory_vec.arr_make => "Parray_shim.make".
+Extract Constant memory_vec.arr_make_copy => "Parray_shim.make_copy".
+Extract Constant memory_vec.arr_get => "Parray_shim.get".
+Extract Constant memory_vec.arr_default => "Parray_shim.default".
+Extract Constant memory_vec.arr_set => "Parray_shim.set".
+Extract Constant memory_vec.arr_set_gen => "Parray_shim.set_gen".
+Extract Constant memory_vec.arr_length => "Parray_shim.length".
+Extract Constant memory_vec.arr_copy => "Parray_shim.copy".
 
 Extract Constant SIMD_ops.app_vunop_str => "SIMD_ops.app_vunop_str".
 Extract Constant SIMD_ops.app_vbinop_str => "SIMD_ops.app_vbinop_str".

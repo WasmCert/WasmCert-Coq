@@ -5,7 +5,7 @@ open Wasm.V128
 let app_vunop_str op v =
   let vw = of_bits v in
   let wasm_f = 
-    match op with
+    match Utils.int_of_z op with
     | 77 -> V1x128.lognot
     | 96 -> I8x16.abs
     | 97 -> I8x16.neg
@@ -74,8 +74,8 @@ let app_vbinop_str op_args v1 v2 =
   let (op, args) = op_args in
   let v1w = of_bits v1 in
   let v2w = of_bits v2 in
-  let iop = op in
-  let iargs = args in
+  let iop = Utils.int_of_z op in
+  let iargs = List.map Utils.int_of_z args in
   if iop = 13 then (* shuffle *)
     to_bits (V8x16.shuffle v1w v2w iargs)
   else
@@ -216,7 +216,7 @@ let app_vternop_str op v1 v2 v3 =
   let v2w = of_bits v2 in
   let v3w = of_bits v3 in
   let wasm_f = 
-    match op with
+    match Utils.int_of_z op with
     | 82 -> V1x128.bitselect
     | _ -> assert false
   in
@@ -248,7 +248,7 @@ let encode_int32 x =
 
 let app_vtestop_str op v1 =
   let v1w = of_bits v1 in
-  let op_i = op in
+  let op_i = Utils.int_of_z op in
   match op_i with
   | 83 -> encode_bool (I8x16.any_true v1w)
 
@@ -268,7 +268,7 @@ let app_vshiftop_str op v1 v2 =
   let v1w = of_bits v1 in
   let v2w = decode_int32 v2 in
   let wasm_f = 
-    match op with
+    match Utils.int_of_z op with
     | 107 -> I8x16.shl
     | 108 -> I8x16.shr_s
     | 109 -> I8x16.shr_u
