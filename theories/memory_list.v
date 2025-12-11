@@ -218,7 +218,6 @@ Proof.
   - exact ml_make_lookup.
   - exact ml_update_lookup.
   - exact ml_update_lookup_ne.
-  - by intros; eapply ml_update_length; eauto.
   - exact ml_update_ib.
   - exact ml_update_oob.
   - exact ml_grow_lookup.

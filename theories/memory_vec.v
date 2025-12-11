@@ -104,7 +104,7 @@ Parameter arr_set_gen_lt:
 
 Parameter arr_set_gen_ge:
   forall n len gen m i,
-    N.ltb (N.add n len) i ->
+    N.leb (N.add n len) i ->
     arr_get (arr_set_gen m n len gen) i = arr_get m i.
                                          
 Parameter get_copy :
@@ -414,24 +414,34 @@ Proof.
   remove_bools_options.
   rewrite /mv_lookup /vector_lookup => /=.
   replace (n + i <? v_size m) with true; last by lias.
-Admitted.
-
+  rewrite arr_set_gen_lookup; by lias.
+Qed.
+  
 Lemma mv_update_gen_lookup_lt:
   forall n len gen m m' i,
     mv_update_gen n len gen m = Some m' ->
     N.lt i n ->
     mv_lookup i m' = mv_lookup i m.
 Proof.
-Admitted.
-
-
+  move => n len gen m m' i Hupdate Hlt.
+  rewrite /mv_update_gen /vector_update_gen /vector_length in Hupdate.
+  remove_bools_options.
+  rewrite /mv_lookup /vector_lookup => /=.
+  rewrite arr_set_gen_lt; by lias.
+Qed.
+  
 Lemma mv_update_gen_lookup_ge:
   forall n len gen m m' i,
     mv_update_gen n len gen m = Some m' ->
     N.ge i (N.add n len) ->
     mv_lookup i m' = mv_lookup i m.
 Proof.
-Admitted.
+  move => n len gen m m' i Hupdate Hlt.
+  rewrite /mv_update_gen /vector_update_gen /vector_length in Hupdate.
+  remove_bools_options.
+  rewrite /mv_lookup /vector_lookup => /=.
+  by rewrite arr_set_gen_ge; lias.
+Qed.
   
 Lemma mv_grow_lookup :
   forall i n mem mem',
@@ -467,7 +477,7 @@ Qed.
 #[export]
   Instance Memory_vec: BlockUpdateMemory.
 Proof.
-  eapply (@Build_BlockUpdateMemory (@Build_Memory memory_vec mv_make mv_length mv_lookup mv_grow mv_update _ _ _ _ _ _ _ _ _ _ _) mv_update_gen).
+  eapply (@Build_BlockUpdateMemory (@Build_Memory memory_vec mv_make mv_length mv_lookup mv_grow mv_update _ _ _ _ _ _ _ _ _ _) mv_update_gen).
   Unshelve.
   - exact mv_update_gen_ib.
   - exact mv_update_gen_oob.
@@ -480,7 +490,6 @@ Proof.
   - exact mv_make_lookup.
   - exact mv_update_lookup.
   - exact mv_update_lookup_ne.
-  - by intros; eapply mv_update_length; eauto.
   - exact mv_update_ib.
   - exact mv_update_oob.
   - exact mv_grow_lookup.
