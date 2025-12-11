@@ -57,12 +57,6 @@ Section Memory.
         mem_update i' b mem = Some mem' ->
         mem_lookup i mem' = mem_lookup i mem;
 
-      (* Technically derivable from the lookup axioms; see the proofs for mem_check_gen *)
-      mem_update_length :
-      forall i b mem mem',
-        mem_update i b mem = Some mem' ->
-        mem_length mem' = mem_length mem;
-
       mem_update_ib :
       forall mem i b,
         N.lt i (mem_length mem) ->
@@ -116,6 +110,34 @@ Section Memory.
     by apply mem_lookup_ib in Hlt.
   Qed.
   
+  Lemma mem_update_some_length: forall m i b,
+      mem_update i b m <> None ->
+      N.lt i (mem_length m).
+  Proof.
+    move => m i b Hupdate.
+    destruct (N.ltb i (mem_length m)) eqn:Hlt; first by lias.
+    exfalso.
+    move/N.ltb_spec0 in Hlt.
+    by apply mem_update_oob with (b := b) in Hlt.
+  Qed.
+  
+  Lemma mem_update_some_length': forall m i b m',
+      mem_update i b m = Some m' ->
+      N.lt i (mem_length m).
+  Proof.
+    move => m i b m' Hupdate.
+    by apply mem_update_some_length with (b := b); rewrite Hupdate.
+  Qed.
+
+  Lemma mem_update_none_length: forall m i b,
+      mem_update i b m = None ->
+      N.ge i (mem_length m).
+  Proof.
+    move => m i b Hlookup.
+    destruct (N.ltb i (mem_length m)) eqn:Hlt; move/N.ltb_spec0 in Hlt; last done.
+    by apply mem_update_ib with (b := b) in Hlt.
+  Qed.
+  
   Lemma mem_length_boundary : forall m i,
       mem_lookup i m <> None ->
       mem_lookup (N.succ i) m = None ->
@@ -150,6 +172,24 @@ Section Memory.
       by move => i; specialize (Heq i).
     }
     by lias.
+  Qed.
+
+  Lemma mem_update_length : forall i b mem mem',
+      mem_update i b mem = Some mem' ->
+      mem_length mem' = mem_length mem.
+  Proof.
+    move => i b mem mem' Hupdate.
+    apply mem_length_extensional; move => j.
+    destruct (mem_lookup j mem) eqn:Hlookup.
+    - destruct (N.eqb i j) eqn:Hid; move/N.eqb_spec in Hid; subst.
+      + apply mem_update_lookup in Hupdate.
+        by rewrite Hupdate.
+      + apply mem_update_lookup_ne with (i := j) in Hupdate; last by lias.
+        by rewrite Hupdate Hlookup.
+    - specialize (mem_lookup_none_length Hlookup) as Hbound1.
+      specialize (mem_update_some_length' Hupdate) as Hbound2.
+      assert (i <> j) as Hneq; first by lias.
+      rewrite -> mem_update_lookup_ne with (mem := mem) (i := j) (i' := i) (b := b); by lias.
   Qed.
 
 End Memory.
