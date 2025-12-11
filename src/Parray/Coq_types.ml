@@ -1,1 +1,0 @@
-type ocaml_int = int
