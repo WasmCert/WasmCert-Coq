@@ -1,7 +1,7 @@
-(* A wrapper file for the custom Parray module to take arguments of type Z.t instead of OCaml's int.
-   Note that this does not magically allow full the 31st bit to be used as address on 32-bit OCaml.
-   This is rather to connect between the unbounded integer types in the extracted code and the `int`
-   length parameter requried by OCaml's Array.make.
+(* A wrapper file for the custom Parray module to take arguments of type `Z.t` instead of OCaml's `int`.
+   Note that this does not magically allow the 31st bit to be used on 32-bit OCaml distributions.
+   It is rather for connecting the unbounded integer types in the extracted code to the `int`
+   length parameter requried by OCaml's `Array.make`.
 *)
 
 type 'a t = 'a Parray.t

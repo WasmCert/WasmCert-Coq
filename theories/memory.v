@@ -18,9 +18,11 @@ Section Memory.
 
   Definition byte_limit : N := N.mul page_size page_limit.
 
+  Definition wasm_memory_default_byte : byte := #00.
+  
   Class Memory := {
       mem_t : Type;
-      mem_make : byte -> N -> mem_t;
+      mem_make : N -> mem_t; (* Doesn't take an init, as Wasm forces it to zero *)
       mem_length : mem_t -> N;
       mem_lookup : N -> mem_t -> option byte;
       (* Doesn't have to succeed *)
@@ -38,13 +40,13 @@ Section Memory.
         mem_lookup i mem = None;
       
       mem_make_length :
-      forall b len,
-        mem_length (mem_make b len) = N.min len byte_limit;
+      forall len,
+        mem_length (mem_make len) = N.min len byte_limit;
 
       mem_make_lookup :
-      forall i len b,
+      forall i len,
         N.lt i (N.min len byte_limit) ->
-        mem_lookup i (mem_make b len) = Some b;
+        mem_lookup i (mem_make len) = Some wasm_memory_default_byte;
       
       mem_update_lookup :
       forall mem mem' i b,
@@ -77,6 +79,14 @@ Section Memory.
       forall n mem mem',
         mem_grow n mem = Some mem' ->
         mem_length mem' = N.add (mem_length mem) n;
+      
+      mem_grow_default:
+      forall n len mem mem' i,
+        N.lt i n ->
+        mem_grow n mem = Some mem' ->
+        mem_length mem = len ->
+        mem_lookup (len + i) mem' = Some #00
+
     }.
 
   Context `{Memory}.

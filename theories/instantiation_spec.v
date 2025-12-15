@@ -92,7 +92,7 @@ Definition alloc_tabs (s : store_record) (ts : list table_type) : store_record *
 
 Definition gen_mem_instance (lim : limits) : meminst :=
   let len := BinNatDef.N.mul page_size lim.(lim_min) in
-  {| meminst_data := mem_make Integers.Byte.zero len;
+  {| meminst_data := mem_make len;
     meminst_type := lim;
   |}.
 

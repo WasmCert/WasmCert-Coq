@@ -10,15 +10,17 @@ Unset Printing Implicit Defensive.
 
 Section MemoryList.
 
+  Context `{def_byte: byte}.
+  
   Record memory_list : Type := {
-      ml_init : byte;
+      ml_init : byte := def_byte;
       ml_data : list byte;
     }.
 
   Definition ml_make :=
-    fun v len =>
+    fun len =>
       let capped_len := N.min len byte_limit in
-      {| ml_init := v; ml_data := mkseq (fun _ => v) (N.to_nat capped_len) |}.
+      {| ml_data := mkseq (fun _ => def_byte) (N.to_nat capped_len) |}.
 
   Definition ml_length :=
     fun ml => N.of_nat (size ml.(ml_data)).
@@ -28,7 +30,6 @@ Section MemoryList.
       let new_length := N.add len_delta (N.of_nat (length ml.(ml_data))) in
       if new_length <=? byte_limit then
       Some {|
-          ml_init := ml.(ml_init);
           ml_data := ml.(ml_data) ++ mkseq (fun _ => ml.(ml_init)) (N.to_nat len_delta)
         |}
       else None.
@@ -42,8 +43,7 @@ Section MemoryList.
   Definition ml_update :=
     fun i v ml =>
       if N.ltb i (ml_length ml)
-      then Some {| ml_init := ml.(ml_init);
-                  ml_data := set_nth ml.(ml_init) ml.(ml_data) (N.to_nat i) v
+      then Some {| ml_data := set_nth ml.(ml_init) ml.(ml_data) (N.to_nat i) v
                 |}
       else None.
 
@@ -74,21 +74,21 @@ Section MemoryList.
   Qed.
   
   Lemma ml_make_length:
-    forall b len,
-      ml_length (ml_make b len) = N.min len byte_limit.
+    forall len,
+      ml_length (ml_make len) = N.min len byte_limit.
   Proof.
-    move => b len => /=.
+    move => len => /=.
     unfold ml_length, ml_make.
     rewrite size_mkseq.
     by rewrite N2Nat.id.
   Qed.
 
   Lemma ml_make_lookup:
-    forall i len b,
+    forall i len,
       (i < N.min len byte_limit)%N ->
-      ml_lookup i (ml_make b len) = Some b.
+      ml_lookup i (ml_make len) = Some def_byte.
   Proof.
-    move => i len b Hlen /=.
+    move => i len Hlen /=.
     unfold ml_lookup.
     erewrite ml_make_length; eauto.
     move/N.ltb_spec0 in Hlen; rewrite Hlen => /=.
@@ -207,11 +207,36 @@ Proof.
   unfold ml_length in Hlen.
   replace (N.to_nat i < size (ml_data mem)) with true; by lias.
 Qed.
-  
+
+Lemma ml_grow_default:
+  forall (n len : N) (mem mem' : memory_list) (i : N),
+  (i < n)%N ->
+  ml_grow n mem = Some mem' ->
+  ml_length mem = len ->
+  ml_lookup (len + i) mem' = Some mem.(ml_init).
+Proof.
+  move => n len mem mem' i Hlt Hgrow Hlen.
+  unfold ml_grow in Hgrow; remove_bools_options.
+  unfold ml_lookup, ml_length => /=.
+  rewrite size_cat Nat2N.inj_add size_mkseq N2Nat.id.
+  replace (_ <? _)%N with true; last by lias.
+  rewrite N2Nat.inj_add Nat2N.id nth_cat.
+  replace (_ < _) with false; last by lias.
+  replace (_ + _ - _) with (N.to_nat i); last by lias.
+  rewrite nth_mkseq; last by lias.
+  done.
+Qed.
+
+End MemoryList.
+
+Section MemoryListInterface.
+
+Definition ml_zero : Type := @memory_list wasm_memory_default_byte.
+
 #[export]
   Instance Memory_list: Memory.
 Proof.
-  apply (@Build_Memory memory_list ml_make ml_length ml_lookup ml_grow ml_update).
+  apply (@Build_Memory ml_zero ml_make ml_length ml_lookup ml_grow ml_update).
   - exact ml_lookup_ib.
   - exact ml_lookup_oob.
   - exact ml_make_length.
@@ -222,6 +247,7 @@ Proof.
   - exact ml_update_oob.
   - exact ml_grow_lookup.
   - exact ml_grow_length.
+  - exact ml_grow_default.
 Qed.
 
-End MemoryList.
+End MemoryListInterface.

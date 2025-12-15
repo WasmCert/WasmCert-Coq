@@ -138,27 +138,35 @@ Section vector.
   Context {T: Type}.
 
   Implicit Types x : T.
+
+  Context `{def_val: T}.
   
   Record vector :=
     { v_data: array T;
       v_size: N;
       v_capacity: N;
-      v_init: T;
+      v_init: T := def_val;
       v_size_valid: v_size <= v_capacity;
       v_capacity_eq: v_capacity = (arr_length v_data);
+      v_uninitialised:
+      forall (i : N),
+        v_size <= i ->
+        i < v_capacity ->
+        arr_get v_data i = v_init;
     }.
 
   Definition vector_length vec : N :=
     vec.(v_size).
 
-  Definition vector_make (len: N) x : vector.
+  Definition vector_make (len: N) : vector.
   Proof.
     remember (N.min len byte_limit) as capped_len.
-    refine (@Build_vector (arr_make capped_len x) capped_len capped_len x _ _).
+    refine (@Build_vector (arr_make capped_len def_val) capped_len capped_len _ _ _).
     - by lias.
     - rewrite length_make; subst.
       unfold max_arr_length.
       by lias.
+    - move => ???; by lias.
   Defined.
     
   Definition vector_lookup vec n : option T :=
@@ -168,24 +176,30 @@ Section vector.
 
   Definition vector_update (vec: vector) (n: N) (x: T) : option vector.
   Proof.
-    refine
-    (if N.ltb n (vector_length vec) then
-      Some (@Build_vector (arr_set vec.(v_data) n x) vec.(v_size) vec.(v_capacity) vec.(v_init) _ _)
-     else None).
-    - by apply v_size_valid.
-    - rewrite length_set.
-      by apply v_capacity_eq.
+    destruct (N.ltb n (vector_length vec)) eqn:Hn.
+    - refine (Some (@Build_vector (arr_set vec.(v_data) n x) vec.(v_size) vec.(v_capacity) _ _ _)).
+      + by apply v_size_valid.
+      + rewrite length_set.
+        by apply v_capacity_eq.
+      + move => i Hlb Hub.
+        rewrite get_set_other => //; first by apply v_uninitialised.
+        unfold vector_length in Hn.
+        by lias.
+    - exact None.
   Defined.
   
   Definition vector_update_gen (vec: vector) (n: N) (len: N) (gen: N -> T) : option vector.
   Proof.
-    refine
-    (if N.leb (N.add n len) (vector_length vec) then
-      Some (@Build_vector (arr_set_gen vec.(v_data) n len (fun offset => gen offset)) vec.(v_size) vec.(v_capacity) vec.(v_init) _ _)
-     else None).
-    - by apply v_size_valid.
-    - rewrite length_set_gen.
-      by apply v_capacity_eq.
+    destruct (N.leb (N.add n len) (vector_length vec)) eqn:Hn.
+    - refine (Some (@Build_vector (arr_set_gen vec.(v_data) n len (fun offset => gen offset)) vec.(v_size) vec.(v_capacity) _ _ _)).
+      + by apply v_size_valid.
+      + rewrite length_set_gen.
+        by apply v_capacity_eq.
+      + move => i Hlb Hub.
+        rewrite arr_set_gen_ge => //; first by apply v_uninitialised.
+        unfold vector_length in Hn.
+        by lias.
+    - exact None.
   Defined.
 
   Lemma N_min_idem_r : forall n m,
@@ -200,12 +214,11 @@ Section vector.
     | true => (fun _ => 
         match newsize <=? vec.(v_capacity) as p2 return (newsize <=? vec.(v_capacity) = p2) -> _ with
         | true =>
-            (fun _ => Some (@Build_vector vec.(v_data) newsize vec.(v_capacity) vec.(v_init) _ _))
+            (fun _ => Some (@Build_vector vec.(v_data) newsize vec.(v_capacity) _ _ _))
         | false =>
             let new_capacity := (N.min (N.max newsize (vec.(v_capacity) * 2%N)) byte_limit) in
-            let x := vec.(v_init) in
-            let new_vd := arr_make_copy new_capacity x vec.(v_data) vec.(v_size) in
-            (fun _ => Some (@Build_vector new_vd newsize new_capacity x _ _))
+            let new_vd := arr_make_copy new_capacity def_val vec.(v_data) vec.(v_size) in
+            (fun _ => Some (@Build_vector new_vd newsize new_capacity _ _ _))
         end (Logic.eq_refl (newsize <=? vec.(v_capacity))))
     | false => (fun _ => None)
     end (Logic.eq_refl (newsize <=? byte_limit)).
@@ -216,6 +229,10 @@ Section vector.
     by apply v_capacity_eq.
   Qed.
   Next Obligation.
+    unfold vector_length in *.
+    apply v_uninitialised; by lias.
+  Qed.
+  Next Obligation.
     move/N.leb_spec0 in e0.
     by lias.
   Qed.
@@ -223,6 +240,13 @@ Section vector.
     rewrite length_make_copy.
     unfold max_arr_length.
     by lias.
+  Qed.
+  Next Obligation.
+    unfold vector_length in *.
+    rewrite get_make_copy_default => //; try by lias.
+    rewrite - v_capacity_eq.
+    apply/N.leb_spec0.
+    by apply v_size_valid.
   Qed.
 
   Lemma vector_size_bound: forall vec,
@@ -242,13 +266,13 @@ End vector.
 
 Section MemoryVec.
 
-  Definition memory_vec : Type := @vector byte.
-  Definition mv_length := @vector_length byte.
-  Definition mv_make n b := @vector_make byte b n.
-  Definition mv_lookup i v := @vector_lookup byte v i.
-  Definition mv_update i b v := @vector_update byte v i b.
-  Definition mv_update_gen i n gen m := @vector_update_gen byte m i n gen.
-  Definition mv_grow n v:= @vector_grow byte v n.
+  Definition memory_vec : Type := @vector byte wasm_memory_default_byte.
+  Definition mv_length := @vector_length byte wasm_memory_default_byte.
+  Definition mv_make n := @vector_make byte wasm_memory_default_byte n.
+  Definition mv_lookup i v := @vector_lookup byte wasm_memory_default_byte v i.
+  Definition mv_update i b v := @vector_update byte wasm_memory_default_byte v i b.
+  Definition mv_update_gen i n gen m := @vector_update_gen byte wasm_memory_default_byte m i n gen.
+  Definition mv_grow n v:= @vector_grow byte wasm_memory_default_byte v n.
 
   Lemma mv_lookup_ib:
     forall mem i,
@@ -277,17 +301,17 @@ Section MemoryVec.
   Qed.
 
   Lemma mv_make_length:
-    forall b len, mv_length (mv_make b len) = N.min len byte_limit.
+    forall len, mv_length (mv_make len) = N.min len byte_limit.
   Proof.
     done.
   Qed.
     
   Lemma mv_make_lookup:
-    forall i len b,
+    forall i len,
       (i < N.min len byte_limit) ->
-      mv_lookup i (mv_make b len) = Some b.
+      mv_lookup i (mv_make len) = Some wasm_memory_default_byte.
   Proof.
-    move => i len b Hlen /=.
+    move => i len Hlen /=.
     unfold mv_lookup, vector_lookup.
     setoid_rewrite mv_make_length.
     move/N.ltb_spec0 in Hlen; rewrite Hlen => /=.
@@ -300,9 +324,12 @@ Lemma mv_update_length :
     mv_update i b mem = Some mem' ->
     mv_length mem' = mv_length mem.
 Proof.
-  move => mem mem' i b Hupdate.
-  unfold mv_update, vector_update in Hupdate.
-  by remove_bools_options.
+  move => mem mem' i b.
+  unfold mv_update, vector_update => /=.
+  generalize (Logic.eq_refl (i <? vector_length mem)).
+  generalize (i <? vector_length mem) at 2 3.
+  case => Hub => //=.
+  by move => [<-] /=.
 Qed.
   
   Lemma mv_update_lookup :
@@ -314,12 +341,16 @@ Qed.
     unfold mv_lookup, vector_lookup.
     erewrite mv_update_length; eauto.
     unfold mv_update, vector_update in *.
-    remove_bools_options => /=.
-    rewrite Hif.
+    move: Hupdate.
+    generalize (Logic.eq_refl (i <? vector_length mem)).
+    generalize (i <? vector_length mem) at 2 3.
+    case => Hub => //=.
+    move => [<-] /=.
+    rewrite Hub.
     rewrite get_set_same => //.
-    unfold vector_length in Hif.
+    unfold vector_length in Hub.
     specialize (v_capacity_eq mem) as Hcap.
-    specialize (@v_size_valid _ mem) as Hsize.
+    specialize (@v_size_valid _ _ mem) as Hsize.
     by lias.
   Qed.
 
@@ -332,8 +363,12 @@ Proof.
   move => mem mem' i j b Hneq Hupdate.
   unfold mv_lookup, vector_lookup.
   unfold mv_update, vector_update in Hupdate.
-  remove_bools_options => /=.
-  move/N.ltb_spec0 in Hif.
+  move: Hupdate.
+  generalize (Logic.eq_refl (j <? vector_length mem)).
+  generalize (j <? vector_length mem) at 2 3.
+  case => Hub => //=.
+  move => [<-] /=.
+  move/N.ltb_spec0 in Hub.
   unfold vector_length.
   destruct (i <? v_size mem) eqn:Hindex => //.
   rewrite get_set_other => //.
@@ -362,9 +397,12 @@ Lemma mv_update_ib:
 Proof.
   move => mem i b => /=.
   rewrite /mv_length /mv_update /vector_update.
-  move => H.
-  apply N.ltb_lt in H.
-  by rewrite H.
+  generalize (Logic.eq_refl (i <? vector_length mem)).
+  generalize (i <? vector_length mem) at 2 3.
+  case => Hub => //=.
+  move => Hlt.
+  apply N.ltb_lt in Hlt.
+  by rewrite Hub in Hlt.
 Qed.
 
 Lemma mv_update_oob:
@@ -374,21 +412,28 @@ Lemma mv_update_oob:
 Proof.
   move => mem i b => /=.
   rewrite /mv_length /mv_update /vector_update.
-  move => H.
+  generalize (Logic.eq_refl (i <? vector_length mem)).
+  generalize (i <? vector_length mem) at 2 3.
+  case => Hub => //=.
+  move => H; exfalso.
   apply N.ge_le in H; move/N.leb_spec0 in H.
   rewrite N.leb_antisym in H.
   move/negPf in H.
-  by rewrite H.
+  by rewrite H in Hub.
 Qed.
 
 Lemma mv_update_gen_ib:
   forall (n len : N) (gen : N -> byte) (m : vector),
   n + len <= mv_length m -> mv_update_gen n len gen m <> None.
 Proof.
-  move => n len gen m Hle.
+  move => n len gen m Hlt.
   rewrite /mv_update_gen /vector_update_gen.
-  move/N.leb_spec0 in Hle.
-  by rewrite Hle.
+  generalize (Logic.eq_refl (n + len <=? vector_length m)).
+  generalize (n + len <=? vector_length m) at 2 3.
+  case => Hub => //=.
+  move/N.leb_spec0 in Hub.
+  unfold mv_length in Hlt.
+  by lias.
 Qed.
   
 Lemma mv_update_gen_oob:
@@ -397,10 +442,13 @@ Lemma mv_update_gen_oob:
 Proof.
   move => n len gen m Hgt.
   rewrite /mv_update_gen /vector_update_gen.
+  generalize (Logic.eq_refl (n + len <=? vector_length m)).
+  generalize (n + len <=? vector_length m) at 2 3.
+  case => Hub => //=; exfalso.
   move/N.leb_spec0 in Hgt.
   destruct (n + len <=? mv_length m) eqn:Hle => //.
   - exfalso; by apply Hgt.
-  - by rewrite Hle.
+  - by rewrite Hle in Hub.
 Qed.
     
 Lemma mv_update_gen_lookup:
@@ -411,7 +459,11 @@ Lemma mv_update_gen_lookup:
 Proof.
   move => n len gen m m' i Hupdate Hlt.
   rewrite /mv_update_gen /vector_update_gen /vector_length in Hupdate.
-  remove_bools_options.
+  move: Hupdate.
+  generalize (Logic.eq_refl (n + len <=? v_size m)).
+  generalize (n + len <=? v_size m) at 2 3.
+  case => Hub => //=.
+  move => [<-] => /=.
   rewrite /mv_lookup /vector_lookup => /=.
   replace (n + i <? v_size m) with true; last by lias.
   rewrite arr_set_gen_lookup; by lias.
@@ -425,7 +477,11 @@ Lemma mv_update_gen_lookup_lt:
 Proof.
   move => n len gen m m' i Hupdate Hlt.
   rewrite /mv_update_gen /vector_update_gen /vector_length in Hupdate.
-  remove_bools_options.
+  move: Hupdate.
+  generalize (Logic.eq_refl (n + len <=? v_size m)).
+  generalize (n + len <=? v_size m) at 2 3.
+  case => Hub => //=.
+  move => [<-] => /=.
   rewrite /mv_lookup /vector_lookup => /=.
   rewrite arr_set_gen_lt; by lias.
 Qed.
@@ -438,7 +494,11 @@ Lemma mv_update_gen_lookup_ge:
 Proof.
   move => n len gen m m' i Hupdate Hlt.
   rewrite /mv_update_gen /vector_update_gen /vector_length in Hupdate.
-  remove_bools_options.
+  move: Hupdate.
+  generalize (Logic.eq_refl (n + len <=? v_size m)).
+  generalize (n + len <=? v_size m) at 2 3.
+  case => Hub => //=.
+  move => [<-] => /=.
   rewrite /mv_lookup /vector_lookup => /=.
   by rewrite arr_set_gen_ge; lias.
 Qed.
@@ -467,17 +527,50 @@ Proof.
     move/N.ltb_spec0 in Hlen.
     move/N.ltb_spec0 in Hlengrow.
     assert (i < byte_limit) as Hibound; first by lias.
-    specialize (@v_size_valid _ mem) as Hsize.
+    specialize (@v_size_valid _ _ mem) as Hsize.
     specialize (v_capacity_eq mem) as Hcap.
     rewrite Hcap in Hsize.
     unfold vector_length in Hlen.
     rewrite get_make_copy => //; by lias.
 Qed.
-  
+
+Lemma mv_grow_default:
+  forall (n len : N) (mem mem' : memory_vec) (i : N),
+  i < n ->
+  mv_grow n mem = Some mem' ->
+  mv_length mem = len ->
+  mv_lookup (len + i) mem' = Some wasm_memory_default_byte.
+Proof.
+  move => n len mem mem' i Hlt Hgrow Hlen.
+  move: Hgrow.
+  unfold mv_grow, vector_grow.
+  generalize (Logic.eq_refl ((vector_length mem + n) <=? byte_limit)).
+  generalize ((vector_length mem + n) <=? byte_limit) at 2 3.
+  case => Hub => //=.
+  generalize (Logic.eq_refl ((vector_length mem + n) <=? v_capacity mem)).
+  generalize ((vector_length mem + n) <=? v_capacity mem) at 2 3.
+  case => Hgrow //=; move => [<-] => /=; unfold mv_lookup, vector_lookup => /=; subst; unfold mv_length.
+  - replace (_ <? _) with true; last by lias.
+    f_equal.
+    apply v_uninitialised; last by lias.
+    unfold vector_length in *.
+    by lias.
+  - replace (_ <? _) with true; last by clear Hub Hgrow; lias.
+    f_equal.
+    unfold vector_length in *.
+    rewrite get_make_copy_default; try by lias.
+    + apply/N.ltb_spec0.
+      move/N.leb_spec0 in Hub.
+      by lias.
+    + rewrite - v_capacity_eq.
+      apply/N.leb_spec0.
+      by apply v_size_valid.
+Qed.
+
 #[export]
   Instance Memory_vec: BlockUpdateMemory.
 Proof.
-  eapply (@Build_BlockUpdateMemory (@Build_Memory memory_vec mv_make mv_length mv_lookup mv_grow mv_update _ _ _ _ _ _ _ _ _ _) mv_update_gen).
+  eapply (@Build_BlockUpdateMemory (@Build_Memory memory_vec mv_make mv_length mv_lookup mv_grow mv_update _ _ _ _ _ _ _ _ _ _ _) mv_update_gen).
   Unshelve.
   - exact mv_update_gen_ib.
   - exact mv_update_gen_oob.
@@ -494,6 +587,7 @@ Proof.
   - exact mv_update_oob.
   - exact mv_grow_lookup.
   - exact mv_grow_length.
+  - exact mv_grow_default.
 Qed.
     
 End MemoryVec.
