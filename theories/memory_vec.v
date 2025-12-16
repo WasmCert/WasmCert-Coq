@@ -325,50 +325,42 @@ Lemma mv_update_length :
     mv_length mem' = mv_length mem.
 Proof.
   move => mem mem' i b.
-  unfold mv_update, vector_update => /=.
-  generalize (Logic.eq_refl (i <? vector_length mem)).
-  generalize (i <? vector_length mem) at 2 3.
-  case => Hub => //=.
+  rewrite /mv_update /vector_update.
+  simplify_dependent_case.
   by move => [<-] /=.
 Qed.
   
-  Lemma mv_update_lookup :
-    forall mem mem' i b,
-      mv_update i b mem = Some mem' ->
-      mv_lookup i mem' = Some b.
-  Proof.
-    move => mem mem' i b Hupdate.
-    unfold mv_lookup, vector_lookup.
-    erewrite mv_update_length; eauto.
-    unfold mv_update, vector_update in *.
-    move: Hupdate.
-    generalize (Logic.eq_refl (i <? vector_length mem)).
-    generalize (i <? vector_length mem) at 2 3.
-    case => Hub => //=.
-    move => [<-] /=.
-    rewrite Hub.
-    rewrite get_set_same => //.
-    unfold vector_length in Hub.
-    specialize (v_capacity_eq mem) as Hcap.
-    specialize (@v_size_valid _ _ mem) as Hsize.
-    by lias.
-  Qed.
+Lemma mv_update_lookup :
+  forall mem mem' i b,
+    mv_update i b mem = Some mem' ->
+    mv_lookup i mem' = Some b.
+Proof.
+  move => mem mem' i b.
+  rewrite /mv_lookup /vector_lookup.
+  move => Hupdate.
+  erewrite mv_update_length; eauto.
+  unfold mv_update, vector_update in Hupdate.
+  simplify_dependent_case_hyp Hupdate.
+  move => [<-] /=.
+  rewrite Hdep_case get_set_same => //.
+  unfold vector_length in Hdep_case.
+  specialize (v_capacity_eq mem) as Hcap.
+  specialize (@v_size_valid _ _ mem) as Hsize.
+  by lias.
+Qed.
 
+  
 Lemma mv_update_lookup_ne:
   forall mem mem' i j b,
     i <> j ->
     mv_update j b mem = Some mem' ->
     mv_lookup i mem' = mv_lookup i mem.
 Proof.
-  move => mem mem' i j b Hneq Hupdate.
+  move => mem mem' i j b Hneq.
   unfold mv_lookup, vector_lookup.
-  unfold mv_update, vector_update in Hupdate.
-  move: Hupdate.
-  generalize (Logic.eq_refl (j <? vector_length mem)).
-  generalize (j <? vector_length mem) at 2 3.
-  case => Hub => //=.
+  unfold mv_update, vector_update.
+  simplify_dependent_case.
   move => [<-] /=.
-  move/N.ltb_spec0 in Hub.
   unfold vector_length.
   destruct (i <? v_size mem) eqn:Hindex => //.
   rewrite get_set_other => //.
@@ -382,12 +374,7 @@ Lemma mv_grow_length :
 Proof.
   move => n mem mem'.
   unfold mv_grow, vector_grow.
-  generalize (Logic.eq_refl ((vector_length mem + n) <=? byte_limit)).
-  generalize ((vector_length mem + n) <=? byte_limit) at 2 3.
-  case => Hub => //=.
-  generalize (Logic.eq_refl ((vector_length mem + n) <=? v_capacity mem)).
-  generalize ((vector_length mem + n) <=? v_capacity mem) at 2 3.
-  case => Hgrow //=; move => [<-] => /=; done.
+  do 2 simplify_dependent_case => //; move => [<-] => /=; done.
 Qed.
 
 Lemma mv_update_ib:
@@ -395,14 +382,12 @@ Lemma mv_update_ib:
     (i < mv_length mem)%N ->
     mv_update i b mem <> None.
 Proof.
-  move => mem i b => /=.
-  rewrite /mv_length /mv_update /vector_update.
-  generalize (Logic.eq_refl (i <? vector_length mem)).
-  generalize (i <? vector_length mem) at 2 3.
-  case => Hub => //=.
-  move => Hlt.
+  move => mem i b Hlt => /=.
+  rewrite /mv_update /vector_update.
+  simplify_dependent_case.
+  unfold mv_length in Hlt.
   apply N.ltb_lt in Hlt.
-  by rewrite Hub in Hlt.
+  by lias.
 Qed.
 
 Lemma mv_update_oob:
@@ -410,16 +395,12 @@ Lemma mv_update_oob:
     (i >= mv_length mem)%N ->
     mv_update i b mem = None.
 Proof.
-  move => mem i b => /=.
-  rewrite /mv_length /mv_update /vector_update.
-  generalize (Logic.eq_refl (i <? vector_length mem)).
-  generalize (i <? vector_length mem) at 2 3.
-  case => Hub => //=.
-  move => H; exfalso.
-  apply N.ge_le in H; move/N.leb_spec0 in H.
-  rewrite N.leb_antisym in H.
-  move/negPf in H.
-  by rewrite H in Hub.
+  move => mem i b Hge => /=.
+  rewrite /mv_update /vector_update.
+  simplify_dependent_case.
+  exfalso.
+  unfold mv_length in Hge.
+  by lias.
 Qed.
 
 Lemma mv_update_gen_ib:
@@ -428,11 +409,9 @@ Lemma mv_update_gen_ib:
 Proof.
   move => n len gen m Hlt.
   rewrite /mv_update_gen /vector_update_gen.
-  generalize (Logic.eq_refl (n + len <=? vector_length m)).
-  generalize (n + len <=? vector_length m) at 2 3.
-  case => Hub => //=.
-  move/N.leb_spec0 in Hub.
+  simplify_dependent_case.
   unfold mv_length in Hlt.
+  apply N.leb_le in Hlt.
   by lias.
 Qed.
   
@@ -442,13 +421,9 @@ Lemma mv_update_gen_oob:
 Proof.
   move => n len gen m Hgt.
   rewrite /mv_update_gen /vector_update_gen.
-  generalize (Logic.eq_refl (n + len <=? vector_length m)).
-  generalize (n + len <=? vector_length m) at 2 3.
-  case => Hub => //=; exfalso.
+  simplify_dependent_case; exfalso.
   move/N.leb_spec0 in Hgt.
-  destruct (n + len <=? mv_length m) eqn:Hle => //.
-  - exfalso; by apply Hgt.
-  - by rewrite Hle in Hub.
+  by lias.
 Qed.
     
 Lemma mv_update_gen_lookup:
@@ -459,10 +434,7 @@ Lemma mv_update_gen_lookup:
 Proof.
   move => n len gen m m' i Hupdate Hlt.
   rewrite /mv_update_gen /vector_update_gen /vector_length in Hupdate.
-  move: Hupdate.
-  generalize (Logic.eq_refl (n + len <=? v_size m)).
-  generalize (n + len <=? v_size m) at 2 3.
-  case => Hub => //=.
+  simplify_dependent_case_hyp Hupdate.
   move => [<-] => /=.
   rewrite /mv_lookup /vector_lookup => /=.
   replace (n + i <? v_size m) with true; last by lias.
@@ -477,10 +449,7 @@ Lemma mv_update_gen_lookup_lt:
 Proof.
   move => n len gen m m' i Hupdate Hlt.
   rewrite /mv_update_gen /vector_update_gen /vector_length in Hupdate.
-  move: Hupdate.
-  generalize (Logic.eq_refl (n + len <=? v_size m)).
-  generalize (n + len <=? v_size m) at 2 3.
-  case => Hub => //=.
+  simplify_dependent_case_hyp Hupdate.
   move => [<-] => /=.
   rewrite /mv_lookup /vector_lookup => /=.
   rewrite arr_set_gen_lt; by lias.
@@ -494,10 +463,7 @@ Lemma mv_update_gen_lookup_ge:
 Proof.
   move => n len gen m m' i Hupdate Hlt.
   rewrite /mv_update_gen /vector_update_gen /vector_length in Hupdate.
-  move: Hupdate.
-  generalize (Logic.eq_refl (n + len <=? v_size m)).
-  generalize (n + len <=? v_size m) at 2 3.
-  case => Hub => //=.
+  simplify_dependent_case_hyp Hupdate.
   move => [<-] => /=.
   rewrite /mv_lookup /vector_lookup => /=.
   by rewrite arr_set_gen_ge; lias.
@@ -514,16 +480,11 @@ Proof.
   move/N.ltb_spec0 in Hlen.
   move/N.ltb_spec0 in Hlengrow.
   unfold mv_grow, vector_grow.
-  generalize (Logic.eq_refl ((vector_length mem + n) <=? byte_limit)).
-  generalize ((vector_length mem + n) <=? byte_limit) at 2 3.
-  case => Hub => //=.
-  generalize (Logic.eq_refl ((vector_length mem + n) <=? v_capacity mem)).
-  generalize ((vector_length mem + n) <=? v_capacity mem) at 2 3.
-  case => Hgrow //=; move => [<-] => /=; unfold mv_lookup, vector_lookup => /=; rewrite Hlen Hlengrow.
+  do 2 simplify_dependent_case; move => [<-] => /=; unfold mv_lookup, vector_lookup => /=; rewrite Hlen Hlengrow.
   - done.
-  - move/N.leb_spec0 in Hub.
-    move/N.leb_spec0 in Hgrow.
-    unfold mv_length in *.
+  - unfold mv_length, vector_length in *.
+    move/N.leb_spec0 in Hdep_case.
+    move/N.leb_spec0 in Hdep_case0.
     move/N.ltb_spec0 in Hlen.
     move/N.ltb_spec0 in Hlengrow.
     assert (i < byte_limit) as Hibound; first by lias.
@@ -542,25 +503,20 @@ Lemma mv_grow_default:
   mv_lookup (len + i) mem' = Some wasm_memory_default_byte.
 Proof.
   move => n len mem mem' i Hlt Hgrow Hlen.
-  move: Hgrow.
-  unfold mv_grow, vector_grow.
-  generalize (Logic.eq_refl ((vector_length mem + n) <=? byte_limit)).
-  generalize ((vector_length mem + n) <=? byte_limit) at 2 3.
-  case => Hub => //=.
-  generalize (Logic.eq_refl ((vector_length mem + n) <=? v_capacity mem)).
-  generalize ((vector_length mem + n) <=? v_capacity mem) at 2 3.
-  case => Hgrow //=; move => [<-] => /=; unfold mv_lookup, vector_lookup => /=; subst; unfold mv_length.
+  unfold mv_grow, vector_grow in *.
+  simplify_dependent_case_hyp Hgrow.
+  simplify_dependent_case; move => [<-] => /=; unfold mv_lookup, vector_lookup => /=; subst; unfold mv_length.
   - replace (_ <? _) with true; last by lias.
     f_equal.
     apply v_uninitialised; last by lias.
     unfold vector_length in *.
     by lias.
-  - replace (_ <? _) with true; last by clear Hub Hgrow; lias.
+  - replace (_ <? _) with true; last by clear - Hlt; lias.
     f_equal.
     unfold vector_length in *.
     rewrite get_make_copy_default; try by lias.
     + apply/N.ltb_spec0.
-      move/N.leb_spec0 in Hub.
+      move/N.leb_spec0 in Hdep_case.
       by lias.
     + rewrite - v_capacity_eq.
       apply/N.leb_spec0.
