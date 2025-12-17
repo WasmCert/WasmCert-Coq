@@ -9,7 +9,7 @@
 (************************************************************************)
 (*  Modified by Xiaojia Rao                                                                            *)
 (*  Summary of changes:                                                                                *)
-(*  - Maximum array length changed to 2^32 to comply with Wasm's limit (may not work on 32-bit OCaml)  *)
+(*  - Maximum array length changed to max_int to comply with Wasm's limit (requires 64-bit OCaml)      *)
 (*  - Added a different make function `make_copy` that uses an initialiser array                       *)
 (*******************************************************************************************************)
 

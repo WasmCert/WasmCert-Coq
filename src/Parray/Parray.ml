@@ -10,7 +10,7 @@
 (*  Modified by Xiaojia Rao                                                                            *)
 (*  Summary of changes:                                                                                *)
 (*  - Added a separate node type for block updates *)
-(*  - Maximum array length changed to 2^32 to comply with Wasm's limit (may not work on 32-bit OCaml)  *)
+(*  - Maximum array length changed to max_int to comply with Wasm's limit (requires 64-bit OCaml)      *)
 (*  - Added a different make function `make_copy` that uses an initialiser array and deep copy         *)
 (*******************************************************************************************************)
 
@@ -74,7 +74,7 @@ struct
 
 end
 
-(* Changed to 2^32 bit to match Wasm's memory limit. This needs 64-bit OCaml to work *)
+(* Changed to max_int to allow for Wasm's memory limit. This needs 64-bit OCaml to work *)
 let max_array_length = max_int
 
 let max_length = max_array_length
@@ -161,7 +161,7 @@ let set p n e =
       t
   else p
 
-(* --- NEW BLOCK SET FUNCTION --- *)
+(* --- new function for block set by a generator --- *)
 
 let set_gen p start_pos block_len generator =
   let a = reroot p in
@@ -186,7 +186,7 @@ let default p =
   match !p with
   | Array (_,def) -> def
   | Updated _ -> assert false
-  | BlockUpdated _ -> assert false (* ADDED: BlockUpdated case, should not be reached *)
+  | BlockUpdated _ -> assert false
 
 let make_int n def =
   ref (Array (UArray.make n def, def))
@@ -194,18 +194,18 @@ let make_int n def =
 let make n def = make_int (trunc_size n) def
 
 (* An addition to the kernel Parray extraction that initialises with another array acting as an initialiser *)
-    let make_copy n init arr initlen =
-      if initlen <= (length arr) then
-        let trunc_n = trunc_size n in
-        if (length arr) <= (trunc_n) then
-          let marr = UArray.make trunc_n init in
-          let initlen_int = to_int initlen in
-          for i = 0 to initlen_int - 1 do
-            UArray.unsafe_set marr i (get arr (i))
-          done;
-          ref (Array (marr, init))
-        else assert false
-      else assert false
+let make_copy n init arr initlen =
+  if initlen <= (length arr) then
+    let trunc_n = trunc_size n in
+    if (length arr) <= (trunc_n) then
+      let marr = UArray.make trunc_n init in
+      let initlen_int = to_int initlen in
+      for i = 0 to initlen_int - 1 do
+        UArray.unsafe_set marr i (get arr (i))
+      done;
+      ref (Array (marr, init))
+    else assert false
+  else assert false
 
 let uinit n f =
   if Int.equal n 0 then UArray.empty
@@ -227,14 +227,14 @@ let to_array p =
   match !p with
   | Array (t,def) -> UArray.to_array t, def
   | Updated _ -> assert false
-  | BlockUpdated _ -> assert false (* ADDED: BlockUpdated case, should not be reached *)
+  | BlockUpdated _ -> assert false
 
 let copy p =
   let _ = reroot p in
   match !p with
   | Array (t, def) -> ref (Array (UArray.copy t, def))
   | Updated _ -> assert false
-  | BlockUpdated _ -> assert false (* ADDED: BlockUpdated case, should not be reached *)
+  | BlockUpdated _ -> assert false
 
 (* Higher order combinators: the callback may update the underlying
    array requiring a reroot between each call. To avoid doing n
@@ -243,7 +243,7 @@ let copy p =
 let is_rooted p = match !p with
   | Array _ -> true
   | Updated _ -> false
-  | BlockUpdated _ -> false (* ADDED: BlockUpdated is not rooted *)
+  | BlockUpdated _ -> false 
 
 type 'a cache = {
   orig : 'a t;
