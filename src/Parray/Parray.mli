@@ -9,21 +9,28 @@
 (************************************************************************)
 (*  Modified by Xiaojia Rao                                                                            *)
 (*  Summary of changes:                                                                                *)
-(*  - Maximum array length changed to 2^32 to comply with Wasm's limit (may not work on 32-bit OCaml)  *)
+(*  - Maximum array length changed to max_int to comply with Wasm's limit (requires 64-bit OCaml)      *)
 (*  - Added a different make function `make_copy` that uses an initialiser array                       *)
 (*******************************************************************************************************)
 
-val max_length : Uint63.t
+val max_length : int
 
 type 'a t
-val length  : 'a t -> Uint63.t
+val length  : 'a t -> int
 val length_int : 'a t -> int
-val get     : 'a t -> Uint63.t -> 'a
-val set     : 'a t -> Uint63.t -> 'a -> 'a t
+val get     : 'a t -> int -> 'a
+val set     : 'a t -> int -> 'a -> 'a t
+
+val set_gen : 'a t -> int -> int -> (int -> 'a) -> 'a t
+(** [set_gen p start_pos block_len generator] returns a new persistent array
+    based on [p] where the range of length [block_len] starting at [start_pos]
+    is updated by calling [generator] for each index 0 to [block_len - 1].
+    [block_len] must be greater than 0. *)
+
 val default : 'a t -> 'a
-val make    : Uint63.t -> 'a -> 'a t
-val make_copy    : Uint63.t -> 'a -> 'a t -> Uint63.t -> 'a t
-val init    : Uint63.t -> (int -> 'a) -> 'a -> 'a t
+val make    : int -> 'a -> 'a t
+val make_copy    : int -> 'a -> 'a t -> int -> 'a t
+val init    : int -> (int -> 'a) -> 'a -> 'a t
 val copy    : 'a t -> 'a t
 
 val map : ('a -> 'b) -> 'a t -> 'b t

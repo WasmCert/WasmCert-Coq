@@ -672,29 +672,24 @@ Proof.
     + by eapply IHn; eauto.
 Qed.
 
-Lemma write_bytes_preserve_length: forall m pos str m',
-  write_bytes m pos str = Some m' ->
+Lemma write_bytes_gen_preserve_length: forall m pos len gen m',
+  write_bytes_gen m pos len gen = Some m' ->
   memory.mem_length m = memory.mem_length m'.
 Proof.
-  move => m pos str.
-  move: m pos.
-  induction str; move => m pos m' Hwrite; simpl in *.
-  - by injection Hwrite as <-.
-  - remove_bools_options.
-    apply IHstr in Hwrite.
-    apply mem_update_length in Hoption.
-    by lias.
+  move => m pos len gen m' Hwrite.
+  unfold write_bytes_gen in Hwrite.
+  by apply mem_update_gen_length in Hwrite.
 Qed.
 
-Lemma write_bytes_meminst_preserve_type: forall m pos str m',
-  write_bytes_meminst m pos str = Some m' ->
+Lemma write_bytes_meminst_preserve_type: forall m pos len gen m',
+  write_bytes_gen_meminst m pos len gen = Some m' ->
   meminst_type m = meminst_type m' /\
   mem_length m = mem_length m'.
 Proof.
-  move => m pos str m' Hwrite.
-  unfold write_bytes_meminst in Hwrite.
+  move => m pos len gen m' Hwrite.
+  unfold write_bytes_gen_meminst in Hwrite.
   remove_bools_options; split => //=.
-  by eapply write_bytes_preserve_length; eauto.
+  by eapply write_bytes_gen_preserve_length; eauto.
 Qed.
 
 Lemma reduce_inst_unchanged: forall hs s f es hs' s' f' es',

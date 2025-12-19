@@ -1289,7 +1289,7 @@ Ltac extract_listn :=
 
 Section Host.
 
-Context `{hfc: host_function_class} `{memory: Memory}.
+Context `{hfc: host_function_class} `{memory: BlockUpdateMemory}.
 
 Lemma values_typing_size: forall s vs ts,
     values_typing s vs ts ->

@@ -71,7 +71,7 @@ Then, run:
 ```bash
 make run_wast
 ```
-The interpreter is expected to pass all the other core tests (last tested on 17th Aug 2025):
+The interpreter is expected to pass all the other core tests (last tested on 11th Dec 2025):
 ```bash
 Total passed: 54004/54004 (100.00%)
 ```

@@ -1037,3 +1037,29 @@ Definition induction3 (P : nat -> Prop) := @rect3 P.
 Definition induction4 (P : nat -> Prop) := @rect4 P.
 Definition induction5 (P : nat -> Prop) := @rect5 P.
 Definition induction6 (P : nat -> Prop) := @rect6 P.
+
+(* Tactic for dealing with dependent type simplifications *)
+Ltac simplify_dependent_case :=
+  match goal with
+  | |- context [(match ?match_expr as b in bool return (?match_expr = b -> _) with
+     | true => _
+     | false => _
+                end) Logic.eq_refl] =>
+      generalize (Logic.eq_refl match_expr);
+      generalize match_expr at 2 3;
+      let Hdep_case := fresh "Hdep_case" in
+      case => Hdep_case => //=
+  end.
+
+Ltac simplify_dependent_case_hyp H :=
+  match type of H with
+  | context [(match ?match_expr as b in bool return (?match_expr = b -> _) with
+     | true => _
+     | false => _
+              end) Logic.eq_refl] =>
+      move: H;
+      generalize (Logic.eq_refl match_expr);
+      generalize match_expr at 2 3;
+      let Hdep_case := fresh "Hdep_case" in
+      case => Hdep_case => //=
+  end.

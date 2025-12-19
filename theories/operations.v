@@ -13,7 +13,7 @@ Unset Printing Implicit Defensive.
 Definition v128_size: N := 16%N.
 
 Section Operations.
-  Context `{memory: Memory} `{hfc: host_function_class}.
+  Context `{memory: BlockUpdateMemory} `{hfc: host_function_class}.
 
 (* Placeholder for better array lookup in the future. *)
 Definition lookup_N {T: Type} (l: list T) (n: N) : option T :=
@@ -30,15 +30,24 @@ Definition read_bytes (m : meminst) (start_idx : N) (len : nat) : option bytes :
         mem_lookup idx m.(meminst_data))
     (iota 0 len)).
 
-(** write bytes `bs` to `m` starting at `start_idx` *)
-Fixpoint write_bytes (m : mem_t) (start_idx : N) (bs : bytes) : option mem_t :=
-  match bs with
-  | nil => Some m
-  | b :: bs' =>
-      match mem_update start_idx b m with
-      | Some m' => write_bytes m' (N.add start_idx 1%N) bs'
-      | None => None
-      end
+(** write bytes to `m` starting at `start_idx` using a generator. More efficient than writing individual bytes and should almost always be used when applicable. *)
+Definition write_bytes_gen (m : mem_t) (start_idx : N) (len: N) (gen: N -> byte) : option mem_t :=
+  mem_update_gen start_idx len gen m.
+
+(** write bytes `bs` to `m` starting at `start_idx`. *)
+Definition write_bytes (m : mem_t) (start_idx : N) (bs : bytes) : option mem_t :=
+  write_bytes_gen m start_idx (N.of_nat (length bs))
+    (fun n =>
+       match lookup_N bs n with
+       | Some b => b
+       | None => #00
+       end).
+
+Definition write_bytes_gen_meminst (m: meminst) (start_idx : N) (len: N) (gen: N -> byte) : option meminst :=
+  match write_bytes_gen m.(meminst_data) start_idx len gen with
+  | Some md' =>
+      Some (Build_meminst m.(meminst_type) md')
+  | None => None
   end.
 
 Definition write_bytes_meminst (m: meminst) (start_idx : N) (bs: bytes) : option meminst :=
@@ -59,7 +68,7 @@ Definition serialise_num (v : value_num) : bytes :=
 #[deprecated(since="wasmcert-coq-v2.2", note="Use serialise_num instead.")]
   Definition bits := serialise_num.
 
-
+  
 Definition ml_valid (m: mem_t) : Prop :=
   N.modulo (mem_length m) page_size = 0%N.
 
@@ -135,10 +144,15 @@ Definition vec_get_v128 (v: value_vec) : v128 :=
   | VAL_vec128 vv => vv
   end.
 
-
 Definition store (m : meminst) (n : N) (off : static_offset) (bs : bytes) (l : nat) : option meminst :=
   if N.leb (n + off + N.of_nat l) (mem_length m)
   then write_bytes_meminst m (n + off) (bytes_takefill #00 l bs)
+  else None.
+
+Definition store_gen (m : meminst) (n : N) (off : static_offset) (l : N) (gen: N -> byte) : option meminst :=
+  if N.leb (n + off + l) (mem_length m)
+  then
+    write_bytes_gen_meminst m (n + off) l gen
   else None.
 
 (* The first argument of wrap doesn't affect the opsem at all, so this is fine.
