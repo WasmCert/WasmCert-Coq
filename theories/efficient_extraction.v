@@ -33,7 +33,11 @@ Module EfficientExtraction.
   (* This design allows list lookup to be done in O(min(n, length l)). *)
   Definition lookup_N_safe {T: Type} (l: list T) (n: N) :=
     match n with
-    | N0 => List.nth_error l 0
+    | N0 =>
+        match l with
+        | nil => None
+        | h :: _ => Some h
+        end
     | Npos p =>
         match skip_pos l p with
         | Some (x :: _) => Some x

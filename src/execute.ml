@@ -62,23 +62,38 @@ type eval_cfg_result =
   | Cfg_err
   | Cfg_exhaustion
 
-let rec eval_interp_cfg verbosity gen max_call_depth cfg d =
-  let print_step_header gen =
-    debug_info verbosity intermediate ~style:bold
-      (fun () -> Printf.sprintf "step %d:\n" gen) in
-  let cfg_res = run_one_step cfg (z_of_int d) in
-    print_step_header gen;
-    debug_info verbosity intermediate
-      (fun _ -> pp_res_cfg_except_store cfg cfg_res);
+let rec eval_interp_cfg_mute max_call_depth cfg d =
+  let cfg_res = run_one_step cfg d in
     match cfg_res with
     | RSC_normal (_hs', cfg', d') ->
-      let d_int = int_of_z d' in
-      if (d_int > max_call_depth) && (max_call_depth != (-1)) then begin
+      if ((max_call_depth != (-1)) && (int_of_z d' > max_call_depth)) then begin
+        Cfg_exhaustion
+      end
+      else
+        eval_interp_cfg_mute max_call_depth cfg' d'
+    | RSC_value (s, f, vs) ->
+      (Cfg_res (s, f, vs))
+    | RSC_trap (s, f) ->
+      Cfg_trap (s, f)
+    | RSC_invalid ->
+      Cfg_err
+    | RSC_error ->
+      Cfg_err
+
+let rec eval_interp_cfg verbosity gen max_call_depth cfg d =
+  let print_step_header gen cfg_res =
+    debug_info verbosity intermediate
+      (fun () -> (Printf.sprintf "step %d:\n" gen) ^ "\n" ^ pp_res_cfg_except_store cfg cfg_res) in
+  let cfg_res = run_one_step cfg d in
+    print_step_header gen cfg_res;
+    match cfg_res with
+    | RSC_normal (_hs', cfg', d') ->
+      if ((max_call_depth != (-1)) && (int_of_z d' > max_call_depth)) then begin
         debug_info verbosity stage ~style:red (fun _ -> "Call stack exhaustion\n");
         Cfg_exhaustion
       end
       else
-        eval_interp_cfg verbosity (gen+1) max_call_depth cfg' d_int
+        eval_interp_cfg verbosity (gen+1) max_call_depth cfg' d'
     | RSC_value (s, f, vs) ->
       debug_info verbosity stage ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n");
       (Cfg_res (s, f, vs))
@@ -96,7 +111,11 @@ let eval_wasm_cfg verbosity max_call_depth cfg =
   let interp_cfg_inst = interp_cfg_of_wasm cfg in
   debug_info verbosity intermediate (fun _ ->
     Printf.sprintf "\nExecuting configuration:\n%s\n" (pp_cfg_tuple_ctx_except_store interp_cfg_inst));
-  eval_interp_cfg verbosity 1 max_call_depth interp_cfg_inst 0
+  (* Optimisation for execution with no debug info *)
+  if verbosity <= result then
+    eval_interp_cfg_mute max_call_depth interp_cfg_inst (z_of_int 0)
+  else
+    eval_interp_cfg verbosity 1 max_call_depth interp_cfg_inst (z_of_int 0)
 
 
 type host_extern_store = ((Interpreter.externval StringMap.t) StringMap.t) * (string StringMap.t)

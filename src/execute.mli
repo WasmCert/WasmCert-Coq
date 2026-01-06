@@ -34,7 +34,7 @@ type eval_cfg_result =
   | Cfg_exhaustion
 
 (* Evaluating an interpreter configuration fully. *)
-val eval_interp_cfg: Output.verbosity -> int -> int -> Interpreter.interp_config_tuple -> int -> eval_cfg_result
+val eval_interp_cfg: Output.verbosity -> int -> int -> Interpreter.interp_config_tuple -> Z.t -> eval_cfg_result
 
 (* Evaluate a Wasm configuration using the interpreter configuration. *)
 val eval_wasm_cfg: Output.verbosity -> int -> Interpreter.wasm_config_tuple -> eval_cfg_result

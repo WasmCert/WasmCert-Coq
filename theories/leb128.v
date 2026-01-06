@@ -157,7 +157,7 @@ Section Language.
   End Unsigned_sec.
 
 Definition sub_2_7 (k : N) :=
-  BinIntDef.Z.sub (BinInt.Z_of_N k) (BinIntDef.Z.pow (BinInt.Z.of_nat 2) (BinInt.Z.of_nat 7)).
+  BinIntDef.Z.sub (BinInt.Z_of_N k) 128%Z.
 
 (* parse a non-final byte *)
 Definition parse_signed_end {n} : byte_parser Z n :=

@@ -27,6 +27,11 @@ From Coq Require Import
 
 Extraction Language OCaml.
 
+Extract Inductive positive => "Big_int_Z.big_int"
+ [ "(fun x -> Big_int_Z.succ_big_int (Big_int_Z.shift_left_big_int x 1))"
+   "(fun x -> Big_int_Z.shift_left_big_int x 1)" "Big_int_Z.unit_big_int" ]
+ "(fun f2p1 f2p f1 p -> if Big_int_Z.le_big_int p Big_int_Z.unit_big_int then f1 () else if Big_int_Z.eq_big_int (Big_int_Z.and_big_int p Big_int_Z.unit_big_int) Big_int_Z.unit_big_int then f2p1 (Big_int_Z.shift_right_big_int p 1) else f2p (Big_int_Z.shift_right_big_int p 1))".
+
 (* A bit ugly, but otherwise requires an entire copy of the lookup lemmas for Coq's list types *)
 Extract Constant lookup_N => "EfficientExtraction.lookup_N_safe".
 

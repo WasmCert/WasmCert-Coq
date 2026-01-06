@@ -96,7 +96,7 @@ Definition int_ne (int_t: Type) (mx: mixin_of int_t) : int_t -> int_t -> bool :=
 (** ** Definitions **)
 
 Module Make (WS: Integers.WORDSIZE).
-
+  
 Import Integers.
 
 Include Make (WS).
@@ -909,16 +909,16 @@ Definition ixor : T -> T -> T := xor.
 
 (** Return the result of shifting left the first number by the second. **)
 Definition ishl (i1 i2 : T) : T :=
-  let k := repr (unsigned i2 mod wordsize)%Z in
+  let k := modu i2 iwordsize in
   shl i1 k.
 
 (** Return the result of shifting right the first number by the second. **)
 Definition ishr_u (i1 i2: T) : T :=
-  let k := repr (unsigned i2 mod wordsize)%Z in
+  let k := modu i2 iwordsize in
   shru i1 k.
 
 Definition ishr_s (i1 i2: T) : T :=
-  let k := repr (unsigned i2 mod wordsize)%Z in
+  let k := modu i2 iwordsize in
   shr i1 k.
 
 (* TODO
@@ -1938,14 +1938,14 @@ HB.instance Definition f64_eqMixin := Wasm_float.Float64.T_eqMixin.
 Definition wasm_demote (z : f64) : f32 :=
   if Wasm_float.Float64.is_canonical z then Wasm_float.Float32.nans [::]
   else if Wasm_float.Float64.is_nan z then
-    Wasm_float.Float32.nans [:: Wasm_float.Float32.BofZ (BinIntDef.Z.of_nat 1)]
+    Wasm_float.Float32.nans [:: Wasm_float.Float32.BofZ 1%Z]
   else IEEE754_extra.Bconv _ _ _ _ Wasm_float.FloatSize32.prec_gt_0 Wasm_float.FloatSize32.Hmax
          (fun _ => Wasm_float.Float32.unspec_nan_nan) BinarySingleNaN.mode_NE z.
 
 Definition wasm_promote (z : f32) : f64 :=
   if Wasm_float.Float32.is_canonical z then Wasm_float.Float64.nans [::]
   else if Wasm_float.Float32.is_nan z then
-    Wasm_float.Float64.nans [:: Wasm_float.Float64.BofZ (BinIntDef.Z.of_nat 1)]
+    Wasm_float.Float64.nans [:: Wasm_float.Float64.BofZ 1%Z]
   else IEEE754_extra.Bconv _ _ _ _ Wasm_float.FloatSize64.prec_gt_0 Wasm_float.FloatSize64.Hmax
          (fun _ => Wasm_float.Float64.unspec_nan_nan) BinarySingleNaN.mode_NE z.
 
