@@ -1,29 +1,38 @@
 open Output
+open Utils
 
 module Host = struct
 
     (* We build on top of this host, wrapping it inside the type [out]. *)
-    module Host = Shim.Extraction_instance
+    module EH = Extract.Monadic_host(Ocaml_host.Ocaml_host)
 
-    type host_function = Host.host_function
-    let host_function_eq_dec = Host.host_function_eq_dec
+    type host_function = EH.host_function
+    let host_function_eq_dec = EH.host_function_eq_dec
 
-    type 'a host_event = 'a out Host.host_event
-    let host_ret v = Host.host_ret (OK v)
+    let hfc = EH.hfc
+
+    type host_state_type = EH.host_state_type
+
+    type 'a host_event = 'a out EH.host_event
+
+    let host_ret v = EH.host_ret (OK v)
+
     let host_bind v cont =
-      Host.host_bind v (function
+      EH.host_bind v (function
         | OK v -> cont v
-        | Error msg -> Host.host_ret (Error msg))
+        | Error msg -> EH.host_ret (Error msg))
 
-    let host_apply st t h vs =
-      Host.host_bind (Host.host_apply st t h vs) (fun r -> host_ret r)
+    let host_apply_pure = EH.host_apply_pure
 
-    let show_host_function = Host.show_host_function
+    (* A trivial wrapper for now*)
+    let host_apply hs s ft hf vs =
+      match EH.host_apply_pure hs s ft hf vs with
+      | (_, ores) -> OK ores
 
-    let error msg = Host.host_ret (Error msg)
+    let error msg = EH.host_ret (Error msg)
 
     let pmatch ok error v =
-      Host.host_bind v (function
+      EH.host_bind v (function
         | OK v -> host_ret (ok v)
         | Error msg -> host_ret (error msg))
 
@@ -57,13 +66,13 @@ let rec eval_interp_cfg verbosity gen max_call_depth cfg d =
   let print_step_header gen =
     debug_info verbosity intermediate ~style:bold
       (fun () -> Printf.sprintf "step %d:\n" gen) in
-  let cfg_res = run_one_step cfg d in
+  let cfg_res = run_one_step cfg (z_of_int d) in
     print_step_header gen;
     debug_info verbosity intermediate
       (fun _ -> pp_res_cfg_except_store cfg cfg_res);
     match cfg_res with
     | RSC_normal (_hs', cfg', d') ->
-      let d_int = Utils.int_of_z d' in
+      let d_int = int_of_z d' in
       if (d_int > max_call_depth) && (max_call_depth != (-1)) then begin
         debug_info verbosity stage ~style:red (fun _ -> "Call stack exhaustion\n");
         Cfg_exhaustion
@@ -89,8 +98,6 @@ let eval_wasm_cfg verbosity max_call_depth cfg =
     Printf.sprintf "\nExecuting configuration:\n%s\n" (pp_cfg_tuple_ctx_except_store interp_cfg_inst));
   eval_interp_cfg verbosity 1 max_call_depth interp_cfg_inst 0
 
-
-module StringMap = Map.Make(String);;
 
 type host_extern_store = ((Interpreter.externval StringMap.t) StringMap.t) * (string StringMap.t)
 

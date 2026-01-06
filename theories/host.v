@@ -33,7 +33,7 @@ Context `{hfc: host_function_class} `{memory: BlockUpdateMemory}.
   This can be non-deterministic. **)
 
 Class host := {
-    host_state : eqType (** For the relation-based version, we assume some kind of host state. **) ;
+    host_state : Type (** For the relation-based version, we assume some kind of host state. **) ;
     host_application : host_state -> store_record -> function_type -> host_function -> seq value ->
                        host_state -> option (store_record * result) -> Prop
                        (** An application of the host function. **) ;
@@ -53,6 +53,8 @@ Class host := {
 
 End Predicate.
 
+
+(*
 (** ** Executable Host **)
 
 (** We start with a host expressed as a predicate, useful for proofs. **)
@@ -72,3 +74,4 @@ Class executable_host := make_executable_host {
 End Executable.
 
 Arguments host_apply [_ _].
+*)

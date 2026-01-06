@@ -27,8 +27,10 @@ From Coq Require Import
 
 Extraction Language OCaml.
 
+(* A bit ugly, but otherwise requires an entire copy of the lookup lemmas for Coq's list types *)
 Extract Constant lookup_N => "EfficientExtraction.lookup_N_safe".
 
+(* This could be done better using module types *)
 Extract Constant memory_vec.array "'a" => "Parray_shim.t".
 Extraction Inline memory_vec.array.
 
@@ -54,4 +56,6 @@ Extraction "extract"
   run_parse_module_str
   run_parse_arg
   Extraction_instance
+  Monadic_host
+  Utility
   .

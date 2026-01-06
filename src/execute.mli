@@ -39,11 +39,8 @@ val eval_interp_cfg: Output.verbosity -> int -> int -> Interpreter.interp_config
 (* Evaluate a Wasm configuration using the interpreter configuration. *)
 val eval_wasm_cfg: Output.verbosity -> int -> Interpreter.wasm_config_tuple -> eval_cfg_result
 
-(* Type of the host extern val store *)
-module StringMap : Map.S with type key = string
-
 (* Host store consists of the module exports store and a module variable name map (from vars to actual names in string). *)
-type host_extern_store = ((Interpreter.externval StringMap.t) StringMap.t) * (string StringMap.t)
+type host_extern_store = ((Interpreter.externval Utils.StringMap.t) Utils.StringMap.t) * (string Utils.StringMap.t)
 
 (* Get a global variable from the store by a host export name. *)
 val global_get: host_extern_store -> Interpreter.store_record -> string -> string -> Extract.value0 Host.host_event

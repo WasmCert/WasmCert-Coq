@@ -2,11 +2,7 @@
 
 module type Host = sig
 
-  (** The type of host functions. *)
-  type host_function
-
-  (** Equality of host functions. *)
-  val host_function_eq_dec : host_function -> host_function -> bool
+  include Extract.Parametric_host
 
   (** The monad of host events. *)
   type 'a host_event
@@ -15,14 +11,10 @@ module type Host = sig
 
   (** Application of a host function in the host monad. *)
   val host_apply :
-    Extract.store_record -> Extract.function_type -> host_function -> Extract.value0 list ->
+    host_state_type -> Extract.store_record -> Extract.function_type -> host_function -> Extract.value0 list ->
     (Extract.store_record * Extract.result) option host_event
 
-  (** Printing a host function. *)
-  val show_host_function : host_function -> string
 end
-
-module Extraction_instance : Host
 
 module type InterpreterType = sig
 
@@ -36,11 +28,11 @@ module type InterpreterType = sig
   val ( and+ ) : 'a host_event -> 'b host_event -> ('a * 'b) host_event
   val pure : 'a -> 'a host_event
 
-  type store_record = Extract.Extraction_instance.store_record
+  type store_record = Extract.store_record
   type frame = Extract.frame
   type wasm_config_tuple = Extract.config_tuple
-  type interp_config_tuple = Extract.Extraction_instance.cfg_tuple_ctx
-  type res_tuple = Extract.Extraction_instance.run_step_ctx_result
+  type interp_config_tuple = Extract.cfg_tuple_ctx
+  type res_tuple = Extract.run_step_ctx_result
   type basic_instruction = Extract.basic_instruction
   type administrative_instruction = Extract.administrative_instruction
   type moduleinst = Extract.moduleinst
@@ -51,7 +43,7 @@ module type InterpreterType = sig
 
   (** Run one step of the interpreter. *)
   val run_one_step :
-    interp_config_tuple -> int -> res_tuple
+    interp_config_tuple -> Z.t -> res_tuple
 
   (* Given a store and an admin instruction list to run, construct the corresponding interpreter configuration to run. *)
   val run_v_init : 
@@ -102,6 +94,10 @@ module type InterpreterType = sig
   val is_canonical_nan: Extract.number_type -> value -> bool
 
   val is_arithmetic_nan: Extract.number_type -> value -> bool
+
+  val is_funcref : value -> bool
+
+  val is_externref : value -> bool
 
   val v128_extract_lanes: Extract.vshape -> Extract.SIMD.v128 -> Extract.value_num list
 
