@@ -1,13 +1,9 @@
 (** Pretty-printer **)
 
-Require Import Coq.Strings.String.
 From compcert Require Import Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From Wasm Require Export bytes_pp.
-From Wasm Require Import datatypes interpreter_ctx.
-Require Import Coq.Init.Decimal.
-Require Import BinNat ZArith.
-Require Import ansi list_extra.
+From Wasm Require Export bytes_pp datatypes interpreter_ctx ansi list_extra.
+From Coq Require Import Strings.String Init.Decimal ZArith.
 
 Open Scope string_scope.
 
@@ -91,7 +87,7 @@ Definition pp_N (n: N) : string :=
   string_of_uint (N.to_uint n).
 
 Definition pp_positive (p: positive) : string :=
-  string_of_uint (BinPos.Pos.to_uint p).
+  string_of_uint (Pos.to_uint p).
 
 Definition pp_Z (z: Z) : string :=
   match z with
@@ -268,11 +264,11 @@ Fixpoint pp_subnormal_mantissa (bs: list bool) (exp: N) : string :=
   | true :: bs' => pp_mantissa bs' ++ "p-" ++ pp_N exp
   end.
 
-Fixpoint bool_list_of_pos (acc : list bool) (p : BinNums.positive) :=
+Fixpoint bool_list_of_pos (acc : list bool) (p : positive) :=
   match p with
-  | BinNums.xI p' => bool_list_of_pos (true :: acc) p'
-  | BinNums.xO p' => bool_list_of_pos (false :: acc) p'
-  | BinNums.xH => true :: acc
+  | xI p' => bool_list_of_pos (true :: acc) p'
+  | xO p' => bool_list_of_pos (false :: acc) p'
+  | xH => true :: acc
   end.
 
 
@@ -282,9 +278,9 @@ Section f32_Printer.
 Instance binary32_spec : IEEE_754_lengths := Fspec 8 23.
 
 Definition bits_of_f32_aux (f: float32) : list bool :=
-  match BinIntDef.Z.to_N ((Float32.to_bits f).(Integers.Int.intval)) with
-  | BinNums.N0 => nil
-  | BinNums.Npos p =>
+  match Z.to_N ((Float32.to_bits f).(Integers.Int.intval)) with
+  | N0 => nil
+  | Npos p =>
       bool_list_of_pos nil p
   end.
 
@@ -292,7 +288,7 @@ Definition bits_of_f32 (f: float32) : list bool :=
   bits_fill (bits_of_f32_aux f) 32 false.
 
 Definition pp_exponent32 (bs: list bool) : string :=
-  pp_Z_signed (BinInt.Z.sub (BinInt.Z.of_N (N_of_bits bs)) 127).
+  pp_Z_signed (Z.sub (Z.of_N (N_of_bits bs)) 127).
 
 (* TODO: wast format and wasm text format disagree on the representation of
   nan. Find a sensible representation here *)
@@ -328,9 +324,9 @@ Section f64_Printer.
 Instance binary64_spec : IEEE_754_lengths := Fspec 11 52.
 
 Definition bits_of_f64_aux (f: float) : list bool :=
-  match BinIntDef.Z.to_N ((Float.to_bits f).(Integers.Int64.intval)) with
-  | BinNums.N0 => nil
-  | BinNums.Npos p =>
+  match Z.to_N ((Float.to_bits f).(Integers.Int64.intval)) with
+  | N0 => nil
+  | Npos p =>
       bool_list_of_pos nil p
   end.
 
@@ -338,7 +334,7 @@ Definition bits_of_f64 (f: float) : list bool :=
   bits_fill (bits_of_f64_aux f) 64 false.
 
 Definition pp_exponent64 (bs: list bool) : string :=
-  pp_Z_signed (BinInt.Z.sub (BinInt.Z.of_N (N_of_bits bs)) 1023).
+  pp_Z_signed (Z.sub (Z.of_N (N_of_bits bs)) 1023).
 
 Definition pp_f64 (f: float) : string :=
   let bits_f := bits_of_f64 f in
@@ -746,7 +742,7 @@ Definition pp_funcinst (n : indentation) (fc : funcinst) : string :=
   end.
 
 Definition string_of_nat (n : nat) : string :=
-  string_of_uint (Nat.to_uint (BinNatDef.N.of_nat n)).
+  string_of_uint (Nat.to_uint (N.of_nat n)).
 
 Definition ae_style := FG_blue.
 

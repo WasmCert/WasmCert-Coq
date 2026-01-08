@@ -1,6 +1,6 @@
 (** a typeclass for a Wasm mem interface and specification *)
 
-From Coq Require Import BinNat.
+From Coq Require Import ZArith.
 From Wasm Require Import bytes common.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrbool eqtype.

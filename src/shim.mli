@@ -79,7 +79,7 @@ module type InterpreterType = sig
   (** Pretty-printing. *)
 
   val pp_values : Extract.value0 list -> string
-  val pp_store : int (** The indentation level *) -> store_record -> string
+  val pp_store : Z.t (** The indentation level *) -> store_record -> string
 
   val pp_cfg_tuple_ctx_except_store :
     interp_config_tuple -> string

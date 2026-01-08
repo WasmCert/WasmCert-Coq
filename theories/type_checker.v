@@ -2,7 +2,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From HB Require Import structures.
 From Wasm Require Export typing datatypes_properties operations subtyping_properties.
-From Coq Require Import BinNat.
+From Coq Require Import ZArith.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

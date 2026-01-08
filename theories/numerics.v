@@ -2,7 +2,7 @@
 (* (C) M. Bodin, J. Pichon - see LICENSE.txt *)
 
 From Wasm Require Export common.
-From Coq Require Import ZArith ZArith.Int ZArith.BinInt ZArith.Zpower.
+From Coq Require Import ZArith.
 From compcert Require Integers Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From HB Require Import structures.
@@ -287,7 +287,7 @@ Qed.
 Fixpoint power_index_to_bits (c : nat) (l : seq Z) : seq bool :=
   match c with
   | 0 => [::]
-  | c.+1 => ((c : Z) \in l) :: power_index_to_bits c l
+  | c.+1 => ((Z.of_nat c) \in l) :: power_index_to_bits c l
   end.
 
 Lemma power_index_to_bits_size : forall c x,
@@ -1076,7 +1076,7 @@ Record mixin_of (float_t : Type) := Mixin {
   float_zero : float_t;
   float_inf : float_t;
   float_canon_nan : float_t;
-  float_nan: BinPos.positive -> option float_t;
+  float_nan: positive -> option float_t;
   float_is_canonical : float_t -> bool;
   float_is_arithmetic : float_t -> bool;
   (** Unuary operators **)
@@ -1136,8 +1136,6 @@ Import Raux.
 
 Import Floats.
 
-Import ZArith.BinInt.
-
 Parameters prec emax : Z.
 
 Parameter prec_gt_0 : FLX.Prec_gt_0 prec.
@@ -1176,10 +1174,8 @@ Import Floats.
 
 Include Float32.
 
-Import ZArith.BinInt.
-
-Definition prec : BinNums.Z := 24.
-Definition emax : BinNums.Z := 128.
+Definition prec : Z := 24%Z.
+Definition emax : Z := 128%Z.
 
 Definition T := float32.
 
@@ -1204,11 +1200,8 @@ Import Floats.
 
 Include Float.
 
-
-Import ZArith.BinInt.
-
-Definition prec : BinNums.Z := 53.
-Definition emax : BinNums.Z := 1024.
+Definition prec : Z := 53%Z.
+Definition emax : Z := 1024%Z.
 
 Definition T := float.
 
@@ -1229,7 +1222,6 @@ End FloatSize64.
 
 Module Make (FS : FloatSize).
 
-(* Import Zpower BinIntDef. *)
 Import Integers.
 Import Raux.
 Import ZArith.

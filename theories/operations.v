@@ -4,7 +4,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From compcert Require Floats.
 From Wasm Require Export common memory datatypes_properties list_extra simd_execute.
-From Coq Require Import BinNat.
+From Coq Require Import ZArith.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -172,9 +172,9 @@ Definition sign_extend_n (n: N) (bytelen: N) : Z :=
   let half_intval := N.pow 2 (bytelen * 8 - 1) in
   let val_z :=
     if N.ltb n half_intval then
-      BinInt.Z.of_N n
+      Z.of_N n
     else
-      BinInt.Z.sub (BinInt.Z.of_N n) (BinInt.Z.of_N (2 * half_intval)) in
+      Z.sub (Z.of_N n) (Z.of_N (2 * half_intval)) in
   val_z.
 
 (* l is the byte length of the target type, therefore can only be 4/8 *)
@@ -184,7 +184,7 @@ Definition sign_extend_bytes (s : sx) (l : N) (bs : bytes) : bytes :=
   | SX_U => bytes_takefill #00 (N.to_nat l) bs
   | SX_S =>
       (* compcert decodes to unsigned *)
-      let val_n := BinInt.Z.to_N (common.Memdata.decode_int bs) in
+      let val_n := Z.to_N (common.Memdata.decode_int bs) in
       let val_z := sign_extend_n val_n (N.of_nat (List.length bs)) in
         Memdata.encode_int l val_z
   end.
@@ -597,7 +597,7 @@ Definition serialise_num_shape (sh: vshape) (v: value_num) : bytes :=
   | VAL_int32 c => (* Could be i8/i16/i32 *)
       let byte_width := N.div (shape_width sh) 8%N in
       (* Need to normalise first *)
-      let val_n := BinInt.Z.to_N (Wasm_int.Int32.unsigned c) in
+      let val_n := Z.to_N (Wasm_int.Int32.unsigned c) in
       let val_z := sign_extend_n val_n byte_width in
       Memdata.encode_int byte_width val_z
   end.
@@ -628,7 +628,7 @@ Definition v128_extract_lanes_n (sh: vshape) (v: v128) : list N :=
   let v128_bytes_grouped := v128_extract_bytes sh v in
   let vt := unpacked sh in
   map (fun bs =>
-         BinInt.Z.to_N (common.Memdata.decode_int bs)) v128_bytes_grouped.
+         Z.to_N (common.Memdata.decode_int bs)) v128_bytes_grouped.
 
 (* Extract values from a v128 *)
 Definition v128_extract_lanes (sh: vshape) (s: sx) (v: v128) : list value_num :=
@@ -640,7 +640,7 @@ Definition v128_extract_lanes (sh: vshape) (s: sx) (v: v128) : list value_num :=
       map (fun bs => wasm_deserialise bs vt) v128_bytes_grouped
   | VS_i VSI_64_2 =>
       map (fun bs =>
-             let val_n := BinInt.Z.to_N (common.Memdata.decode_int bs) in
+             let val_n := Z.to_N (common.Memdata.decode_int bs) in
              let val_z := sign_extend_n val_n byte_width in
              VAL_int64 (Wasm_int.Int64.repr val_z)) v128_bytes_grouped
   (* All the other shapes extract to Int32. *)
@@ -648,7 +648,7 @@ Definition v128_extract_lanes (sh: vshape) (s: sx) (v: v128) : list value_num :=
       match s with
       | SX_S => 
         map (fun bs =>
-             let val_n := BinInt.Z.to_N (common.Memdata.decode_int bs) in
+             let val_n := Z.to_N (common.Memdata.decode_int bs) in
              let val_z := sign_extend_n val_n byte_width in
              VAL_int32 (Wasm_int.Int32.repr val_z)) v128_bytes_grouped
       | SX_U =>

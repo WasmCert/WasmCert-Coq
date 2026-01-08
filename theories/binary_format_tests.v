@@ -1,7 +1,6 @@
 (** Tests for the binary parser. **)
-Require Import Strings.Byte.
+From Coq Require Import Strings.Byte ZArith.
 From parseque Require Import Parseque.
-Require Import BinNat.
 From Wasm Require Import binary_format_parser binary_format_printer
                          datatypes_properties check_toks.
 
@@ -133,7 +132,7 @@ Proof. vm_compute. reflexivity. Qed.
 Definition module_42 := {|
   mod_types := cons (Tf nil (cons (T_num T_i32) nil)) nil;
   mod_funcs :=
-    let e := BI_const_num (VAL_int32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 42))) in
+    let e := BI_const_num (VAL_int32 (Wasm_int.Int32.repr (Z.of_nat 42))) in
     cons {| modfunc_type := 0%N; modfunc_locals := nil; modfunc_body := cons e nil |} nil;
   mod_tables := nil;
   mod_mems := nil;
@@ -152,7 +151,7 @@ Proof. vm_compute. reflexivity. Qed.
 Definition module_42_exported := {|
   mod_types := cons (Tf nil (cons (T_num T_i32) nil)) nil;
   mod_funcs :=
-    let e := BI_const_num (VAL_int32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 42))) in
+    let e := BI_const_num (VAL_int32 (Wasm_int.Int32.repr (Z.of_nat 42))) in
     cons {| modfunc_type := 0%N; modfunc_locals := nil; modfunc_body := cons e nil |} nil;
   mod_tables := nil;
   mod_mems := nil;
@@ -171,12 +170,12 @@ Proof. vm_compute. reflexivity. Qed.
 Definition module_tableops := {|
   mod_types := cons (Tf nil (cons (T_num T_i32) nil)) nil;
   mod_funcs :=
-    let e := BI_const_num (VAL_int32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 1))) in
+    let e := BI_const_num (VAL_int32 (Wasm_int.Int32.repr (Z.of_nat 1))) in
     cons {| modfunc_type := 0%N; modfunc_locals := nil; modfunc_body := cons e nil |} nil;
   mod_tables := (cons (Build_module_table (Build_table_type (Build_limits 0%N (Some 4%N)) T_funcref)) nil);
   mod_mems := nil;
                                mod_globals := nil;
-  mod_elems := (cons (Build_module_element T_funcref (cons (cons (BI_const_num (VAL_int32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 1)))) nil) nil) (ME_active 0%N (cons (BI_const_num (VAL_int32 (Wasm_int.Int32.repr (BinInt.Z.of_nat 1)))) nil))) nil);
+  mod_elems := (cons (Build_module_element T_funcref (cons (cons (BI_const_num (VAL_int32 (Wasm_int.Int32.repr (Z.of_nat 1)))) nil) nil) (ME_active 0%N (cons (BI_const_num (VAL_int32 (Wasm_int.Int32.repr (Z.of_nat 1)))) nil))) nil);
   mod_datas := nil;
   mod_start := None;
   mod_imports := nil;

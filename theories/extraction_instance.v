@@ -3,10 +3,9 @@ From Coq Require Import String ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From HB Require Import structures.
 From Wasm Require Import numerics memory host interpreter_ctx instantiation_func pp.
-From ExtLib Require Import Structures.Monad.
-From ExtLib Require Import IdentityMonad.
+From ExtLib Require Import Structures.Monad IdentityMonad.
 
-From Wasm Require Import memory_vec.
+From Wasm Require Import memory_vec binary_format_parser text_format_parser.
 
 Module Memory_instance.
 
@@ -14,96 +13,50 @@ Module Memory_instance.
   
 End Memory_instance.
 
-(*
-(* Host instance with no host functions. *)
-Section DummyHost.
-
-Existing Instance Memory_instance.memory_instance.
   
-Definition host_function := void.
-Definition host_event := ident.
-Definition host_ret := @ret _ Monad_ident.
-Definition host_bind := @bind _ Monad_ident.
+(* A more general extraction that allows non-trivial host functions, extracting the interpreter as a functor-like module. Not using the monadic design yet as that requires corresponding changes to the interpreter as well. *)
+Module Type Parametric_host.
 
-Definition host_function_eq_dec : forall f1 f2 : host_function, {f1 = f2} + {f1 <> f2}.
-Proof. decidable_equality. Defined.
+  Parameter host_function: Type.
 
-#[export]
-Instance hfc: host_function_class.
-Proof.
-  exact (Build_host_function_class host_function_eq_dec).
-Defined.
+  Parameter host_function_eq_dec: forall (a b: host_function),
+      {a = b} + {a <> b}.
 
-Definition host_apply (_ : store_record) (_ : function_type) :=
-  of_void (seq value -> ident (option (store_record * result))).
+  #[export]
+    Instance hfc: host_function_class := Build_host_function_class host_function_eq_dec.
 
-#[export]
-Instance host_instance : host.
-Proof.
-  by refine {|
-      host_state := unit;
-      host_application _ _ _ _ _ _ _ := False
-    |}.
-Defined.
+  Parameter host_state_type : Type.
 
-Definition host_application_impl : host_state -> store_record -> function_type -> host_function -> seq value ->
-                                   (host_state * option (store_record * result)).
-Proof.
-  move => ??? hf.
-  by refine ((of_void _) hf).
-Defined.
+  (* Host function application are left as parameters and must be realised in a separate file in extraction. *)
+  (* Migrate to monadic host operations when the interpreter updates to itree *)
+  Parameter host_apply_pure: host_state_type -> store_record -> function_type -> host_function -> seq value -> (host_state_type * option (store_record * result)).
 
-Definition host_application_impl_correct :
-  (forall hs s ft hf vs hs' hres, (host_application_impl hs s ft hf vs = (hs', hres)) -> host_application hs s ft hf vs hs' hres).
-Proof.
-  move => ??? hf; by inversion hf.
-Defined.
+  (* However, such a parametric host cannot be proven to respect Wasm's store invariant, as they will be formulated in OCaml. *)
+  Axiom host_application_extension : forall hs s ft h vs hs' s' r,
+      host_apply_pure hs s ft h vs = (hs', Some (s', r)) ->
+      store_extension s s'.
 
-End DummyHost.
- *)
+  Axiom host_application_typing : forall hs s ft h vs hs' s' r,
+      host_apply_pure hs s ft h vs = (hs', Some (s', r)) ->
+      store_typing s ->
+      store_typing s'.
+
+  Axiom host_application_respect : forall hs s ts1 ts2 h vs hs' s' r,
+      host_apply_pure hs s (Tf ts1 ts2) h vs = (hs', Some (s', r)) ->
+      result_types_agree s' ts2 r.
+
+End Parametric_host.
+
+Module Monadic_host (PH: Parametric_host).
+
+  Include PH.
   
-  (* A more general extraction that allows non-trivial host functions, extracting the interpreter as a functor-like module. Not using the monadic design yet as that requires corresponding changes to the interpreter as well. *)
-  Module Type Parametric_host.
+  Definition host_event := ident.
+  Definition host_ret := @ret _ Monad_ident.
+  Definition host_bind := @bind _ Monad_ident.
 
-    Parameter host_function: Type.
-
-    Parameter host_function_eq_dec: forall (a b: host_function),
-        {a = b} + {a <> b}.
-
-    #[export]
-      Instance hfc: host_function_class := Build_host_function_class host_function_eq_dec.
-
-    Parameter host_state_type : Type.
-
-    (* Host function application are left as parameters and must be realised in a separate file in extraction. *)
-    (* Migrate to monadic host operations when the interpreter updates to itree *)
-    Parameter host_apply_pure: host_state_type -> store_record -> function_type -> host_function -> seq value -> (host_state_type * option (store_record * result)).
-
-    (* However, such a parametric host cannot be proven to respect Wasm's store invariant, as they will be formulated in OCaml. *)
-    Axiom host_application_extension : forall hs s ft h vs hs' s' r,
-        host_apply_pure hs s ft h vs = (hs', Some (s', r)) ->
-        store_extension s s'.
-
-    Axiom host_application_typing : forall hs s ft h vs hs' s' r,
-        host_apply_pure hs s ft h vs = (hs', Some (s', r)) ->
-        store_typing s ->
-        store_typing s'.
-
-    Axiom host_application_respect : forall hs s ts1 ts2 h vs hs' s' r,
-        host_apply_pure hs s (Tf ts1 ts2) h vs = (hs', Some (s', r)) ->
-        result_types_agree s' ts2 r.
-
-  End Parametric_host.
-
-  Module Monadic_host (PH: Parametric_host).
-
-    Include PH.
-    
-    Definition host_event := ident.
-    Definition host_ret := @ret _ Monad_ident.
-    Definition host_bind := @bind _ Monad_ident.
-
-  End Monadic_host.
+End Monadic_host.
+  
 Module Utility.
   
   Definition vali32_of_Z (z: Z) : value :=
@@ -111,13 +64,55 @@ Module Utility.
   
   Definition vali64_of_Z (z: Z) : value :=
     VAL_num (VAL_int64 (Wasm_int.int_of_Z i64m z)).
+
+Section Wast.
+  
+  Definition is_canonical_nan (t: number_type) (v: value) : bool :=
+    match t, v with
+    | Tnum_f32, VAL_num (VAL_float32 c) => Wasm_float.float_is_canonical f32m c
+    | Tnum_f64, VAL_num (VAL_float64 c) => Wasm_float.float_is_canonical f64m c
+    | _, _ => false
+    end.
+
+  Definition is_arithmetic_nan (t: number_type) (v: value) : bool :=
+    match t, v with
+    | Tnum_f32, VAL_num (VAL_float32 c) => Wasm_float.float_is_arithmetic f32m c
+    | Tnum_f64, VAL_num (VAL_float64 c) => Wasm_float.float_is_arithmetic f64m c
+    | _, _ => false
+    end.
+
+  Definition is_funcref (v: value) : bool :=
+    match v with
+    | VAL_ref (VAL_ref_func _) => true
+    | _ => false
+    end.
+
+  Definition is_externref (v: value) : bool :=
+    match v with
+    | VAL_ref (VAL_ref_extern _) => true
+    | _ => false
+    end.
+
+  Definition v128_extract_lanes (sh: vshape) (v: v128) :=
+    v128_extract_lanes sh SX_S v.
+  
+End Wast.
+
   
 End Utility.
 
 
 Module Extraction_instance (PH: Parametric_host).
 
+Module MH := Monadic_host PH.
+
+Include MH.
+
 Export PH.
+
+Definition run_parse_module_str := run_parse_module_str.
+Definition run_parse_arg := run_parse_arg.
+                                         
 
 #[export]
 Instance host_instance : host.
@@ -145,9 +140,9 @@ Definition store_record := store_record.
   
 Definition cfg_tuple_ctx : Type := cfg_tuple_ctx.
 
-Definition run_step_ctx_result : host_state -> cfg_tuple_ctx -> BinNums.N -> Type := run_step_ctx_result.
+Definition run_step_ctx_result : host_state -> cfg_tuple_ctx -> N -> Type := run_step_ctx_result.
 
-Definition run_one_step (hs: host_state) (cfg: cfg_tuple_ctx) (d: BinNums.N) : run_step_ctx_result hs cfg d := run_one_step host_application_impl_correct hs cfg d.
+Definition run_one_step (hs: host_state) (cfg: cfg_tuple_ctx) (d: N) : run_step_ctx_result hs cfg d := run_one_step host_application_impl_correct hs cfg d.
 
 Definition run_v_init : store_record -> list administrative_instruction -> option cfg_tuple_ctx := run_v_init.
 
@@ -164,7 +159,7 @@ Definition pp_store := pp_store.
 
 Definition pp_cfg_tuple_ctx_except_store := pp_cfg_tuple_ctx_except_store.
 
-Definition pp_res_cfg_except_store {hs: host_state} {cfg: cfg_tuple_ctx} {d: BinNums.N} (res: run_step_ctx_result hs cfg d) := pp_res_cfg_except_store res.
+Definition pp_res_cfg_except_store {hs: host_state} {cfg: cfg_tuple_ctx} {d: N} (res: run_step_ctx_result hs cfg d) := pp_res_cfg_except_store res.
 
 Definition pp_administrative_instructions := pp_administrative_instructions.
 
@@ -225,48 +220,5 @@ Definition wasm_global_get (s: store_record) (ext: extern_value) : option value 
   end.
 
 End Instantiation_func_extract.
-
-Section Utility.
-
-  Definition vali32_of_Z (z: Z) : value :=
-    VAL_num (VAL_int32 (Wasm_int.int_of_Z i32m z)).
-  
-  Definition vali64_of_Z (z: Z) : value :=
-    VAL_num (VAL_int64 (Wasm_int.int_of_Z i64m z)).
-  
-End Utility.
-
-Section Wast.
-  
-  Definition is_canonical_nan (t: number_type) (v: value) : bool :=
-    match t, v with
-    | Tnum_f32, VAL_num (VAL_float32 c) => Wasm_float.float_is_canonical f32m c
-    | Tnum_f64, VAL_num (VAL_float64 c) => Wasm_float.float_is_canonical f64m c
-    | _, _ => false
-    end.
-
-  Definition is_arithmetic_nan (t: number_type) (v: value) : bool :=
-    match t, v with
-    | Tnum_f32, VAL_num (VAL_float32 c) => Wasm_float.float_is_arithmetic f32m c
-    | Tnum_f64, VAL_num (VAL_float64 c) => Wasm_float.float_is_arithmetic f64m c
-    | _, _ => false
-    end.
-
-  Definition is_funcref (v: value) : bool :=
-    match v with
-    | VAL_ref (VAL_ref_func _) => true
-    | _ => false
-    end.
-
-  Definition is_externref (v: value) : bool :=
-    match v with
-    | VAL_ref (VAL_ref_extern _) => true
-    | _ => false
-    end.
-
-  Definition v128_extract_lanes (sh: vshape) (v: v128) :=
-    v128_extract_lanes sh SX_S v.
-  
-End Wast.
 
 End Extraction_instance.

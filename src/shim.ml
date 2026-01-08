@@ -66,7 +66,7 @@ module type InterpreterType = sig
   val run_parse_arg : string -> value option
 
   val pp_values : value list -> string
-  val pp_store : int -> Extract.store_record -> string
+  val pp_store : Z.t -> Extract.store_record -> string
   val pp_cfg_tuple_ctx_except_store :
     interp_config_tuple -> string
     
@@ -158,7 +158,7 @@ functor (EH : Host) -> struct
     Extraction_instance.pp_values l
 
   let pp_store i st =
-    Extraction_instance.pp_store (Convert.to_nat i) st
+    Extraction_instance.pp_store i st
 
   let pp_cfg_tuple_ctx_except_store r =
     Extraction_instance.pp_cfg_tuple_ctx_except_store r
@@ -168,21 +168,21 @@ functor (EH : Host) -> struct
     Extraction_instance.pp_res_cfg_except_store (Obj.magic ()) cfg (Utils.z_of_int 0) res
 
   let pp_es es =
-    Extraction_instance.pp_administrative_instructions O es
+    Extraction_instance.pp_administrative_instructions Z.zero es
 
   let pp_externval extval = 
     Extraction_instance.pp_extern_value extval
 
   let is_canonical_nan =
-    Extraction_instance.is_canonical_nan
+    Extract.Utility.is_canonical_nan
 
   let is_arithmetic_nan =
-    Extraction_instance.is_arithmetic_nan
+    Extract.Utility.is_arithmetic_nan
 
-  let is_funcref = Extraction_instance.is_funcref
+  let is_funcref = Extract.Utility.is_funcref
 
-  let is_externref = Extraction_instance.is_externref
+  let is_externref = Extract.Utility.is_externref
 
   let v128_extract_lanes sh v = 
-    Extraction_instance.v128_extract_lanes sh v
+    Extract.Utility.v128_extract_lanes sh v
 end

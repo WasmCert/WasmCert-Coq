@@ -5,7 +5,7 @@ From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From Wasm Require Import list_extra datatypes datatypes_properties
                         binary_format_parser operations
                          typing opsem type_checker memory.
-From Coq Require Import BinNat.
+From Coq Require Import ZArith.
 
 (* TODO: Documentation *)
 
@@ -91,7 +91,7 @@ Definition alloc_tabs (s : store_record) (ts : list table_type) : store_record *
   alloc_Xs alloc_tab s ts.
 
 Definition gen_mem_instance (lim : limits) : meminst :=
-  let len := BinNatDef.N.mul page_size lim.(lim_min) in
+  let len := N.mul page_size lim.(lim_min) in
   {| meminst_data := mem_make len;
     meminst_type := lim;
   |}.
@@ -562,7 +562,7 @@ Definition get_init_expr_elem (i: nat) (elem: module_element) : list basic_instr
   | ME_active tidx bes =>
       bes ++
         [::BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m Z0));
-         BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m (BinInt.Z.of_nat (length elem.(modelem_init)))));
+         BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (length elem.(modelem_init)))));
          BI_table_init tidx (N.of_nat i);
          BI_elem_drop (N.of_nat i)]
   | ME_declarative => [::BI_elem_drop (N.of_nat i)]
@@ -575,7 +575,7 @@ Definition get_init_expr_data (i: nat) (data: module_data) : list basic_instruct
   match data.(moddata_mode) with
   | MD_passive => nil
   | MD_active midx bes =>
-      bes ++ [::BI_const_num (VAL_int32 (Wasm_int.int_zero i32m)); BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m (BinInt.Z.of_nat (length data.(moddata_init))))); BI_memory_init (N.of_nat i); BI_data_drop (N.of_nat i)]
+      bes ++ [::BI_const_num (VAL_int32 (Wasm_int.int_zero i32m)); BI_const_num (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (length data.(moddata_init))))); BI_memory_init (N.of_nat i); BI_data_drop (N.of_nat i)]
   end.
 
 Definition get_init_expr_datas (datas: list module_data) : list basic_instruction :=

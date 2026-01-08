@@ -5,7 +5,7 @@
 
 From mathcomp Require Import ssreflect ssrbool eqtype seq ssrnat.
 From Wasm Require Import instantiation_spec instantiation_properties type_preservation.
-From Coq Require Import BinNat NArith ZArith.
+From Coq Require Import ZArith.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -56,7 +56,7 @@ Proof.
     + apply nth_error_Some_length in H.
       apply List.nth_error_In with (n := (N.to_nat x)).
       rewrite iota_N_lookup.
-      by rewrite add0n N2Nat.id.
+      by rewrite add0n Nnat.N2Nat.id.
     + by lias.
 Qed.
 
@@ -150,7 +150,7 @@ Proof.
         rewrite iota_N_lookup => /=; last by apply nth_error_Some_length in Hnthm; lias.
         unfold ext_func_typing.
         destruct s, s1, s2, s3, s4, s5, s6; simpl in *; subst.
-        unfold lookup_N; rewrite Nat2N.id.
+        unfold lookup_N; rewrite Nnat.Nat2N.id.
         rewrite List.nth_error_app2; last by lias.
         rewrite nth_error_map' => /=.
         replace (_ + n - _)%coq_nat with n; last by lias.
@@ -197,7 +197,7 @@ Proof.
         rewrite iota_N_lookup => /=; last by apply nth_error_Some_length in Hnthm; lias.
         unfold ext_table_typing.
         destruct s, s1, s2, s3, s4, s5, s6; simpl in *; subst.
-        unfold lookup_N; rewrite Nat2N.id.
+        unfold lookup_N; rewrite Nnat.Nat2N.id.
         rewrite List.nth_error_app2; last by lias.
         do 2 rewrite nth_error_map' => /=.
         replace (_ + n - _)%coq_nat with n; last by lias.
@@ -244,7 +244,7 @@ Proof.
         rewrite iota_N_lookup => /=; last by apply nth_error_Some_length in Hnthm; lias.
         unfold ext_mem_typing.
         destruct s, s1, s2, s3, s4, s5, s6; simpl in *; subst.
-        unfold lookup_N; rewrite Nat2N.id.
+        unfold lookup_N; rewrite Nnat.Nat2N.id.
         rewrite List.nth_error_app2; last by lias.
         do 2 rewrite nth_error_map' => /=.
         replace (_ + n - _)%coq_nat with n; last by lias.
@@ -291,7 +291,7 @@ Proof.
         rewrite iota_N_lookup => /=; last by apply nth_error_Some_length in Hnthm; lias.
         unfold ext_global_typing.
         destruct s, s1, s2, s3, s4, s5, s6; simpl in *; subst.
-        unfold lookup_N; rewrite Nat2N.id.
+        unfold lookup_N; rewrite Nnat.Nat2N.id.
         rewrite List.nth_error_app2; last by lias.
         rewrite nth_error_map' => /=.
         replace (_ + n - _)%coq_nat with n; last by lias.
@@ -322,7 +322,7 @@ Proof.
         eapply Forall2_nth_impl' in Hmelemtype as [x [Hnthm Hmap]]; eauto.
         rewrite iota_N_lookup => /=; last by apply nth_error_Some_length in Hnthm; lias.
         replace (s_elems s6) with (s_elems s4 ++ map (fun '(elem, refs) => Build_eleminst (modelem_type elem) refs) (List.combine mod_elems r_inits)); last by destruct s, s1, s2, s3, s4, s5, s6; simpl in *; subst.
-        unfold lookup_N; rewrite Nat2N.id.
+        unfold lookup_N; rewrite Nnat.Nat2N.id.
         rewrite List.nth_error_app2; last by lias.
         rewrite nth_error_map' => /=.
         replace (_ + n - _)%coq_nat with n; last by lias.
@@ -394,7 +394,7 @@ Proof.
         eapply Forall2_nth_impl' in Hmdatatype as [x [Hnthm Hmap]]; eauto.
         rewrite iota_N_lookup => /=; last by apply nth_error_Some_length in Hnthm; lias.
         replace (s_datas s6) with (s_datas s5 ++ map (fun md => Build_datainst (moddata_init md)) mod_datas); last (destruct s, s1, s2, s3, s4, s5, s6; simpl in *; subst).
-        unfold lookup_N; rewrite Nat2N.id.
+        unfold lookup_N; rewrite Nnat.Nat2N.id.
         rewrite List.nth_error_app2; last by lias.
         rewrite nth_error_map' => /=.
         replace (_ + n - _)%coq_nat with n; last by lias.
@@ -476,7 +476,7 @@ Proof.
         unfold tableinst_typing, gen_table_instance; simpl in *.
         remove_bools_options; simpl in *; subst.
         rewrite H.
-        rewrite List.repeat_length N2Nat.id eq_refl.
+        rewrite List.repeat_length Nnat.N2Nat.id eq_refl.
         rewrite all_repeat; first by eexists.
         unfold value_typing => /=.
         by rewrite value_subtyping_eq.

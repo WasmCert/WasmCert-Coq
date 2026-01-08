@@ -1,7 +1,7 @@
 (** Soundness and correctness of the type checker **)
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From Coq Require Import Program Wf_nat BinNums NArith.
+From Coq Require Import Program Wf_nat ZArith.
 From Wasm Require Import type_checker typing_inversion.
 
 Set Implicit Arguments.
@@ -234,12 +234,6 @@ Ltac simplify_tc_goal :=
   | H: ?expr = _ |-
     context [?expr] =>
       rewrite H
-(*  | H: unop_type_agree ?t ?op = true |- _ =>
-      destruct t, op; inversion H; subst; clear H
-  | H: binop_type_agree ?t ?op = true |- _ =>
-      destruct t, op; inversion H; subst; clear H
-  | H: relop_type_agree ?t ?op = true |- _ =>
-      destruct t, op; inversion H; subst; clear H*)
   | H: lookup_N ?l ?n = ?x
     |- context [lookup_N (map _ ?l) ?n] =>
     rewrite lookup_N_map H
@@ -249,8 +243,6 @@ Ltac simplify_tc_goal :=
   | H: context C [ match ?u with | Unop_i _ => _ | Unop_f _ | _ => _ end ] |- _ => destruct u => //=
   | H: context C [ match ?b with | Binop_i _ => _ | Binop_f _ => _ end ] |- _ => destruct b => //=
     | H: context C [ match ?r with | Relop_i _ => _ | Relop_f _ => _ end ] |- _ => destruct r => //=
-(*                                                                                 | H: context C [ lookup_N_safe _ _ ] |- _ => setoid_rewrite lookup_N_safe_spec in H
-                                                                                 | |- context [ lookup_N_safe _ _ ] => setoid_rewrite lookup_N_safe_spec*)
   | |- context [ consume _ nil ] => rewrite consume_nil
   | |- context [ consume <<?ts, _>> ?ts ] => rewrite consume_self
   | |- context [ consume <<(?ts ++ _), _>> ?ts ] => rewrite consume_prefix

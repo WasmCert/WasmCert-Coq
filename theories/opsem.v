@@ -2,7 +2,7 @@
 (** The interpreter in the [interpreter_func] module is an executable version of this operational semantics. **)
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
-From Coq Require Import ZArith.BinInt NArith.BinNat.
+From Coq Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Export operations host.
 
