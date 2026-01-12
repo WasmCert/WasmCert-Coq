@@ -26,7 +26,9 @@ From Coq Require Import
 
 Extraction Language OCaml.
 
-(* Coq's default extraction of integers to Z.t has some problems, including using inefficient Z.quomod and missing some overrides for some reason. *)
+(* Coq's default extraction of integers to Z.t has some problems, including using inefficient Z.quomod and missing some overrides for some reason, as there are two versions of `Pos/N/Z` in the extract -- could this be due to CompCert using its own?
+  Most of the overrides are directly copied from Coq's extraction.ExtrOcamlZBigInt, simply adding a PosDef prefix to override the functions from the other version in the extraction.
+ *)
 Extract Inductive nat => "Big_int_Z.big_int"
  [ "Big_int_Z.zero_big_int" "Big_int_Z.succ_big_int" ]
  "(fun fO fS n -> if Big_int_Z.le_big_int n Big_int_Z.zero_big_int then fO () else fS (Big_int_Z.pred_big_int n))".
