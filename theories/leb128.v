@@ -1,8 +1,6 @@
 (* LEB128 integer format *)
 (* https://en.wikipedia.org/wiki/LEB128 *)
-Require Import Numbers.BinNums.
-Require Import BinNat BinInt.
-Require Import Coq.Init.Byte.
+From Coq Require Import ZArith Init.Byte.
 From parseque Require Import Parseque.
 
 (** expects 7 bits, with MSB at head *)
@@ -147,7 +145,7 @@ Section Language.
       let aux := Induction.map _unsigned _ rec in
       let unsigned_ :=
         parse_unsigned_end <|>
-        (((fun lsb rest => BinNatDef.N.add lsb (BinNatDef.N.mul 128%N rest)) <$> parse_unsigned_ctd) <*> aux) in
+        (((fun lsb rest => N.add lsb (N.mul 128%N rest)) <$> parse_unsigned_ctd) <*> aux) in
       MkUnsigned unsigned_).
     
     (** top-level function *)
@@ -157,7 +155,7 @@ Section Language.
   End Unsigned_sec.
 
 Definition sub_2_7 (k : N) :=
-  BinIntDef.Z.sub (BinInt.Z_of_N k) (BinIntDef.Z.pow (BinInt.Z.of_nat 2) (BinInt.Z.of_nat 7)).
+  Z.sub (Z_of_N k) 128%Z.
 
 (* parse a non-final byte *)
 Definition parse_signed_end {n} : byte_parser Z n :=
@@ -166,7 +164,7 @@ guardM
     let '(_, (_, (_, (_, (_, (_, (b7, b8))))))) := Byte.to_bits b in
     if b8 then None
     else if b7 then  Some (sub_2_7 (Coq.Strings.Byte.to_N b))
-    else Some (ZArith.BinInt.Z_of_N (Coq.Strings.Byte.to_N b)))
+    else Some (Z_of_N (Coq.Strings.Byte.to_N b)))
   anyTok.
 
 (* parse a final byte *)
@@ -193,7 +191,7 @@ Section Signed_sec.
       let aux := Induction.map _signed _ rec in
       let signed_ :=
         parse_signed_end <|>
-        (((fun lsb rest => ZArith.BinInt.Zplus lsb (ZArith.BinInt.Zmult 128%Z rest)) <$> parse_signed_ctd) <*> aux) in
+        (((fun lsb rest => Zplus lsb (Zmult 128%Z rest)) <$> parse_signed_ctd) <*> aux) in
       MkSigned _ signed_).
     
     Definition parse_signed : [ byte_parser Z ] := fun n => _signed n (signed_aux n).

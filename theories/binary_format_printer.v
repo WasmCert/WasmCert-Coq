@@ -3,7 +3,7 @@ Breaks non-determinism ties; see binary_format_spec.v for the spec. *)
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Import datatypes_properties numerics common list_extra leb128.
 From compcert Require Integers.
-From Coq Require Import BinNat Strings.Byte.
+From Coq Require Import ZArith Strings.Byte.
 
 Definition binary_of_number_type (t: number_type) : byte :=
   match t with
@@ -32,14 +32,14 @@ Definition binary_of_value_type (t : value_type) : byte :=
   | T_bot => x00 (* will not happen *)
   end.
 
-Definition binary_of_N (n: BinNums.N) : list byte :=
+Definition binary_of_N (n: N) : list byte :=
   leb128.encode_unsigned n.
 
 Definition binary_of_u32 (n: u32) : list byte :=
   binary_of_N n.
 
 Definition binary_of_u32_nat (n : nat) : list byte :=
-  leb128.encode_unsigned (BinNatDef.N.of_nat n).
+  leb128.encode_unsigned (N.of_nat n).
 
 (* All idx are currently the same underlying type *)
 Definition binary_of_idx n := binary_of_u32 n.

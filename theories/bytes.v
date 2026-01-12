@@ -2,7 +2,8 @@
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
-Require Import common.
+From Wasm Require Import common.
+From Coq Require Import ZArith.
 From compcert Require Import Integers.
 From parseque Require Import Char.
 From HB Require Import structures.
@@ -38,13 +39,13 @@ Definition msbyte (bs : bytes) : option byte :=
   last_error bs.
 
 Definition compcert_byte_of_byte (b : Byte.byte) : byte :=
-  Byte.repr (BinInt.Z.of_N (Byte.to_N b)).
+  Byte.repr (Z.of_N (Byte.to_N b)).
 
-Definition encode (z: BinNums.Z) : byte :=
+Definition encode (z: Z) : byte :=
   Byte.repr z.
 
 Definition byte_of_compcert_byte (b : byte) : Byte.byte :=
-  match Byte.of_N (BinInt.Z.to_N (Byte.unsigned b)) with
+  match Byte.of_N (Z.to_N (Byte.unsigned b)) with
   | None => Byte.x00
   | Some b' => b'
   end.

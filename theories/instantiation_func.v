@@ -1,6 +1,6 @@
 (** Executable instantiation **)
 
-From Coq Require Import BinNat String List.
+From Coq Require Import ZArith String List.
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From Wasm Require Export opsem interpreter_ctx instantiation_spec.
 

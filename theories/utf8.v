@@ -1,6 +1,6 @@
 (* utf8 validity for strings *)
 
-From Coq Require Import Strings.Byte BinNums List NArith.
+From Coq Require Import Strings.Byte List ZArith.
 
 Section utf8.
 

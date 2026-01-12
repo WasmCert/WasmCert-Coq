@@ -2,7 +2,7 @@
 
 From Wasm Require Export typing_inversion tactic.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From Coq Require Import Program.Equality NArith ZArith_base.
+From Coq Require Import Program.Equality ZArith.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

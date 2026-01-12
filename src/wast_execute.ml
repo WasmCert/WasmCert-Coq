@@ -4,6 +4,7 @@ open Execute
 open Execute.Host
 open Execute.Interpreter
 open Output
+open Utils
 
 open Wasm.Source
 open Wasm.Values
@@ -121,8 +122,8 @@ let wasm_assert_numpat ret numpat =
 let wasm_assert_refpat ret refpat =
   match refpat with
   | RefPat r -> (wasm_val_to_coq ((Ref r.it) @@ no_region) = Some ret)
-  | RefTypePat Wasm.Types.FuncRefType -> Extract.Extraction_instance.is_funcref ret
-  | RefTypePat Wasm.Types.ExternRefType -> Extract.Extraction_instance.is_externref ret
+  | RefTypePat Wasm.Types.FuncRefType -> Interpreter.is_funcref ret
+  | RefTypePat Wasm.Types.ExternRefType -> Interpreter.is_externref ret
 
 let wasm_assert_vecpat verbosity ret vecpat =
   match vecpat, ret with
@@ -447,7 +448,7 @@ let register_spectest_host verbosity hs s =
     pure (hs', s')
 
 let run_wast_script verbosity timeout max_call_depth script =
-  let starting_host_store = (Execute.StringMap.empty, Execute.StringMap.empty) in
+  let starting_host_store = (StringMap.empty, StringMap.empty) in
   let starting_store = empty_store_record in
   let* (hs, s) = register_spectest_host verbosity starting_host_store starting_store in
   let* ret = run_wast_commands verbosity timeout max_call_depth script hs s 0 "" 0 0 in

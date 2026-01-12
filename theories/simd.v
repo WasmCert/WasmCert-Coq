@@ -1,5 +1,5 @@
 From mathcomp Require Import ssreflect ssrbool eqtype seq ssrnat.
-From Coq Require Import BinInt BinNat NArith Lia Uint63 String.
+From Coq Require Import ZArith Lia Uint63 String.
 From Wasm Require Import numerics bytes memory common.
 
 Set Implicit Arguments.

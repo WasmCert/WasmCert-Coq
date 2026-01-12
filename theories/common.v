@@ -1,7 +1,7 @@
 (** Common useful definitions **)
 (* (C) M. Bodin - see LICENSE.txt *)
 
-From Coq Require Import Lia Wf_nat ZArith BinInt.
+From Coq Require Import Lia Wf_nat ZArith.
 From mathcomp Require Import ssreflect ssrnat ssrbool seq eqtype.
 From compcert Require Integers.
 From HB Require Import structures.
@@ -18,12 +18,12 @@ Qed.
 
 HB.instance Definition Z_eqMixin := hasDecEq.Build Z Z_eqP.
 
-Lemma Pos_eqP : Equality.axiom BinPosDef.Pos.eqb.
+Lemma Pos_eqP : Equality.axiom Pos.eqb.
 Proof.
-  move=> x y. apply: Bool.iff_reflect. by rewrite BinPos.Pos.eqb_eq.
+  move=> x y. apply: Bool.iff_reflect. by rewrite Pos.eqb_eq.
 Qed.
 
-HB.instance Definition positive_eqMixin := hasDecEq.Build BinNums.positive Pos_eqP.
+HB.instance Definition positive_eqMixin := hasDecEq.Build positive Pos_eqP.
 
 (** * Equalities **)
 
@@ -43,14 +43,14 @@ Ltac lias_simpl :=
   | |- context C [subn] => rewrite /subn
   | |- context C [addn] => rewrite /addn
   | |- is_true (leq _ _) => apply/leP
-  | |- is_true (BinNat.N.leb _ _) => apply/BinNat.N.leb_spec0
-  | |- is_true (BinNat.N.ltb _ _) => apply/BinNat.N.ltb_spec0
+  | |- is_true (N.leb _ _) => apply/N.leb_spec0
+  | |- is_true (N.ltb _ _) => apply/N.ltb_spec0
   (* Find a way to make this less ugly after migrating to mathcomp 2.x? *)                                        
   | |- is_true (@eq_op Datatypes_nat__canonical__eqtype_Equality _ _) => rewrite -eqnE; apply/eqnP
   | |- is_true (@eq_op BinNums_Z__canonical__eqtype_Equality _ _) => apply/Z_eqP
   | |- is_true (@eq_op BinNums_positive__canonical__eqtype_Equality _ _) => apply/Pos_eqP
   | |- is_true (@eq_op _ _ _) => apply/eqP
-  | |- context C [BinNums.Zpos (BinPos.Pos.of_succ_nat ?n)] =>
+  | |- context C [Zpos (Pos.of_succ_nat ?n)] =>
     rewrite -> (Znat.Zpos_P_of_succ_nat n);
     rewrite <- (Znat.Nat2Z.inj_succ n)
   | |- _ /\ _ => split
@@ -67,13 +67,13 @@ Ltac lias_simpl :=
     have L: (~ a <= b)%coq_nat;
     [ move=> ?; apply: H; apply/leP; by lia | clear H ]
   | H: context C [is_true (leq _ _)] |- _ => move: H => /leP H
-  | H: context C [is_true (BinNat.N.leb _ _)] |- _ => move: H => /BinNat.N.leb_spec0 H
-  | H: context C [is_true (BinNat.N.ltb _ _)] |- _ => move: H => /BinNat.N.ltb_spec0 H
+  | H: context C [is_true (N.leb _ _)] |- _ => move: H => /N.leb_spec0 H
+  | H: context C [is_true (N.ltb _ _)] |- _ => move: H => /N.ltb_spec0 H
   | H: context C [is_true (@eq_op Datatypes_nat__canonical__eqtype_Equality _ _)] |- _ => move: H; rewrite -eqnE => /eqnP H
   | H: context C [is_true (@eq_op BinNums_Z__canonical__eqtype_Equality _ _)] |- _ => move: H => /Z_eqP H
   | H: context C [is_true (@eq_op BinNums_positive__canonical__eqtype_Equality _ _)] |- _ => move: H => /Pos_eqP H 
   | H: context C [is_true (@eq_op _ _ _)] |- _ => move: H => /eqP H
-  | H: context C [BinNums.Zpos (BinPos.Pos.of_succ_nat ?n)] |- _ =>
+  | H: context C [Zpos (Pos.of_succ_nat ?n)] |- _ =>
     rewrite -> (Znat.Zpos_P_of_succ_nat n) in H;
     rewrite <- (Znat.Nat2Z.inj_succ n) in H
   (* The following cases have a higher chance of failing, and should be kept after this comment. *)

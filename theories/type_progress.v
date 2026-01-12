@@ -1,5 +1,6 @@
 From Wasm Require Export interpreter_ctx.
 From mathcomp Require Import ssreflect ssrbool eqtype.
+From Coq Require Import ZArith.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -25,7 +26,7 @@ Proof.
   (* initialise an interpreter cfg tuple *)
   destruct (interp_cfg_of_wasm (s, (f, es))) as [[[[s0 ccs] sc] oe] [Hfill Hvalid]].
   (* run the interpreter *)
-  remember (@run_one_step_ctx _ _ _ host_application_impl host_application_impl_correct hs (s0, ccs, sc, oe) BinNums.N0) as res.
+  remember (@run_one_step_ctx _ _ _ host_application_impl host_application_impl_correct hs (s0, ccs, sc, oe) 0%N) as res.
   destruct res as [hs' [[[s' ccs'] sc'] oe'] d Hred Hvalid' | s' f' vs Hvalfill | s' f' Htrapfill | Hcontra | Hcontra]; clear Heqres.
   (* step *)
   - unfold reduce_ctx in Hred.

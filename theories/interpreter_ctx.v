@@ -1,10 +1,9 @@
 (** Proof-carrying interpreter for Wasm, optimised for contexts **)
 
 From Wasm Require Export common properties tactic typing_inversion contexts.
-From Coq Require Import ZArith.BinInt Program.Equality.
+From Coq Require Import ZArith Program.Equality.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Export operations host.
-Require Import BinNat NArith BinNums ZArith.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -201,7 +200,7 @@ Proof.
         rewrite ctx_to_lh_aux_len => /=.
         repeat rewrite - catA => /=.
         rewrite add0n length_is_size size_takel; last by rewrite length_is_size in Hlablen; lias.
-        by rewrite N2Nat.id. 
+        by rewrite Nnat.N2Nat.id. 
       }
       
     (* Not enough values *)
@@ -1349,7 +1348,7 @@ the condition that all values should live in the operand stack. *)
                              $VN (VAL_int32 v2);
                              $VN (VAL_int32 ($u32oz (Z.sub ($zou32 v3) 1%Z)));
                             AI_basic (BI_memory_fill)] ++ es0),
-                          Some (AI_basic (BI_store T_i32 (Some Tp_i8) (Build_memarg 0%N 0%N)))), d>> => //.
+                          Some (AI_basic (BI_store T_i32 (Some Tp_i8) (Build_memarg N0 N0)))), d>> => //.
             resolve_reduce_ctx vs0 es0.
             by eapply r_memory_fill_step; eauto; lias.
           }
@@ -1396,8 +1395,8 @@ the condition that all values should live in the operand stack. *)
           (* copy -- forward *)
           { apply <<hs, (s, (fc, lcs) :: ccs',
                           ((VAL_num (VAL_int32 src)) :: (VAL_num (VAL_int32 dst)) :: vs0,
-                            [::(AI_basic (BI_store T_i32 (Some Tp_i8) (Build_memarg 0%N 0%N))); $VN (VAL_int32 ($u32oz (Z.add ($zou32 dst) 1))); $VN (VAL_int32 ($u32oz (Z.add ($zou32 src) 1%Z))); $VN (VAL_int32 ($u32oz (Z.sub ($zou32 n) 1))); AI_basic (BI_memory_copy)] ++ es0),
-                          Some (AI_basic (BI_load T_i32 (Some (Tp_i8, SX_U)) (Build_memarg 0%N 0%N)))), d>> => //.
+                            [::(AI_basic (BI_store T_i32 (Some Tp_i8) (Build_memarg N0 N0))); $VN (VAL_int32 ($u32oz (Z.add ($zou32 dst) 1))); $VN (VAL_int32 ($u32oz (Z.add ($zou32 src) 1%Z))); $VN (VAL_int32 ($u32oz (Z.sub ($zou32 n) 1))); AI_basic (BI_memory_copy)] ++ es0),
+                          Some (AI_basic (BI_load T_i32 (Some (Tp_i8, SX_U)) (Build_memarg N0 N0)))), d>> => //.
             resolve_reduce_ctx vs0 es0.
             by eapply r_memory_copy_forward; eauto; simpl in *; lias.
           }
@@ -1406,8 +1405,8 @@ the condition that all values should live in the operand stack. *)
                           ((VAL_num (VAL_int32 ($u32oz (Z.add ($zou32 src) (Z.sub ($zou32 n) 1))))) ::
                              (VAL_num (VAL_int32 ($u32oz (Z.add ($zou32 dst) (Z.sub ($zou32 n) 1))))) ::
                              vs0,
-                            [::(AI_basic (BI_store T_i32 (Some Tp_i8) (Build_memarg 0%N 0%N))); $VN (VAL_int32 dst); $VN (VAL_int32 src); $VN (VAL_int32 ($u32oz (Z.sub ($zou32 n) 1%Z))); AI_basic (BI_memory_copy)] ++ es0),
-                          Some (AI_basic (BI_load T_i32 (Some (Tp_i8, SX_U)) (Build_memarg 0%N 0%N)))), d>> => //.
+                            [::(AI_basic (BI_store T_i32 (Some Tp_i8) (Build_memarg N0 N0))); $VN (VAL_int32 dst); $VN (VAL_int32 src); $VN (VAL_int32 ($u32oz (Z.sub ($zou32 n) 1%Z))); AI_basic (BI_memory_copy)] ++ es0),
+                          Some (AI_basic (BI_load T_i32 (Some (Tp_i8, SX_U)) (Build_memarg N0 N0)))), d>> => //.
             resolve_reduce_ctx vs0 es0.
             eapply r_memory_copy_backward; eauto; simpl in *; try by lias.
           }
@@ -1463,7 +1462,7 @@ the condition that all values should live in the operand stack. *)
                                  $VN (VAL_int32 ($u32oz (Z.sub ($zou32 n) 1)));
                                  AI_basic (BI_memory_init x)
                                 ] ++ es0),
-                              Some (AI_basic (BI_store T_i32 (Some Tp_i8) (Build_memarg 0%N 0%N)))), d>> => //.
+                              Some (AI_basic (BI_store T_i32 (Some Tp_i8) (Build_memarg N0 N0)))), d>> => //.
                 resolve_reduce_ctx vs0 es0.
                 by eapply r_memory_init_step; eauto; simpl in *; lias.
               }

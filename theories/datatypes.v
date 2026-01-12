@@ -5,7 +5,7 @@
 
 From Wasm Require Export common numerics bytes memory simd.
 From compcert Require common.Memdata.
-Require Import BinNat.
+From Coq Require Import ZArith.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
