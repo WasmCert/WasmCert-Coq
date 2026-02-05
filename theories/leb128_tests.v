@@ -57,3 +57,7 @@ Proof. vm_compute. intros Heq; inversion Heq. Qed.
 Lemma encode_signed_minus64 :
   encode_signed (-64)%Z = (x40 :: nil).
 Proof. vm_compute. reflexivity. Qed.
+
+Lemma encode_signed_minus8192 :
+  encode_signed (-8192)%Z = (x80 :: x40 :: nil).
+Proof. vm_compute. reflexivity. Qed.
