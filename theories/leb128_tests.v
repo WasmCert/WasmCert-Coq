@@ -1,6 +1,7 @@
 From Wasm Require Import leb128 check_toks.
-From Coq Require Import Init.Byte ZArith.
+From Coq Require Import Init.Byte ZArith List.
 From parseque Require Import Running Induction.
+Import ListNotations.
 
 (** Example from Wikipedia article: https://en.wikipedia.org/wiki/LEB128#Unsigned_LEB128
    This is the representation of the number [624485]. **)
@@ -33,3 +34,26 @@ Lemma test_wikipedia_signed_encode:
 Proof.
   vm_compute. reflexivity.
 Qed.
+
+(* https://github.com/WasmCert/WasmCert-Coq/issues/83 *)
+Lemma encode_signed_minus65 :
+  encode_signed (-65)%Z = (xbf :: x7f :: nil).
+Proof. vm_compute. reflexivity. Qed.
+
+Lemma encode_signed_plus63 :
+  encode_signed 63%Z = (x3f :: nil).
+Proof. vm_compute. reflexivity. Qed.
+
+(** Injectivity at boundary *)
+Lemma encode_signed_collision :
+  encode_signed (-65)%Z <> encode_signed 63%Z.
+Proof. vm_compute. intros Heq; inversion Heq. Qed.
+
+Lemma encode_signed_minus8193 :
+  encode_signed (-8193)%Z <> encode_signed 8191%Z.
+Proof. vm_compute. intros Heq; inversion Heq. Qed.
+
+(** Boundary value -64 still encodes to canonical instead of c0 7f ---- *)
+Lemma encode_signed_minus64 :
+  encode_signed (-64)%Z = (x40 :: nil).
+Proof. vm_compute. reflexivity. Qed.

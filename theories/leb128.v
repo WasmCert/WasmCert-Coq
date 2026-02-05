@@ -1,4 +1,4 @@
-(* LEB128 integer format *)
+(* Custom implementation of LEB128 integer format -- unverified *)
 (* https://en.wikipedia.org/wiki/LEB128 *)
 From Coq Require Import ZArith Init.Byte.
 From parseque Require Import Parseque.
@@ -39,7 +39,16 @@ Definition incr_mod (len: nat) (pad: nat) : nat :=
 Fixpoint bits_of_pos_pad (acc: list bool) (len: nat) (pad: nat) (n: positive) : list bool :=
   match n with
   | xH =>
-    List.app (List.repeat false (pad - 1 - len)) (cons true acc)
+      let padbits := pad - 1 - len in
+      let padbits' :=
+        (* two’s complement needs an extra padding group for negative values
+           at 7-bit boundaries (except for 2^(7k) which would fit).
+           https://github.com/WasmCert/WasmCert-Coq/issues/83
+         *)
+        if andb (Nat.eqb padbits O) (negb (List.forallb negb acc))
+        then pad else padbits
+      in
+    List.app (List.repeat false padbits') (cons true acc)
   | xI n' =>
     bits_of_pos_pad (cons true acc) (incr_mod len pad) pad n'
   | xO n' =>
