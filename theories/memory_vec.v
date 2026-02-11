@@ -208,46 +208,36 @@ Section vector.
     by lias.
   Qed.
 
-  Program Definition vector_grow (vec: vector) (n: N) : option vector :=
-    let newsize := vector_length vec + n in
-    match newsize <=? byte_limit as p1 return ((newsize <=? byte_limit) = p1) -> _ with
-    | true => (fun _ => 
-        match newsize <=? vec.(v_capacity) as p2 return (newsize <=? vec.(v_capacity) = p2) -> _ with
-        | true =>
-            (fun _ => Some (@Build_vector vec.(v_data) newsize vec.(v_capacity) _ _ _))
-        | false =>
-            let new_capacity := (N.min (N.max newsize (vec.(v_capacity) * 2%N)) byte_limit) in
-            let new_vd := arr_make_copy new_capacity def_val vec.(v_data) vec.(v_size) in
-            (fun _ => Some (@Build_vector new_vd newsize new_capacity _ _ _))
-        end (Logic.eq_refl (newsize <=? vec.(v_capacity))))
-    | false => (fun _ => None)
-    end (Logic.eq_refl (newsize <=? byte_limit)).
-  Next Obligation.
-    by lias.
-  Qed.
-  Next Obligation.
-    by apply v_capacity_eq.
-  Qed.
-  Next Obligation.
-    unfold vector_length in *.
-    apply v_uninitialised; by lias.
-  Qed.
-  Next Obligation.
-    move/N.leb_spec0 in e0.
-    by lias.
-  Qed.
-  Next Obligation.
-    rewrite length_make_copy.
-    unfold max_arr_length.
-    by lias.
-  Qed.
-  Next Obligation.
-    unfold vector_length in *.
-    rewrite get_make_copy_default => //; try by lias.
-    rewrite - v_capacity_eq.
-    apply/N.leb_spec0.
-    by apply v_size_valid.
-  Qed.
+  Definition vector_grow (vec: vector) (n: N) : option vector.
+  Proof.
+    remember (vec.(v_size) + n) as newsize.
+    destruct (newsize <=? byte_limit) eqn: Hbound.
+    - destruct (newsize <=? vec.(v_capacity)) eqn: Hcap.
+      + refine (Some (@Build_vector vec.(v_data) newsize vec.(v_capacity) _ _ _)).
+        { by lias. }
+        { by apply v_capacity_eq. }
+        { unfold vector_length in *.
+          move => i Hnewsize Hcapi.
+          apply v_uninitialised; by lias.
+        }
+      + remember (N.min (N.max newsize (vec.(v_capacity) * 2%N)) byte_limit) as new_capacity.
+        refine (Some (@Build_vector (arr_make_copy new_capacity def_val vec.(v_data) vec.(v_size)) newsize new_capacity _ _ _)).
+        { move/N.leb_spec0 in Hbound; by lias. }
+        {  
+          rewrite length_make_copy.
+          unfold max_arr_length.
+          by lias.
+        }
+        { 
+          unfold vector_length in *.
+          move => i Hnewsize Hcapi.
+          rewrite get_make_copy_default => //; try by lias.
+          rewrite - v_capacity_eq.
+          apply/N.leb_spec0.
+          by apply v_size_valid.
+        }
+    - exact None.
+  Defined.
 
   Lemma vector_size_bound: forall vec,
       v_size vec <= byte_limit.
@@ -506,14 +496,12 @@ Proof.
   unfold mv_grow, vector_grow in *.
   simplify_dependent_case_hyp Hgrow.
   simplify_dependent_case; move => [<-] => /=; unfold mv_lookup, vector_lookup => /=; subst; unfold mv_length.
-  - replace (_ <? _) with true; last by lias.
+  - unfold vector_length; replace (_ <? _) with true; last by lias.
     f_equal.
     apply v_uninitialised; last by lias.
-    unfold vector_length in *.
     by lias.
-  - replace (_ <? _) with true; last by clear - Hlt; lias.
+  - unfold vector_length; replace (_ <? _) with true; last by clear - Hlt; lias.
     f_equal.
-    unfold vector_length in *.
     rewrite get_make_copy_default; try by lias.
     + apply/N.ltb_spec0.
       move/N.leb_spec0 in Hdep_case.
