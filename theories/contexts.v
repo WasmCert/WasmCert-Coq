@@ -2,7 +2,7 @@
     additional context stack to replace the inductive definition, since the evaluation context tree is
     guaranteed to be linear. **)
 
-From mathcomp Require Import ssreflect ssrnat ssrbool eqtype seq.
+From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From HB Require Import structures.
 From Coq Require Import Program NArith ZArith Wf_nat.
 From Wasm Require Export common operations datatypes_properties properties opsem typing_inversion tactic wasm_parray.
@@ -307,7 +307,7 @@ Definition ais_measure (LI: list administrative_instruction) : nat :=
   List.list_sum (map ai_measure LI).
 
 Lemma ais_measure_cat: forall l1 l2,
-    ais_measure (l1 ++ l2) = ais_measure l1 + ais_measure l2.
+    ais_measure (l1 ++ l2) = (ais_measure l1 + ais_measure l2)%nat.
 Proof.
   move => l1 l2.
   unfold ais_measure.
@@ -315,7 +315,7 @@ Proof.
 Qed.
 
 Lemma ais_measure_cons: forall x l,
-    ais_measure (x :: l) = ai_measure x + ais_measure l.
+    ais_measure (x :: l) = (ai_measure x + ais_measure l)%nat.
 Proof.
   done.
 Qed.
@@ -795,7 +795,7 @@ Definition ctx_to_lh (sc: seq_ctx) (lcs: list label_ctx) : {j & lholed j} :=
   ctx_to_lh_aux lcs (LH_base (rev sc.1) sc.2).
 
 Lemma ctx_to_lh_aux_len: forall lcs k (acc: lholed k),
-    projT1 (ctx_to_lh_aux lcs acc) = k + length lcs.
+    projT1 (ctx_to_lh_aux lcs acc) = (k + length lcs)%nat.
 Proof.
   induction lcs as [ | [lvs lk lces les]]; move => k acc => //=; first by rewrite addn0.
   by rewrite IHlcs; lias.

@@ -178,7 +178,7 @@ Proof.
   destruct (lookup_N lcs j) as [lab | ] eqn:Htar.
   - destruct lab as [lvs lk lces les].
     specialize (nth_error_Some_length Htar) as Hlablen; move/ltP in Hlablen.
-    destruct (lk <= length vs) eqn:Hvslen.
+    destruct (lk <= length vs)%nat eqn:Hvslen.
     + apply <<hs, (s, ((fc, drop (S (N.to_nat j)) lcs) :: ccs'), (take lk vs ++ lvs, lces ++ les), None), d>> => //.
       apply reduce_focus => //=.
       rewrite - (cat_take_drop ((N.to_nat j).+1) lcs) drop_size_cat; last by rewrite size_takel; apply nth_error_Some_length in Htar; lias => //.
@@ -229,7 +229,7 @@ Proof.
   destruct ccs' as [| ccs' cc0] using last_ind; first by resolve_invalid_typing.
   clear IHccs'.
   destruct fc as [lvs lk lf les].
-  destruct (lk <= length vs) eqn:Hvslen.
+  destruct (lk <= length vs)%nat eqn:Hvslen.
   - apply <<hs, (s, rcons ccs' cc0, (take lk vs ++ lvs, les), None), N.sub d 1>> => //=; last by destruct ccs'.
     unfold reduce_ctx => /=.
     rewrite rev_cons rev_rcons rcons_cons.
@@ -262,7 +262,7 @@ Proof.
     (* FC_func_native i (Tf t1s t2s) ts es *)
     + remember (length t1s) as n eqn:?.
       remember (length t2s) as m eqn:?.
-      destruct (length vs0 >= n) eqn:Hlen.
+      destruct (length vs0 >= n)%nat eqn:Hlen.
       (* true *)
       * destruct (split_n vs0 n) as [vs' vs''] eqn:Hsplit.
         destruct (default_vals ts) as [zs |] eqn:Hdefault.
@@ -271,7 +271,7 @@ Proof.
            the `default_vals` function needs to be made partial, and there should be
            a case split on the failure case due to an attempt on using the default values
            of non-defaultable types *)
-        { apply <<hs, (s, (Build_frame_ctx vs'' m (Build_frame (rev vs' ++ zs) i) es0, nil) :: (fc, lcs) :: ccs', (nil, nil), Some (AI_label m nil (to_e_list es))), N.add d 1>> => //=.
+        { apply <<hs, (s, (Build_frame_ctx vs'' m (Build_frame (arr_of_list (rev vs' ++ zs)) i) es0, nil) :: (fc, lcs) :: ccs', (nil, nil), Some (AI_label m nil (to_e_list es))), N.add d 1>> => //=.
           apply (@reduce_focus_pivot _ _ _ nil ([::(Build_frame_ctx vs'' m _ es0, nil)])) => //=.
           apply (list_label_ctx_eval.(ctx_reduce)) => //=.
           rewrite split_n_is_take_drop in Hsplit; injection Hsplit as <- <-.
@@ -302,7 +302,7 @@ Proof.
     + (* FC_func_host (Tf t1s t2s) cl' *)
       remember (length t1s) as n eqn:?.
       remember (length t2s) as m eqn:?.
-      destruct (length vs0 >= n) eqn:Hlen.
+      destruct (length vs0 >= n)%nat eqn:Hlen.
       * (* true *)
         destruct (split_n vs0 n) as [vs' vs''] eqn: Hsplit.
         destruct (host_application_impl hs s (Tf t1s t2s) cl' (rev vs')) as [hs' [[s' rves]|]] eqn:?.
@@ -374,7 +374,7 @@ Proof.
     (* arity of the frame should match the function type *)
     destruct (length ts2 == lk) eqn:Hfarity; move/eqP in Hfarity.
     (* Check for number of values against the consumed types of the function. Note that this is not a returning from the frame, therefore the arity is not checked against vs (unlike when returning) *)
-    + destruct (length ts1 <= length vs) eqn:Hvslen.
+    + destruct (length ts1 <= length vs)%nat eqn:Hvslen.
       * apply <<hs, (s, rcons ccs' cc0, (take (length ts1) vs ++ lvs, les), Some (AI_invoke a)), N.sub d 1>> => //=; last by destruct ccs'.
         unfold reduce_ctx => /=.
         rewrite rev_cons rev_rcons rcons_cons.
@@ -830,7 +830,7 @@ the condition that all values should live in the operand stack. *)
         by apply r_simple; apply rs_select_true.
         
     (* AI_basic (BI_local_get j) *)
-    - destruct (lookup_N fc.(FC_frame).(f_locs) j) as [vs_at_j|] eqn:?.
+    - destruct (locals_get fc.(FC_frame).(f_locs) j) as [vs_at_j|] eqn:Hget; rewrite locals_get_spec in Hget.
       (* Some vs_at_j *)
       + apply <<hs, (s, (fc, lcs) :: ccs', (vs_at_j :: vs0, es0), None), d>> => //.
         resolve_reduce_ctx vs0 es0.
@@ -844,11 +844,11 @@ the condition that all values should live in the operand stack. *)
     (* AI_basic (BI_local_set j) *)
     - destruct vs0 as [|v vs0]; first by no_args.
       (* v :: ves' *)
-      destruct (N.ltb j (N.of_nat (length fc.(FC_frame).(f_locs)))) eqn:Hlen.
+      destruct (N.ltb j (locals_len fc.(FC_frame).(f_locs))) eqn:Hlen; rewrite locals_len_spec in Hlen.
       (* true *)
-      + apply <<hs, (s, ((Build_frame_ctx (fc.(FC_val)) fc.(FC_arity) (Build_frame (set_nth v fc.(FC_frame).(f_locs) (N.to_nat j) v) fc.(FC_frame).(f_inst)) fc.(FC_post)), lcs) :: ccs', (vs0, es0), None), d>> => //.
+      + apply <<hs, (s, ((Build_frame_ctx (fc.(FC_val)) fc.(FC_arity) (Build_frame (locals_set fc.(FC_frame).(f_locs) j v) fc.(FC_frame).(f_inst)) fc.(FC_post)), lcs) :: ccs', (vs0, es0), None), d>> => //.
         resolve_reduce_ctx vs0 es0.
-        eapply r_local_set with (vd := v) => //=; by lias.
+        eapply r_local_set => //=; by lias.
       (* false *)
       + resolve_invalid_typing.
         unfold_frame_type Hftype.
@@ -1539,7 +1539,7 @@ the condition that all values should live in the operand stack. *)
     (* AI_basic (BI_block bt es) *)
     - destruct (expand fc.(FC_frame).(f_inst) bt) as [[t1s t2s] | ] eqn:Hexpand.
       (* Some t1s t2s *)
-      + destruct (length vs0 >= length t1s) eqn:Hlen.
+      + destruct (length vs0 >= length t1s)%nat eqn:Hlen.
         (* true *)
         * destruct (split_n vs0 (length t1s)) as [ves' ves''] eqn:Hsplit.
           apply <<hs, (s, (fc, lcs) :: ccs', (ves'', es0), Some (AI_label (length t2s) nil (vs_to_es ves' ++ to_e_list es))), d>> => //.
@@ -1572,7 +1572,7 @@ the condition that all values should live in the operand stack. *)
     (* AI_basic (BI_loop bt es) *)
     - destruct (expand fc.(FC_frame).(f_inst) bt) as [[t1s t2s] | ] eqn:Hexpand.
       (* Some t1s t2s *)
-      + destruct (length vs0 >= length t1s) eqn:Hlen.
+      + destruct (length vs0 >= length t1s)%nat eqn:Hlen.
         (* true *)
         * destruct (split_n vs0 (length t1s)) as [ves' ves''] eqn:Hsplit.
           apply <<hs, (s, (fc, lcs) :: ccs', (ves'', es0), Some (AI_label (length t1s) [::AI_basic (BI_loop bt es)] (vs_to_es ves' ++ to_e_list es))), d>> => //.
@@ -1920,7 +1920,7 @@ Defined.
 
 Fixpoint run_multi_step_ctx (fuel: nat) (hs: host_state) (cfg: cfg_tuple_ctx) (d: N) : (option unit) + (list value) :=
   match fuel with
-  | 0 => inl None
+  | 0%nat => inl None
   | S n =>
       match run_one_step hs cfg d with
       | RSC_normal hs' cfg' d' Hvalid HReduce =>

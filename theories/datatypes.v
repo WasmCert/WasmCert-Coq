@@ -1010,12 +1010,12 @@ Record store_record : Type := (* s *) {
 Section locals_array.
   
   Definition array: Type -> Type := wasm_parrayof.
-  Parameter array_deceq: forall A (a1 a2: array A), {a1 = a2} + {a1 <> a2}.
+  Parameter arr_deceq: forall A (a1 a2: array A), {a1 = a2} + {a1 <> a2}.
     
   Parameter arr_view: forall A, array A -> list A.
   Coercion arr_view : array >-> list.
 
-  Parameter arr_of_list: forall A, list A -> array A.
+  Parameter arr_of_list : forall A, list A -> array A.
 
   Axiom arr_view_of_list: forall A (l: list A),
       arr_view (arr_of_list l) = l.
@@ -1024,6 +1024,8 @@ Section locals_array.
   Parameter locals_set : forall {A}, array A -> N -> A -> array A.
   Parameter locals_len : forall {A}, array A -> N.
   Parameter locals_init : forall {A}, N -> A -> array A.
+  (* Slightly tricky for extraction *)
+  Parameter locals_cat: forall {A}, array A -> array A -> array A.
 
   Axiom locals_get_spec :
     forall A (l : array A) i,
@@ -1038,7 +1040,14 @@ Section locals_array.
       arr_view (locals_set l i x) =
         seq.set_nth x (arr_view l) (N.to_nat i) x.
 
+  Axiom locals_cat_spec:
+    forall A (l1 l2: array A),
+      arr_view (locals_cat l1 l2) =
+        List.app (arr_view l1) (arr_view l2).
+
 End locals_array.
+
+Notation " l1 ++ l2 " := (locals_cat l1 l2).
 
 (** std-doc:
 [https://www.w3.org/TR/wasm-core-2/exec/runtime.html#activations-and-frames]

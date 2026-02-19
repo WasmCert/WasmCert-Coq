@@ -69,6 +69,14 @@ Extract Constant ocaml_arr_set_gen => "Parray_shim.set_gen".
 Extract Constant ocaml_arr_length => "Parray_shim.length".
 Extract Constant ocaml_arr_copy => "Parray_shim.copy".
 
+(* locals *)
+Extract Constant arr_of_list => "Parray_shim.of_list".
+Extract Constant arr_deceq => "(fun a1 a2 -> a1 = a2)".
+Extract Constant locals_get => "(fun l i -> if i < ocaml_arr_length l then Some (ocaml_arr_get l i) else None)".
+Extract Constant locals_set => "ocaml_arr_set".
+Extract Constant locals_len => "ocaml_arr_length".
+
+
 (* Requires some custom rerouting *)
 Extract Constant SIMD_ops.app_vunop_str => "SIMD_ops.app_vunop_str".
 Extract Constant SIMD_ops.app_vbinop_str => "SIMD_ops.app_vbinop_str".

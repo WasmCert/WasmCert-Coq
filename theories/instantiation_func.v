@@ -293,14 +293,14 @@ Definition interp_instantiate (hs: host_state) (s : store_record) (m : module) (
                 inst_datas := nil;
                 inst_exports := nil;
               |} in
-            let f_init := Build_frame nil inst_init in
+            let f_init := Build_frame (arr_of_list nil) inst_init in
             match get_global_inits s f_init m.(mod_globals) with
             | None => (None, "Error in evaluating global initialisers")
             | Some g_inits =>
                 match get_elem_inits s f_init m.(mod_elems) with
                 | Some r_inits =>
                     let '(s', inst_final) := interp_alloc_module s m v_imps g_inits r_inits in
-                    let f_final := Build_frame nil inst_final in
+                    let f_final := Build_frame (arr_of_list nil) inst_final in
                     (Some (hs, s', f_final, get_init_expr_elems m.(mod_elems) ++ get_init_expr_datas m.(mod_datas) ++ get_init_expr_start m.(mod_start)), "")
                 | None => (None, "Error in evaluating elem initialisers")
                 end

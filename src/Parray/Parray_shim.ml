@@ -30,3 +30,5 @@ let set_gen a z len gen =
   Parray.set_gen a (int_of_z z) (int_of_z len) (fun id -> gen (z_of_int id))
 
 let default = Parray.default
+
+let of_list l = Parray.of_array (Array.of_list l) (Obj.magic 0)

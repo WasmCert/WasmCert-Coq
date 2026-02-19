@@ -770,7 +770,7 @@ Fixpoint pp_administrative_instruction (n : indentation) (e : administrative_ins
   | AI_frame n f es =>
     indent n (with_fg ae_style "frame " ++ string_of_nat n ++ newline) ++
     (* TODO: inst? *)
-    indent n (with_fg ae_style "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline) ++
+    indent n (with_fg ae_style "with values unimplemented" (* ++ pp_values_hint_empty f.(f_locs) *) ++ newline) ++
     pp_administrative_instructions (n.+1) es ++
     indent n (with_fg ae_style "end frame" ++ newline)
   end.

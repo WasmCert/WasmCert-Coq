@@ -297,7 +297,7 @@ HB.instance Definition exportinst_eqMixin := hasDecEq.Build exportinst eqexporti
 
 Definition frame_eq_dec : forall v1 v2 : frame, {v1 = v2} + {v1 <> v2}.
 Proof. decidable_equality.
-       by apply array_deceq.
+       by apply arr_deceq.
 Defined.
 
 Definition frame_eqb v1 v2 : bool := frame_eq_dec v1 v2.

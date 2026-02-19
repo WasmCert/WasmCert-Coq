@@ -632,11 +632,11 @@ Definition instantiate (s : store_record) (m : module) (v_imps : list extern_val
     List.Forall2 import_subtyping t_imps t_imps_mod /\
     alloc_module s m v_imps g_inits r_inits (s_end, inst) /\
     let inst_init := Build_moduleinst nil inst.(inst_funcs) nil nil (ext_globals v_imps) nil nil nil in
-    let f_init := Build_frame nil inst_init in
+    let f_init := Build_frame (arr_of_list nil) inst_init in
     (* Init values *)
     instantiate_globals f_init hs' s_end m g_inits /\
     instantiate_elems f_init hs' s_end m r_inits /\
-    f = Build_frame nil inst /\
+    f = Build_frame (arr_of_list nil) inst /\
       bes = get_init_expr_elems m.(mod_elems) ++ get_init_expr_datas m.(mod_datas) ++ get_init_expr_start m.(mod_start).
 
 End Instantiation_spec.

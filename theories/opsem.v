@@ -252,7 +252,7 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
         length ts1 = n ->
         length ts2 = m ->
         default_vals ts = Some defaults ->
-        reduce hs s f (ves ++ [::AI_invoke addr]) hs s f [::AI_frame m (Build_frame (vs ++ defaults) inst) [::AI_label m [::] (to_e_list es)]]
+        reduce hs s f (ves ++ [::AI_invoke addr]) hs s f [::AI_frame m (Build_frame (arr_of_list (vs ++ defaults)) inst) [::AI_label m [::] (to_e_list es)]]
   | r_invoke_host_success :
       forall a cl h t1s t2s ves vcs m n s s' r f hs hs',
         lookup_N s.(s_funcs) a = Some cl ->
@@ -291,10 +291,10 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
         lookup_N f.(f_locs) j = Some v ->
         reduce hs s f [::AI_basic (BI_local_get j)] hs s f [::v_to_e v]
   | r_local_set :
-      forall f f' i v s vd hs,
+      forall f f' i v s hs,
         f'.(f_inst) = f.(f_inst) ->
         N.to_nat i < length f.(f_locs) ->
-        f'.(f_locs) = set_nth vd f.(f_locs) (N.to_nat i) v ->
+        f'.(f_locs) = locals_set f.(f_locs) i v ->
         reduce hs s f [::v_to_e v; AI_basic (BI_local_set i)] hs s f' [::]
   | r_global_get :
       forall s f i v hs,

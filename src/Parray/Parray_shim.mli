@@ -13,3 +13,5 @@ val default : 'a t -> 'a
 val make    : Big_int_Z.big_int -> 'a -> 'a t
 val make_copy    : Big_int_Z.big_int -> 'a -> 'a t -> Big_int_Z.big_int -> 'a t
 val copy    : 'a t -> 'a t
+
+val of_list : 'a list -> 'a t
