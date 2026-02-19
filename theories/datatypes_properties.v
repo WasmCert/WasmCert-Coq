@@ -1,7 +1,7 @@
 (** Properties about Wasm datatypes (mainly equality relations) **)
 
 From Wasm Require Export datatypes.
-From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+From mathcomp Require Import ssreflect ssrnat ssrfun ssrbool eqtype seq.
 From HB Require Import structures.
 
 Set Implicit Arguments.
@@ -296,7 +296,9 @@ Definition eqexportinstP : Equality.axiom exportinst_eqb :=
 HB.instance Definition exportinst_eqMixin := hasDecEq.Build exportinst eqexportinstP.
 
 Definition frame_eq_dec : forall v1 v2 : frame, {v1 = v2} + {v1 <> v2}.
-Proof. decidable_equality. Defined.
+Proof. decidable_equality.
+       by apply array_deceq.
+Defined.
 
 Definition frame_eqb v1 v2 : bool := frame_eq_dec v1 v2.
 Definition eqframeP : Equality.axiom frame_eqb :=
@@ -363,7 +365,7 @@ Definition lholed_cast {k k'} (lh: lholed k) (Heq: k = k'): lholed k' :=
 
 (* Some combinations of theorem from standard library should give these as well,
    but it's not clear which ones are axiom free *)
-Theorem nat_eqdec_refl: forall k, PeanoNat.Nat.eq_dec k k = left (erefl k).
+Theorem nat_eqdec_refl: forall k, PeanoNat.Nat.eq_dec k k = left (Logic.eq_refl k).
 Proof.
   elim => //=.
   move => k IH.
@@ -384,7 +386,7 @@ Proof.
   by rewrite nat_eqdec_refl.
 Defined.
 
-Theorem nat_eqdec_unique: forall (k: nat) (H: k = k), H = erefl k.
+Theorem nat_eqdec_unique: forall (k: nat) (H: k = k), H = Logic.eq_refl k.
 Proof.
   move => k H.
   rewrite (nat_eqdec_aux H).
@@ -412,8 +414,8 @@ Definition lh_case: forall n (P: lholed n -> Type),
 Proof.
   move => n P H0 Hrec lh.
   destruct lh as [lvs les | n lvs k les lh les'].
-  - by specialize (H0 (erefl 0) lvs les).
-  - by specialize (Hrec _ (erefl (S n)) lvs k les lh les'). 
+  - by specialize (H0 (Logic.eq_refl 0) lvs les).
+  - by specialize (Hrec _ (Logic.eq_refl (S n)) lvs k les lh les'). 
 Defined.
 
 (* Decidable equality of lholed without eq_rect_eq *)

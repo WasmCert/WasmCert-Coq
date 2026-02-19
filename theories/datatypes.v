@@ -4,6 +4,7 @@
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 From Wasm Require Export common numerics bytes memory simd.
+From Wasm Require Import wasm_parray.
 From compcert Require common.Memdata.
 From Coq Require Import ZArith.
 
@@ -1005,17 +1006,49 @@ Record store_record : Type := (* s *) {
   s_datas: list datainst;
 }.
 
-                            
-(** std-doc:
 
+Section locals_array.
+  
+  Definition array: Type -> Type := wasm_parrayof.
+  Parameter array_deceq: forall A (a1 a2: array A), {a1 = a2} + {a1 <> a2}.
+    
+  Parameter arr_view: forall A, array A -> list A.
+  Coercion arr_view : array >-> list.
+
+  Parameter arr_of_list: forall A, list A -> array A.
+
+  Axiom arr_view_of_list: forall A (l: list A),
+      arr_view (arr_of_list l) = l.
+
+  Parameter locals_get : forall {A}, array A -> N -> option A.
+  Parameter locals_set : forall {A}, array A -> N -> A -> array A.
+  Parameter locals_len : forall {A}, array A -> N.
+  Parameter locals_init : forall {A}, N -> A -> array A.
+
+  Axiom locals_get_spec :
+    forall A (l : array A) i,
+      locals_get l i = List.nth_error (arr_view l) (N.to_nat i).
+
+  Axiom locals_len_spec :
+    forall A (l : array A),
+      locals_len l = N.of_nat (length (arr_view l)).
+
+  Axiom locals_set_spec :
+    forall A (l : array A) i x,
+      arr_view (locals_set l i x) =
+        seq.set_nth x (arr_view l) (N.to_nat i) x.
+
+End locals_array.
+
+(** std-doc:
 [https://www.w3.org/TR/wasm-core-2/exec/runtime.html#activations-and-frames]
 *)
 Record frame : Type := (* f *) {
-  f_locs: list value;
+  f_locs: array value;
   f_inst: moduleinst
 }.
 
-Definition empty_frame := Build_frame nil empty_moduleinst.
+Definition empty_frame := Build_frame (arr_of_list nil) empty_moduleinst.
 
 
 (** * Administrative Instructions **)

@@ -33,9 +33,6 @@ Class Array := {
     arr_copy : forall A, wasm_parrayof A -> wasm_parrayof A;
   }.
 
-Notation " t .[ i ] " := (arr_get t i) (at level 5).
-Notation " t .[ i <- a ] " := (arr_set t i a) (at level 5).
-
 (* Can't seem to assemble the type in OCaml since the type signature is not available *)
 
 Section Array_instance.
@@ -78,6 +75,9 @@ Section Array_axioms.
 Context {A: Type}.
 
 Local Definition array := wasm_parrayof A.
+
+Local Notation " t .[ i ] " := (arr_get t i).
+Local Notation " t .[ i <- a ] " := (arr_set t i a).
 
 Parameter get_out_of_bounds :
   forall (t : array) (i : N),

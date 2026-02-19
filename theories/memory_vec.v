@@ -8,7 +8,7 @@
 
 From mathcomp Require Import ssreflect ssrbool eqtype seq ssrnat.
 From Coq Require Import ZArith Lia.
-From Wasm Require Export numerics bytes wasm_parray common.
+From Wasm Require Import numerics bytes wasm_parray common.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
