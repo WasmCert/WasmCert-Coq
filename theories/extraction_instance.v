@@ -1,22 +1,17 @@
 (* The setup for extraction *)
 From Coq Require Import String ZArith.
-From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
+From mathcomp Require Import ssreflect ssrnat ssrbool eqtype seq.
 From HB Require Import structures.
-From Wasm Require Import numerics memory host interpreter_ctx instantiation_func pp.
+From Wasm Require Import numerics memory_vec binary_format_parser text_format_parser host interpreter_ctx instantiation_func pp.
 From ExtLib Require Import Structures.Monad IdentityMonad.
 
-From Wasm Require Import memory_vec binary_format_parser text_format_parser.
+(* This determines the memory instance used in the extracted runtime *)
+#[export]
+Instance memory_instance : BlockUpdateMemory := Memory_vec.
 
-Module Memory_instance.
-
-  Definition memory_instance := Memory_vec.
-  
-End Memory_instance.
-
-  
 (* A more general extraction that allows non-trivial host functions, extracting the interpreter as a functor-like module. Not using the monadic design yet as that requires corresponding changes to the interpreter as well. *)
 Module Type Parametric_host.
-
+  
   Parameter host_function: Type.
 
   Parameter host_function_eq_dec: forall (a b: host_function),

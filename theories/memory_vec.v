@@ -8,7 +8,7 @@
 
 From mathcomp Require Import ssreflect ssrbool eqtype seq ssrnat.
 From Coq Require Import ZArith Lia.
-From Wasm Require Import numerics bytes memory common.
+From Wasm Require Export numerics bytes wasm_parray common.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -16,133 +16,14 @@ Unset Printing Implicit Defensive.
 
 Open Scope N_scope.
 
-(* Persistent vector, but removing some functions and relaxing the max_length
-   to 2^32-1. Also adding a different method of creating an array for
-   growing vectors.
- *)
-Section Array.
-
-Context {A: Type}.
-  
-Parameter array : Type -> Type.
-Parameter arr_make : N -> A -> array A.
-(* The same as make but initialises its prefix with values from
-   the prefix of another array.
-   Does not overflow if the length exceeds the make length.
-   This is used in the vector_grow function.
- *)
-Parameter arr_make_copy: N -> A -> array A -> N -> array A.
-Parameter arr_get : array A -> N -> A.
-Parameter arr_default : array A -> A.
-Parameter arr_set : array A -> N -> A -> array A.
-(* Takes the length and the generator for the block *)
-Parameter arr_set_gen : array A -> N -> N -> (N -> A) -> array A.
-Parameter arr_length : array A -> N.
-Parameter arr_copy : array A -> array A.
-
-Definition max_arr_length : N := byte_limit.
-
-Notation " t .[ i ] " := (arr_get t i) (at level 5).
-Notation " t .[ i <- a ] " := (arr_set t i a) (at level 5).
-
-Parameter get_out_of_bounds :
-  forall (t : array A) (i : N),
-    N.ltb i (arr_length t) = false -> t.[i] = arr_default t.
-Parameter get_set_same :
-  forall (t : array A) (i : N) (a : A),
-    N.ltb i (arr_length t) = true -> t.[i<-a].[i] = a.
-Parameter get_set_other :
-  forall (t : array A) (i j : N) (a : A),
-    i <> j -> t.[i<-a].[j] = t.[j].
-Parameter default_set :
-  forall (t : array A) (i : N) (a : A),
-    arr_default t.[i<-a] = arr_default t.
-Parameter get_make :
-  forall (a : A) (size i : N),
-    (arr_make size a).[i] = a.
-Parameter get_make_copy:
-  forall (a: A) (size i: N) (t: array A) (initlen: N),
-    N.ltb i size ->
-    N.leb initlen (arr_length t) ->
-    N.ltb i (arr_length t) ->
-    (arr_make_copy size a t initlen).[i] = t.[i].
-Parameter get_make_copy_default:
-  forall (a: A) (size i: N) (t: array A) (initlen: N),
-    N.ltb i size ->
-    N.leb initlen (arr_length t) ->
-    N.leb initlen i ->
-    (arr_make_copy size a t initlen).[i] = a.
-Parameter leb_length :
-  forall (t : array A),
-    N.leb (arr_length t) max_arr_length = true.
-Parameter length_make :
-  forall (size : N) (a : A),
-    arr_length (arr_make size a) =
-      N.min size max_arr_length.
-Parameter length_make_copy :
-  forall (size : N) (a : A) (t: array A) (initlen: N),
-    arr_length (arr_make_copy size a t initlen) =
-      N.min size max_arr_length.
-Parameter length_set :
-  forall (t : array A) (i : N) (a : A),
-    arr_length t.[i<-a] = arr_length t.
-
-(* Some added axioms for set_gen *)
-Parameter length_set_gen :
-  forall (t : array A) (i : N) (len: N) (gen: N -> A),
-    arr_length (arr_set_gen t i len gen) = arr_length t.
-
-Parameter arr_set_gen_lookup:
-  forall n len gen m i,
-    N.ltb i len ->
-    arr_get (arr_set_gen m n len gen) (N.add n i) = (gen i).
-
-Parameter arr_set_gen_lt:
-  forall n len gen m i,
-    N.ltb i n ->
-    arr_get (arr_set_gen m n len gen) i = arr_get m i.
-
-Parameter arr_set_gen_ge:
-  forall n len gen m i,
-    N.leb (N.add n len) i ->
-    arr_get (arr_set_gen m n len gen) i = arr_get m i.
-                                         
-Parameter get_copy :
-  forall (t : array A) (i : N),
-    (arr_copy t).[i] = t.[i].
-Parameter length_copy :
-  forall (t : array A), arr_length (arr_copy t) = arr_length t.
-Parameter array_ext :
-  forall (t1 t2 : array A),
-    arr_length t1 = arr_length t2 ->
-    (forall i : N,
-        N.ltb i (arr_length t1) = true -> t1.[i] = t2.[i]) ->
-    arr_default t1 = arr_default t2 -> t1 = t2.
-Parameter default_copy :
-  forall (t : array A), arr_default (arr_copy t) = arr_default t.
-Parameter default_make :
-  forall (a : A) (size : N),
-    arr_default (arr_make size a) = a.
-Parameter get_set_same_default :
-  forall (t : array A) (i : N),
-    t.[i<-arr_default t].[i] = arr_default t.
-Parameter get_not_default_lt :
-  forall (t : array A) (x : N),
-    t.[x] <> arr_default t -> N.ltb x (arr_length t) = true.
-
-End Array.
-
-(* A slightly modified implementation of growable arrays, given that point
-   update is too slow. *)
+(* Geometric-growth vectors as dependent records *)
 Section vector.
-  Context {T: Type}.
+  Context {T: Type} {def_val: T}.
 
   Implicit Types x : T.
-
-  Context `{def_val: T}.
   
   Record vector :=
-    { v_data: array T;
+    { v_data: wasm_parrayof T;
       v_size: N;
       v_capacity: N;
       v_init: T := def_val;
@@ -208,46 +89,36 @@ Section vector.
     by lias.
   Qed.
 
-  Program Definition vector_grow (vec: vector) (n: N) : option vector :=
-    let newsize := vector_length vec + n in
-    match newsize <=? byte_limit as p1 return ((newsize <=? byte_limit) = p1) -> _ with
-    | true => (fun _ => 
-        match newsize <=? vec.(v_capacity) as p2 return (newsize <=? vec.(v_capacity) = p2) -> _ with
-        | true =>
-            (fun _ => Some (@Build_vector vec.(v_data) newsize vec.(v_capacity) _ _ _))
-        | false =>
-            let new_capacity := (N.min (N.max newsize (vec.(v_capacity) * 2%N)) byte_limit) in
-            let new_vd := arr_make_copy new_capacity def_val vec.(v_data) vec.(v_size) in
-            (fun _ => Some (@Build_vector new_vd newsize new_capacity _ _ _))
-        end (Logic.eq_refl (newsize <=? vec.(v_capacity))))
-    | false => (fun _ => None)
-    end (Logic.eq_refl (newsize <=? byte_limit)).
-  Next Obligation.
-    by lias.
-  Qed.
-  Next Obligation.
-    by apply v_capacity_eq.
-  Qed.
-  Next Obligation.
-    unfold vector_length in *.
-    apply v_uninitialised; by lias.
-  Qed.
-  Next Obligation.
-    move/N.leb_spec0 in e0.
-    by lias.
-  Qed.
-  Next Obligation.
-    rewrite length_make_copy.
-    unfold max_arr_length.
-    by lias.
-  Qed.
-  Next Obligation.
-    unfold vector_length in *.
-    rewrite get_make_copy_default => //; try by lias.
-    rewrite - v_capacity_eq.
-    apply/N.leb_spec0.
-    by apply v_size_valid.
-  Qed.
+  Definition vector_grow (vec: vector) (n: N) : option vector.
+  Proof.
+    remember (vec.(v_size) + n) as newsize.
+    destruct (newsize <=? byte_limit) eqn: Hbound.
+    - destruct (newsize <=? vec.(v_capacity)) eqn: Hcap.
+      + refine (Some (@Build_vector vec.(v_data) newsize vec.(v_capacity) _ _ _)).
+        { by lias. }
+        { by apply v_capacity_eq. }
+        { unfold vector_length in *.
+          move => i Hnewsize Hcapi.
+          apply v_uninitialised; by lias.
+        }
+      + remember (N.min (N.max newsize (vec.(v_capacity) * 2%N)) byte_limit) as new_capacity.
+        refine (Some (@Build_vector (arr_make_copy new_capacity def_val vec.(v_data) vec.(v_size)) newsize new_capacity _ _ _)).
+        { move/N.leb_spec0 in Hbound; by lias. }
+        {  
+          rewrite length_make_copy.
+          unfold max_arr_length.
+          by lias.
+        }
+        { 
+          unfold vector_length in *.
+          move => i Hnewsize Hcapi.
+          rewrite get_make_copy_default => //; try by lias.
+          rewrite - v_capacity_eq.
+          apply/N.leb_spec0.
+          by apply v_size_valid.
+        }
+    - exact None.
+  Defined.
 
   Lemma vector_size_bound: forall vec,
       v_size vec <= byte_limit.
@@ -314,8 +185,7 @@ Section MemoryVec.
     move => i len Hlen /=.
     unfold mv_lookup, vector_lookup.
     setoid_rewrite mv_make_length.
-    move/N.ltb_spec0 in Hlen; rewrite Hlen => /=.
-    unfold mv_make => /=.
+    move/N.ltb_spec0 in Hlen; rewrite Hlen.
     by rewrite get_make.
   Qed.
 
@@ -505,7 +375,7 @@ Proof.
   move => n len mem mem' i Hlt Hgrow Hlen.
   unfold mv_grow, vector_grow in *.
   simplify_dependent_case_hyp Hgrow.
-  simplify_dependent_case; move => [<-] => /=; unfold mv_lookup, vector_lookup => /=; subst; unfold mv_length.
+  simplify_dependent_case; move => [<-] => /=; unfold mv_lookup, vector_lookup => /=; subst; unfold mv_length, vector_length.
   - replace (_ <? _) with true; last by lias.
     f_equal.
     apply v_uninitialised; last by lias.

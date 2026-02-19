@@ -5,7 +5,7 @@ let clock_ms () =
       int_of_float (time *. 1000.0)
 
 module Ocaml_host: Extract.Parametric_host = struct
-
+  
   type host_function = int
   let host_function_eq_dec a b = (a = b)
 
