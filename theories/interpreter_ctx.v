@@ -1539,12 +1539,15 @@ the condition that all values should live in the operand stack. *)
     (* AI_basic (BI_block bt es) *)
     - destruct (expand fc.(FC_frame).(f_inst) bt) as [[t1s t2s] | ] eqn:Hexpand.
       (* Some t1s t2s *)
-      + destruct (length vs0 >= length t1s)%nat eqn:Hlen.
+      + remember (length t1s) as len1.
+        destruct (length vs0 >= len1)%nat eqn:Hlen.
         (* true *)
-        * destruct (split_n vs0 (length t1s)) as [ves' ves''] eqn:Hsplit.
-          apply <<hs, (s, (fc, lcs) :: ccs', (ves'', es0), Some (AI_label (length t2s) nil (vs_to_es ves' ++ to_e_list es))), d>> => //.
+        * destruct (split_n vs0 len1) as [ves' ves''] eqn:Hsplit.
+          apply <<hs, (s, (fc, (Build_label_ctx ves'' (length t2s) nil es0) :: lcs) :: ccs', (ves', (to_e_list es)), None), d>> => //.
           rewrite split_n_is_take_drop in Hsplit; injection Hsplit as ??; subst.
-          resolve_reduce_ctx ves'' es0.
+          apply reduce_focus => //=.
+          apply list_label_ctx_eval.(ctx_reduce) => //=.
+          unfold label_ctx_fill => /=.
           resolve_reduce_ctx (drop (length t1s) vs0) es0.
           2: {
             instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0))) ++ [::AI_basic (BI_block bt es)]).
@@ -1572,12 +1575,15 @@ the condition that all values should live in the operand stack. *)
     (* AI_basic (BI_loop bt es) *)
     - destruct (expand fc.(FC_frame).(f_inst) bt) as [[t1s t2s] | ] eqn:Hexpand.
       (* Some t1s t2s *)
-      + destruct (length vs0 >= length t1s)%nat eqn:Hlen.
+      + remember (length t1s) as len1.
+        destruct (length vs0 >= len1)%nat eqn:Hlen.
         (* true *)
-        * destruct (split_n vs0 (length t1s)) as [ves' ves''] eqn:Hsplit.
-          apply <<hs, (s, (fc, lcs) :: ccs', (ves'', es0), Some (AI_label (length t1s) [::AI_basic (BI_loop bt es)] (vs_to_es ves' ++ to_e_list es))), d>> => //.
+        * destruct (split_n vs0 len1) as [ves' ves''] eqn:Hsplit.
+          apply <<hs, (s, (fc, (Build_label_ctx ves'' len1 [::AI_basic (BI_loop bt es)] es0) :: lcs) :: ccs', (ves', (to_e_list es)), None), d>> => //.
           rewrite split_n_is_take_drop in Hsplit; injection Hsplit as ??; subst.
-          resolve_reduce_ctx ves'' es0.
+          apply reduce_focus => //=.
+          apply list_label_ctx_eval.(ctx_reduce) => //=.
+          unfold label_ctx_fill => /=.
           resolve_reduce_ctx (drop (length t1s) vs0) es0.
           2: {
             instantiate (1 := (v_to_e_list (rev (take (length t1s) vs0))) ++ [::AI_basic (BI_loop bt es)]).

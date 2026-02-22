@@ -1131,6 +1131,7 @@ Proof.
     by apply r_frame.
 Qed.
 
+(* ctxs reduction can be focused on the content within the innermost frame only, if the frame is identical. *)
 Lemma reduce_focus: forall ccs hs s lcs sc oe hs' s' lcs' sc' oe' fc fc',
     fc.(FC_val) = fc'.(FC_val) ->
     fc.(FC_post) = fc'.(FC_post) ->
@@ -1141,6 +1142,7 @@ Proof.
   intros; by apply (@reduce_focus_pivot nil nil).
 Qed.
 
+(* ctxs reduction can be focused on the content within the innermost label only, if both the frame and the lable contexts are identical. *)
 Lemma reduce_focus_id: forall ccs hs s lcs sc oe hs' s' sc' oe' fc fc',
     fc.(FC_val) = fc'.(FC_val) ->
     fc.(FC_post) = fc'.(FC_post) ->
