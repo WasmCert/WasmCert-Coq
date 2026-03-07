@@ -1,7 +1,7 @@
 (** an implementation of Wasm memory based on a list *)
 
 From mathcomp Require Import ssreflect ssrbool eqtype seq ssrnat.
-From Coq Require Import BinNums ZArith NArith Lia.
+From Stdlib Require Import BinNums ZArith NArith Lia.
 From Wasm Require Import numerics bytes memory common.
 
 Set Implicit Arguments.

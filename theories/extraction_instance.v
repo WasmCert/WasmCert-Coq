@@ -1,5 +1,5 @@
 (* The setup for extraction *)
-From Coq Require Import String ZArith.
+From Stdlib Require Import String ZArith.
 From mathcomp Require Import ssreflect ssrnat ssrbool eqtype seq.
 From HB Require Import structures.
 From Wasm Require Import numerics memory_vec binary_format_parser text_format_parser host interpreter_ctx instantiation_func pp.

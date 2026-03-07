@@ -3,7 +3,7 @@
 From compcert Require Import Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Export bytes_pp datatypes interpreter_ctx ansi list_extra.
-From Coq Require Import Strings.String Init.Decimal ZArith.
+From Stdlib Require Import Strings.String Init.Decimal ZArith.
 
 Open Scope string_scope.
 

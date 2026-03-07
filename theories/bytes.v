@@ -3,7 +3,7 @@
 
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From Wasm Require Import common.
-From Coq Require Import ZArith.
+From Stdlib Require Import ZArith.
 From compcert Require Import Integers.
 From parseque Require Import Char.
 From HB Require Import structures.
@@ -50,7 +50,7 @@ Definition byte_of_compcert_byte (b : byte) : Byte.byte :=
   | Some b' => b'
   end.
 
-Require Import ZArith.
+From Stdlib Require Import ZArith.
 
 Theorem compcert_byte_roundtrip: forall (b: byte),
     compcert_byte_of_byte (byte_of_compcert_byte b) = b.

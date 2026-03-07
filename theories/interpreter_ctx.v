@@ -1,7 +1,7 @@
 (** Proof-carrying interpreter for Wasm, optimised for contexts **)
 
 From Wasm Require Export common properties tactic typing_inversion contexts.
-From Coq Require Import ZArith Program.Equality.
+From Stdlib Require Import ZArith Program.Equality.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Export operations host.
 

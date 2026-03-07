@@ -1,7 +1,7 @@
 (** Properties of instantiation spec **)
 
 From mathcomp Require Import ssreflect eqtype seq ssrbool ssrfun ssrnat.
-Require Import Coq.Program.Equality NArith.
+From Stdlib Require Import Program.Equality NArith.
 Require Export instantiation_spec.
 Require Export type_preservation properties.
 

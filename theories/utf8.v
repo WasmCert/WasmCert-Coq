@@ -1,6 +1,6 @@
 (* utf8 validity for strings *)
 
-From Coq Require Import Strings.Byte List ZArith.
+From Stdlib Require Import Strings.Byte List ZArith.
 
 Section utf8.
 

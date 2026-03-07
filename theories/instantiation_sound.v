@@ -5,7 +5,7 @@
 
 From mathcomp Require Import ssreflect ssrbool eqtype seq ssrnat.
 From Wasm Require Import instantiation_spec instantiation_properties type_preservation.
-From Coq Require Import ZArith.
+From Stdlib Require Import ZArith.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

@@ -3,7 +3,7 @@
 
 Set Implicit Arguments.
 
-From Coq Require Import List.
+From Stdlib Require Import List.
 From ExtLib Require Import Structures.Monad.
 
 (** Given list of option types, check that all options are [Some]

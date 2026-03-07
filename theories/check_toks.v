@@ -1,7 +1,7 @@
 
 From compcert Require Import Integers.
 From parseque Require Import Parseque Running.
-Require Import PeanoNat.
+From Stdlib Require Import PeanoNat.
 
 Section Check.
 

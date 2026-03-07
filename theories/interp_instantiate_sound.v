@@ -4,7 +4,7 @@
 
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From Wasm Require Import interpreter_ctx instantiation_func instantiation_properties type_checker_reflects_typing.
-From Coq Require Import Program.
+From Stdlib Require Import Program.
 
 Section Host.
 

@@ -6,7 +6,7 @@
 From Wasm Require Import datatypes_properties typing leb128 utf8.
 From compcert Require Import Integers.
 From parseque Require Import Parseque.
-From Coq Require Import Strings.Byte ZArith.
+From Stdlib Require Import Strings.Byte ZArith.
 
 Notation "p $> b" := (cmap b p) (at level 59, right associativity).
 

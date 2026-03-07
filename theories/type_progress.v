@@ -1,6 +1,6 @@
 From Wasm Require Export interpreter_ctx.
 From mathcomp Require Import ssreflect ssrbool eqtype.
-From Coq Require Import ZArith.
+From Stdlib Require Import ZArith.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

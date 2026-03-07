@@ -4,8 +4,8 @@
 From Wasm Require Import datatypes_properties typing numerics.
 From compcert Require Import Integers.
 From parseque Require Import Parseque.
-Require Import Strings.Byte Strings.String.
-Require Import ZArith.
+From Stdlib Require Import Strings.Byte Strings.String.
+From Stdlib Require Import ZArith.
 
 Open Scope N.
 Open Scope Z.

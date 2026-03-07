@@ -4,7 +4,7 @@
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From compcert Require Floats.
 From Wasm Require Export common memory datatypes_properties list_extra simd_execute.
-From Coq Require Import ZArith.
+From Stdlib Require Import ZArith.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

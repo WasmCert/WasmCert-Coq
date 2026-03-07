@@ -1,6 +1,6 @@
 (** Extraction to OCaml. **)
 
-From Coq Require Extraction.
+From Stdlib Require Extraction.
 From Wasm Require Import
   datatypes_properties
   binary_format_parser
@@ -17,7 +17,7 @@ From Wasm Require Import
 
 From Stdlib Require Import ZArith.
 
-From Coq Require Import
+From Stdlib Require Import
   extraction.ExtrOcamlBasic
   extraction.ExtrOcamlNativeString
   extraction.ExtrOcamlZBigInt

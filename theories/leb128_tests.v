@@ -1,5 +1,5 @@
 From Wasm Require Import leb128 check_toks.
-From Coq Require Import Init.Byte ZArith List.
+From Stdlib Require Import Init.Byte ZArith List.
 From parseque Require Import Running Induction.
 Import ListNotations.
 

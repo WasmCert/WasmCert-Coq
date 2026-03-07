@@ -1,7 +1,7 @@
 (** Common useful definitions **)
 (* (C) M. Bodin - see LICENSE.txt *)
 
-From Coq Require Import Lia Wf_nat ZArith.
+From Stdlib Require Import Lia Wf_nat ZArith.
 From mathcomp Require Import ssreflect ssrnat ssrbool seq eqtype.
 From compcert Require Integers.
 From HB Require Import structures.

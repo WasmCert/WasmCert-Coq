@@ -3,7 +3,7 @@ Breaks non-determinism ties; see binary_format_spec.v for the spec. *)
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Import datatypes_properties numerics common list_extra leb128.
 From compcert Require Integers.
-From Coq Require Import ZArith Strings.Byte.
+From Stdlib Require Import ZArith Strings.Byte.
 
 Definition binary_of_number_type (t: number_type) : byte :=
   match t with

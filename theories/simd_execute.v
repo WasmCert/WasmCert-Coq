@@ -1,6 +1,6 @@
 From mathcomp Require Import ssreflect ssrbool eqtype seq ssrnat.
 From Wasm Require Import datatypes.
-From Coq Require Import String.
+From Stdlib Require Import String.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

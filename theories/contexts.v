@@ -4,9 +4,9 @@
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From HB Require Import structures.
-From Coq Require Import Program NArith ZArith Wf_nat.
+From Stdlib Require Import Program NArith ZArith Wf_nat.
 From Wasm Require Export common operations datatypes_properties properties opsem typing_inversion tactic.
-Require Import FunInd Recdef.
+From Stdlib Require Import FunInd Recdef.
 
 Set Implicit Arguments.
 Unset Strict Implicit.

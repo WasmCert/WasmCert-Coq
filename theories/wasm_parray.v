@@ -2,7 +2,7 @@
  *)
 
 From mathcomp Require Import ssreflect ssrbool eqtype seq ssrnat.
-From Coq Require Import ZArith Lia.
+From Stdlib Require Import ZArith Lia.
 From Wasm Require Export memory.
 
 Set Implicit Arguments.
