@@ -15,9 +15,8 @@ From Wasm Require Import
   extraction_instance
 .
 
-Require Import ZArith PArith.
+From Stdlib Require Import ZArith.
 
-From Coq Require PArray.
 From Coq Require Import
   extraction.ExtrOcamlBasic
   extraction.ExtrOcamlNativeString
