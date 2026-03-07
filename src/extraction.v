@@ -11,6 +11,7 @@ From Wasm Require Import
   pp
   host
   simd_execute
+  wasm_parray
   extraction_instance
 .
 
@@ -58,20 +59,18 @@ Extract Constant Zbits.P_mod_two_p => "(fun x n -> Big_int_Z.and_big_int x (Big_
 (* The list lookup function is extracted to using OCaml's native list lookup function instead of converting the index to natural (as that explodes when the lookup index is too big). *)
 Extract Constant lookup_N => "(fun l n -> List.nth_opt l (Big_int_Z.int_of_big_int n))".
 
-(* This could be done better using module types *)
-Extract Constant memory_vec.array "'a" => "Parray_shim.t".
-Extraction Inline memory_vec.array.
+(* Persistent array *)
+Extract Constant wasm_parrayof "'a" => "'a Parray_shim.t".
+Extract Constant ocaml_arr_make => "Parray_shim.make".
+Extract Constant ocaml_arr_make_copy => "Parray_shim.make_copy".
+Extract Constant ocaml_arr_get => "Parray_shim.get".
+Extract Constant ocaml_arr_default => "Parray_shim.default".
+Extract Constant ocaml_arr_set => "Parray_shim.set".
+Extract Constant ocaml_arr_set_gen => "Parray_shim.set_gen".
+Extract Constant ocaml_arr_length => "Parray_shim.length".
+Extract Constant ocaml_arr_copy => "Parray_shim.copy".
 
 (* Requires some custom rerouting *)
-
-Extract Constant memory_vec.arr_make => "Parray_shim.make".
-Extract Constant memory_vec.arr_make_copy => "Parray_shim.make_copy".
-Extract Constant memory_vec.arr_get => "Parray_shim.get".
-Extract Constant memory_vec.arr_default => "Parray_shim.default".
-Extract Constant memory_vec.arr_set => "Parray_shim.set".
-Extract Constant memory_vec.arr_set_gen => "Parray_shim.set_gen".
-Extract Constant memory_vec.arr_length => "Parray_shim.length".
-Extract Constant memory_vec.arr_copy => "Parray_shim.copy".
 
 Extract Constant SIMD_ops.app_vunop_str => "SIMD_ops.app_vunop_str".
 Extract Constant SIMD_ops.app_vbinop_str => "SIMD_ops.app_vbinop_str".
