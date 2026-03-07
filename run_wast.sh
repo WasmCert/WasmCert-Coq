@@ -17,6 +17,9 @@ if (( ${#files[@]} == 0 )); then
   exit 0
 fi
 
+dune build
+exe="_build/default/src/wasm_coq_interpreter.exe"
+
 total_passed=0
 total_tests=0
 
@@ -25,7 +28,7 @@ for wastfile in "${files[@]}"; do
   tmpfile=$(mktemp)
   cleaned=$(mktemp)
 
-  dune exec -- wasm_coq_interpreter --wast "$wastfile" | tee "$tmpfile"
+  "$exe" --wast "$wastfile" | tee "$tmpfile"
   tr -d '\r' < "$tmpfile" | sed 's/\x1b\[[0-9;]*m//g' > "$cleaned"
 
   if result_line=$(grep -m1 "Result: " "$cleaned"); then

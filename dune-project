@@ -1,5 +1,5 @@
-(lang dune 3.11)
-(using coq 0.2)
+(lang dune 3.17)
+(using coq 0.10)
 (using mdx 0.2)
 (name coq-wasm)
 (version 2.2.1)
@@ -7,8 +7,6 @@
 (generate_opam_files true)
 (license MIT)
 (source (github WasmCert/WasmCert-Coq))
-
-(warnings (deprecated_coq_lang_lt_08 disabled))
 
 (package
   (name coq-wasm)
@@ -21,8 +19,7 @@
     (coq-mathcomp-ssreflect (and (>= 2.4.0) (<= 2.5~)))
     (rocq-parseque (>= 0.2.0))
     (cmdliner (>= 1.1.0))
-    (linenoise (>= 1.4.0))
-    (mdx (>= 1.9.0))
+    (mdx (and (>= 1.9.0) :with-test))
     (wasm (and (>= 2.0.2) (<= 2.0.2)))
     (zarith (>= 1.11))
     (menhir (<= 20250912))

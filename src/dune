@@ -1,7 +1,7 @@
 (coq.extraction
   (prelude extraction)
   (extracted_modules extract)
-  (theories Wasm)
+  (theories Wasm Stdlib compcert Flocq mathcomp ExtLib elpi elpi_elpi HB parseque)
   (flags -w "-extraction-reserved-identifier")
 )
 

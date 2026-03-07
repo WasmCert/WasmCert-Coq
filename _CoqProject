@@ -1,2 +1,2 @@
 -R _build/default/theories Wasm
--w overwriting-delimiting-key
+-w -notation-overridden,-abstract-large-number,-hiding-delimiting-key,-overwriting-delimiting-key

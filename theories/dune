@@ -1,5 +1,6 @@
 (coq.theory
   (name Wasm)
   (package coq-wasm)
+  (theories Stdlib compcert Flocq mathcomp ExtLib elpi elpi_elpi HB parseque)
   (flags -w "-notation-overridden,-abstract-large-number,-hiding-delimiting-key,-overwriting-delimiting-key")
 )
