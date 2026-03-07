@@ -41,6 +41,8 @@ jobs:
 
               sudo chmod 777 ~/. -R
               sudo chmod 777 . -R
+
+              opam install mdx --yes
             endGroup
           after_script: |
             startGroup "List installed packages"
