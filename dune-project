@@ -4,7 +4,6 @@
 (name coq-wasm)
 (version 2.2.1)
 
-(generate_opam_files true)
 (license MIT)
 (source (github WasmCert/WasmCert-Coq))
 
