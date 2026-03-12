@@ -1,7 +1,7 @@
 # wasm_coq
 A WebAssembly (aka Wasm) formalisation in Coq(Rocq), based on the [official specification](https://webassembly.github.io/spec/core/).
 
-(C) M. Bodin, P. Gardner, J. Pichon, C. Watt, X. Rao 2019-2025 - see LICENSE.txt
+(C) M. Bodin, P. Gardner, J. Pichon, C. Watt, X. Rao 2019-2026 - see LICENSE.txt
 
 The quotes from the WebAssembly standard (starting with `std-doc`) are (C) their respective authors. 
 The files located in `src/Parray` are adapted from the Rocq kernel and therefore licensed under GNU LPGL 2.1 - see `src/Parray/LICENSE.LGPL`.
@@ -71,7 +71,7 @@ Then, run:
 ```bash
 make run_wast
 ```
-The interpreter is expected to pass all the other core tests (last tested on 11th Dec 2025):
+The interpreter is expected to pass all the other core tests (last tested on 12th Mar 2026):
 ```bash
 Total passed: 54004/54004 (100.00%)
 ```

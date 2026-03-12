@@ -1,8 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-folder="${1:-./wast_testsuite}"  
-filter="${2:-}" 
+folder="${1:-./wast_testsuite}"
+filter="${2:-}"
+jobs="${JOBS:-$(nproc)}"
 
 shopt -s nullglob
 
@@ -20,30 +21,59 @@ fi
 dune build
 exe="_build/default/src/wasm_coq_interpreter.exe"
 
-total_passed=0
-total_tests=0
+results_dir=$(mktemp -d)
+trap 'rm -rf "$results_dir"' EXIT
 
-for wastfile in "${files[@]}"; do
+# Worker function: run one .wast file, print output, write "passed total" to a result file.
+run_one() {
+  local wastfile="$1"
+  local exe="$2"
+  local results_dir="$3"
+  local base
+  base=$(basename "$wastfile")
+
   echo "Running: $wastfile"
-  tmpfile=$(mktemp)
-  cleaned=$(mktemp)
 
-  "$exe" --wast "$wastfile" | tee "$tmpfile"
-  tr -d '\r' < "$tmpfile" | sed 's/\x1b\[[0-9;]*m//g' > "$cleaned"
+  local output
+  if ! output=$("$exe" --wast "$wastfile" 2>&1); then
+    echo "$output"
+    echo "CRASH: $wastfile"
+    echo "0 0" > "$results_dir/$base"
+    return
+  fi
 
-  if result_line=$(grep -m1 "Result: " "$cleaned"); then
+  echo "$output"
+
+  # Strip ANSI codes and CR in one pass
+  local cleaned
+  cleaned=$(printf '%s' "$output" | tr -d '\r' | sed 's/\x1b\[[0-9;]*m//g')
+
+  local result_line
+  if result_line=$(printf '%s' "$cleaned" | grep -m1 "Result: "); then
     if [[ "$result_line" =~ Result:\ ([0-9]+)/([0-9]+) ]]; then
-      passed="${BASH_REMATCH[1]}"
-      total="${BASH_REMATCH[2]}"
-      total_passed=$((total_passed + passed))
-      total_tests=$((total_tests + total))
+      echo "${BASH_REMATCH[1]} ${BASH_REMATCH[2]}" > "$results_dir/$base"
     else
-      echo "Regex match failed for $wastfile"
+      echo "PARSE ERROR: $wastfile — could not parse result line"
+      echo "0 0" > "$results_dir/$base"
     fi
   else
-    echo "No 'Result:' line found for $wastfile"
+    echo "NO RESULT: $wastfile"
+    echo "0 0" > "$results_dir/$base"
   fi
-  rm -f "$tmpfile" "$cleaned"
+}
+export -f run_one
+
+echo "Running ${#files[@]} .wast files with $jobs parallel jobs..."
+
+printf '%s\n' "${files[@]}" | xargs -P "$jobs" -I {} bash -c 'run_one "$@"' _ {} "$exe" "$results_dir"
+
+# Aggregate results
+total_passed=0
+total_tests=0
+for f in "$results_dir"/*; do
+  read -r p t < "$f"
+  total_passed=$((total_passed + p))
+  total_tests=$((total_tests + t))
 done
 
 echo "================"
