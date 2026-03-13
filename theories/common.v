@@ -169,7 +169,7 @@ Ltac remove_bools_options :=
       destruct l as [| ? cons_l] eqn:Hcons; last by []
   end.
 
-(* Apply but turning unification errors into equality obligations *)
+(** Apply, but turning unification errors into equality obligations **)
 Ltac uapply_aux T G :=
   lazymatch T with
   | ?F ?x =>
@@ -731,82 +731,54 @@ Ltac rect'_type_projection proj rect :=
     match tt with
     | _ => eval fold t in ta
     | _ => constr:(ta)
-    end in
+end in
+  (* The hypothesis to be added that Coq ignores when generating recursors *)
   let added_hyp t ta :=
     lazymatch ta with
     | list t => constr:(@TProp.Forall t)
     | option t => constr:(fun P (o : ta) => forall a : t, o = Some a -> P a)
     | _ => constr:(fun (_ : t -> Type) (_ : ta) => True)
     end in
+  (* Add the missing premise to the recursor by adding h as a premise *)
   let add_hyp t ta P a r :=
     let h := added_hyp t ta in
     let h := constr:(h P a) in
     let h := eval simpl in h in
     lazymatch h with
-    | True => r
-    | _ => constr:(h -> r)
+    | True => constr:(r) (* If ta isn't one of the recognised containers, don't add anything *)
+    | _ => constr:(h -> r) (* Otherwise, add the premise wrt the container *)
     end in
   let set_hyp t ta P a r :=
+    (* a wrapper for finalising it with the added recursor *)
     let r := add_hyp t ta P a r in
     exact r in
+  
+  let rec update_hyp_aux t P body :=
+    lazymatch body with
+    | forall x : ?ta, @?rest x =>
+        let ta' := fold_type t ta in
+        let h := added_hyp t ta' in
+        let a := fresh "a" in
+        refine (forall (a : ta'), _);
+        let rest_a := eval cbv beta in (rest a) in
+  let ih := constr:(h P a) in
+  let ih := eval simpl in ih in
+    lazymatch ih with
+    | True => update_hyp_aux t P rest_a
+    | _ => refine (ih -> _); update_hyp_aux t P rest_a
+    end
+  | _ => exact body
+  end in
   let update_hyp t hyp :=
     lazymatch hyp with
-    | fun P => P _ => constr:(hyp)
-    | fun P => forall a1 : ?t1, P (?C a1) =>
-      let t1 :=  fold_type t t1 in
-      constr:(fun P : t -> Type => forall a1 : t1,
-        ltac:(set_hyp t t1 P a1 (P (C a1))))
-    | fun P => forall (a1 : ?t1) (a2 : ?t2), P (?C a1 a2) =>
-      let t1 :=  fold_type t t1 in
-      let t2 :=  fold_type t t2 in
-      constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2),
-        ltac:(set_hyp t t1 P a1
-          ltac:(add_hyp t t2 P a2 (P (C a1 a2)))))
-    | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3), P (?C a1 a2 a3) =>
-      let t1 :=  fold_type t t1 in
-      let t2 :=  fold_type t t2 in
-      let t3 :=  fold_type t t3 in
-      constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3),
-        ltac:(set_hyp t t1 P a1
-          ltac:(add_hyp t t2 P a2
-            ltac:(add_hyp t t3 P a3 (P (C a1 a2 a3))))))
-    | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4), P (?C a1 a2 a3 a4) =>
-      let t1 :=  fold_type t t1 in
-      let t2 :=  fold_type t t2 in
-      let t3 :=  fold_type t t3 in
-      let t4 :=  fold_type t t4 in
-      constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4),
-        ltac:(set_hyp t t1 P a1
-          ltac:(add_hyp t t2 P a2
-            ltac:(add_hyp t t3 P a3
-              ltac:(add_hyp t t4 P a4 (P (C a1 a2 a3 a4)))))))
-    | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4) (a5 : ?t5), P (?C a1 a2 a3 a4 a5) =>
-      let t1 :=  fold_type t t1 in
-      let t2 :=  fold_type t t2 in
-      let t3 :=  fold_type t t3 in
-      let t4 :=  fold_type t t4 in
-      let t5 :=  fold_type t t5 in
-      constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4) (a5 : t5),
-        ltac:(set_hyp t t1 P a1
-          ltac:(add_hyp t t2 P a2
-            ltac:(add_hyp t t3 P a3
-              ltac:(add_hyp t t4 P a4
-                ltac:(add_hyp t t4 P a4 (P (C a1 a2 a3 a4 a5))))))))
-    | fun P => forall (a1 : ?t1) (a2 : ?t2) (a3 : ?t3) (a4 : ?t4) (a5 : ?t5) (a6 : ?t6), P (?C a1 a2 a3 a4 a5 a6) =>
-      let t1 :=  fold_type t t1 in
-      let t2 :=  fold_type t t2 in
-      let t3 :=  fold_type t t3 in
-      let t4 :=  fold_type t t4 in
-      let t5 :=  fold_type t t5 in
-      let t6 :=  fold_type t t6 in
-      constr:(fun P : t -> Type => forall (a1 : t1) (a2 : t2) (a3 : t3) (a4 : t4) (a5 : t5) (a6 : t6),
-        ltac:(set_hyp t t1 P a1
-          ltac:(add_hyp t t2 P a2
-            ltac:(add_hyp t t3 P a3
-              ltac:(add_hyp t t4 P a4
-                ltac:(add_hyp t t5 P a5
-                  ltac:(add_hyp t t6 P a6 (P (C a1 a2 a3 a4 a5 a6)))))))))
+    | fun P => ?Q =>
+        constr:(fun P : t -> Type =>
+                  ltac:(
+                          let body := eval cbv beta in (hyp P) in
+                            update_hyp_aux t P body))
+    | _ => fail "update hyp failure"
     end in
+
   let conclusion t rectf :=
     lazymatch rectf with
     | fun P => forall a : t, P a =>
