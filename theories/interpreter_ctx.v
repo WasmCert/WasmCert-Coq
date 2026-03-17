@@ -412,6 +412,11 @@ Proof.
     by remove_bools_options; simpl in *.
 Defined.
 
+(* Resolve ill-typed value cases by matching explicit stack patterns from reduction
+   rules (e.g. rev (v1 :: v2 :: ops)) against operand_subtyping1/2/3.
+   The arity-specific matching is deliberate: using the general operand_subtyping
+   lemma directly would over-match on abstract stack forms, leading to
+   over-generalised applications which is most likely useless. *)
 Ltac resolve_invalid_value :=
   repeat match goal with
   | Hvaltype : is_true (values_typing _ (rev (_ :: _)) _),
