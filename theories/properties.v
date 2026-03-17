@@ -567,33 +567,6 @@ Proof.
   by apply H.
 Qed.
 
-Lemma extract_list2 : forall {X:Type} (es: seq X) (e1 e2 e3:X),
-    es ++ [::e1] = [::e2; e3] ->
-    es = [::e2] /\ e1 = e3.
-Proof.
-  move => X es e1 e2 e3 H.
-  apply concat_cancel_last.
-  by apply H.
-Qed.
-
-Lemma extract_list3 : forall {X:Type} (es: seq X) (e1 e2 e3 e4:X),
-    es ++ [::e1] = [::e2; e3; e4] ->
-    es = [::e2; e3] /\ e1 = e4.
-Proof.
-  move => X es e1 e2 e3 e4 H.
-  apply concat_cancel_last.
-  by apply H.
-Qed.
-
-Lemma extract_list4 : forall {X:Type} (es: seq X) (e1 e2 e3 e4 e5:X),
-    es ++ [::e1] = [::e2; e3; e4; e5] ->
-    es = [::e2; e3; e4] /\ e1 = e5.
-Proof.
-  move => X es e1 e2 e3 e4 e5 H.
-  apply concat_cancel_last.
-  by apply H.
-Qed.
-
 Lemma list_nth_prefix: forall {X:Type} (l1 l2: seq X) x,
     List.nth_error (l1 ++ [::x] ++ l2) (length l1) = Some x.
 Proof.
@@ -1270,20 +1243,20 @@ Ltac basic_inversion :=
          end.
 
 (** Rewrite hypotheses on the form [_ ++ [:: _] = _] as some easier to use equalities. **)
+Ltac extract_list_cons :=
+  repeat lazymatch goal with
+  | H: ?es ++ [::?e] = cons _ _ |- _ =>
+      apply extract_list1 in H; destruct H; subst
+  | _ => idtac
+  end.
+
 Ltac extract_listn :=
   repeat lazymatch goal with
-  | H: ?es ++ [::?e] = [::_] |- _ =>
-    apply extract_list1 in H; destruct H; subst
-  | H: ?es ++ [::?e] = [::_; _] |- _ =>
-    apply extract_list2 in H; destruct H; subst
-  | H: ?es ++ [::?e] = [::_; _; _] |- _ =>
-    apply extract_list3 in H; destruct H; subst
-  | H: ?es ++ [::?e] = [::_; _; _; _] |- _ =>
-    apply extract_list4 in H; destruct H; subst
+  | H: ?es ++ [::?e] = cons _ _ |- _ => extract_list_cons
   | H: ?es ++ [::?e] = ?es' ++ [::?e'] |- _ =>
     apply concat_cancel_last in H as [??]; subst
   | H: _ :: _ = _ ++ _ |- _ => symmetry in H
-         end.
+  end.
 
 (** * More Advanced Lemmas **)
 
