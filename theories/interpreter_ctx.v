@@ -412,22 +412,46 @@ Proof.
     by remove_bools_options; simpl in *.
 Defined.
 
-(* Resolve ill-typed value cases by matching explicit stack patterns from reduction
-   rules (e.g. rev (v1 :: v2 :: ops)) against operand_subtyping1/2/3.
-   The arity-specific matching is deliberate: using the general operand_subtyping
-   lemma directly would over-match on abstract stack forms, leading to
-   over-generalised applications which is most likely useless. *)
-Ltac resolve_invalid_value :=
+(* Auxiliary tactic for getting the length of a fully expanded list without free variables. *)
+Ltac get_expanded_list_length l :=
+  match l with
+  | _ :: ?tl => let n := get_expanded_list_length tl in constr:(S n)
+  | [::] => constr:(O)
+  | _ => fail "not an expanded list"
+  end.
+
+(* Getting the first n elements of a list and the rest, but only when they are expanded. *)
+Ltac get_expanded_list_firstn T l n :=
+  match n with
+  | O => constr:((@nil T, l))
+  | S ?n' => 
+      match l with
+      | ?h :: ?l' =>
+          let ret := get_expanded_list_firstn T l' n' in
+          match ret with
+          | (?l_extract, ?rest) => constr:((cons h l_extract, rest))
+          end
+      | _ => fail "insufficient destructed elements"
+      end
+  end.
+
+Ltac resolve_invalid_value_aux_expanded :=
   repeat match goal with
-  | Hvaltype : is_true (values_typing _ (rev (_ :: _)) _),
-    Hsub: (Tf [::_] _ <ti: _) |- _ =>
-      specialize (operand_subtyping1 Hvaltype Hsub) as Hopsub; clear Hsub; simpl in * => //=
-  | Hvaltype : is_true (values_typing _ (rev (_ :: _ :: _)) _),
-    Hsub: (Tf [::_; _] _ <ti: _) |- _ =>
-      specialize (operand_subtyping2 Hvaltype Hsub) as Hopsub; clear Hsub; simpl in * => //=
-  | Hvaltype : is_true (values_typing _ (rev (_ :: _ :: _ :: _)) _),
-    Hsub: (Tf [::_; _; _] _ <ti: _) |- _ =>
-      specialize (operand_subtyping3 Hvaltype Hsub) as Hopsub; clear Hsub; simpl in * => //=
+  | Hvaltype: is_true (values_typing ?s (rev (cons ?t ?vts1)) ?vts2),
+      Hsub: (Tf (cons ?h ?l') _ <ti: Tf ?vts2 _) |- _ =>
+      let n := get_expanded_list_length (cons h l') in
+      let T := type of t in
+      let ret := get_expanded_list_firstn T (cons t vts1) (n) in
+      match ret with
+      | (?l_extract, ?rest) =>
+          let Hopsub := fresh "Hopsub" in
+          assert (values_typing s l_extract (rev (cons h l'))) as Hopsub;
+          [ eapply operand_subtyping; by [apply Hvaltype | apply Hsub | reflexivity ] | clear Hsub; simpl in * => //= ]
+      end
+    end.
+
+Ltac resolve_invalid_value :=
+  repeat (resolve_invalid_value_aux_expanded; match goal with
   | Hvaltype : is_true (values_typing _ (rev (_ :: _)) _),
     Hsub: (Tf (_ ++ [::_]) _ <ti: _) |- _ =>
       specialize (operand_subtyping_suffix1 Hvaltype Hsub) as Hopsub; clear Hsub; simpl in * => //=
@@ -441,7 +465,8 @@ Ltac resolve_invalid_value :=
   | Hvaltype : is_true (value_typing _ (VAL_ref _) (T_vec _)) |- _ =>
       apply value_typing_ref_impl in Hvaltype as [? Hteq] => //
   | _ => simpl in *; remove_bools_options; subst => //
-end.
+end).
+
 
 Ltac discriminate_value_type :=
   resolve_invalid_typing; resolve_invalid_value.

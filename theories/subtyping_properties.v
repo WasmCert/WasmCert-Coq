@@ -859,37 +859,6 @@ Proof.
   by rewrite size_rev in Hsub; lias.
 Qed.
 
-(* Instances for value elimination tactic used in interpreter *)
-Lemma operand_subtyping1: forall s v1 ops0 vts t1 ts2 ts',
-  values_typing s (rev (v1 :: ops0)) vts ->
-  (Tf [::t1] ts2 <ti: Tf vts ts') ->
-  values_typing s [::v1] [::t1].
-Proof.
-  intros ??????? Hvt Hsub.
-  rewrite -cat1s in Hvt.
-  by eapply operand_subtyping in Hsub; eauto.
-Qed.
-
-Lemma operand_subtyping2: forall s v1 v2 ops0 vts t1 t2 ts2 ts',
-  values_typing s (rev (v1 :: v2 :: ops0)) vts ->
-  (Tf [::t1; t2] ts2 <ti: Tf vts ts') ->
-  values_typing s [::v1; v2] [::t2; t1].
-Proof.
-  intros ????????? Hvt Hsub.
-  rewrite -(cat1s v1) -(cat1s v2) catA in Hvt.
-  by eapply operand_subtyping in Hsub; eauto.
-Qed.
-
-Lemma operand_subtyping3: forall s v1 v2 v3 ops0 vts t1 t2 t3 ts2 ts',
-  values_typing s (rev (v1 :: v2 :: v3 :: ops0)) vts ->
-  (Tf [::t1; t2; t3] ts2 <ti: Tf vts ts') ->
-  values_typing s [::v1; v2; v3] [::t3; t2; t1].
-Proof.
-  intros ??????????? Hvt Hsub.
-  rewrite -(cat1s v1) -(cat1s v2) -(cat1s v3) catA catA in Hvt.
-  by eapply operand_subtyping in Hsub; eauto.
-Qed.
-
 Lemma operand_subtyping_suffix1: forall s v1 ops0 vts ts0 t1 ts2 ts',
   values_typing s (rev (v1 :: ops0)) vts ->
   (Tf (ts0 ++ [::t1]) ts2 <ti: Tf vts ts') ->
