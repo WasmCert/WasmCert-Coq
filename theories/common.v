@@ -897,7 +897,9 @@ Ltac is_cons_chain_before l tail :=
 
 (** A specialised version that checks if `l` is a cons chain. *)
 Ltac is_cons_chain l :=
-  is_cons_chain_before l nil.
+  match type of l with
+  | list ?T => is_cons_chain_before l (@nil T)
+  end.
 
 (** Convert a cons chain to singleton concatenations. *)
 Ltac cons_chain_to_cat l :=

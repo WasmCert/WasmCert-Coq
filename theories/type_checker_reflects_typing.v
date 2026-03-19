@@ -944,43 +944,17 @@ Ltac invert_update_agree :=
         apply c_types_agree_cat_split in H as [tx [ty [-> [Hsub Hagree]]]]
     end.
 
-Lemma resolve_type_update_agree_aux1: forall cts t1 ts,
-  c_types_agree << take 1 (CT_type cts), CT_unr cts >> [::t1] ->
-  c_types_agree << drop 1 (CT_type cts), CT_unr cts >> ts ->
-  c_types_agree cts ([::t1] ++ ts).
+Lemma resolve_type_update_agree_aux: forall len cts l ts,
+  len = size l ->
+  c_types_agree << take len (CT_type cts), CT_unr cts >> l ->
+  c_types_agree << drop len (CT_type cts), CT_unr cts >> ts ->
+  c_types_agree cts (l ++ ts).
 Proof.
-  move => cts t1 ts Hagree1 Hagree2.
-  destruct cts as [[ | t cts] unr] => //.
-  apply c_types_agree_size_sub in Hagree1; last by rewrite size_takel => /=.
-  simplify_tc_goal.
-  by apply c_types_agree_cons.
-Qed.
-
-Lemma resolve_type_update_agree_aux2: forall cts t1 t2 ts,
-  c_types_agree << take 2 (CT_type cts), CT_unr cts >> [::t1; t2] ->
-  c_types_agree << drop 2 (CT_type cts), CT_unr cts >> ts ->
-  c_types_agree cts ([::t1; t2] ++ ts).
-Proof.
-  move => cts t1 t2 ts Hagree1 Hagree2.
-  destruct cts as [[ | t cts] unr] => //.
-  destruct cts as [ | t' cts] => //.
-  apply c_types_agree_size_sub in Hagree1; last by rewrite size_takel => /=.
-  simplify_tc_goal.
-  by repeat (apply c_types_agree_cons; split => //).
-Qed.
-
-Lemma resolve_type_update_agree_aux3: forall cts t1 t2 t3 ts,
-  c_types_agree << take 3 (CT_type cts), CT_unr cts >> [::t1; t2; t3] ->
-  c_types_agree << drop 3 (CT_type cts), CT_unr cts >> ts ->
-  c_types_agree cts ([::t1; t2; t3] ++ ts).
-Proof.
-  move => cts t1 t2 t3 ts Hagree1 Hagree2.
-  destruct cts as [[ | t cts] unr] => //.
-  destruct cts as [ | t' cts] => //.
-  destruct cts as [ | t'' cts] => //.
-  apply c_types_agree_size_sub in Hagree1; last by rewrite size_takel => /=.
-  simplify_tc_goal.
-  by repeat (apply c_types_agree_cons; split => //).
+  induction len as [ | len']; move => cts t1 ts Hlen Hagree1 Hagree2; destruct t1 as [ | t t1'] => //; first by rewrite drop0 in Hagree2.
+  destruct cts as [[ | vt vts] unr]; simplify_tc_goal.
+  apply c_types_agree_cons in Hagree1.
+  apply c_types_agree_cons.
+  destruct Hagree1; split => //; by eapply IHlen'; eauto.
 Qed.
 
 Ltac resolve_check_agree :=
@@ -988,18 +962,11 @@ Ltac resolve_check_agree :=
   | H: is_true (c_types_agree << CT_type ?cts, CT_unr ?cts >> ?ts) |-
       exists tx, is_true (c_types_agree ?cts tx) /\ _ =>
       exists ts; split; first done
-  | H1: is_true (c_types_agree << take 1 (CT_type ?cts), CT_unr ?cts >> [::?t1]),
-    H2: is_true (c_types_agree << drop 1 (CT_type ?cts), CT_unr ?cts >> ?ts) |-
+  | H1: is_true (c_types_agree << take ?n (CT_type ?cts), CT_unr ?cts >> (cons ?x ?l)),
+    H2: is_true (c_types_agree << drop ?n (CT_type ?cts), CT_unr ?cts >> ?ts) |-
       exists tx, is_true (c_types_agree ?cts tx) /\ _ =>
-      exists ([::t1] ++ ts); split; first by apply resolve_type_update_agree_aux1
-  | H1: is_true (c_types_agree << take 2 (CT_type ?cts), CT_unr ?cts >> [::?t1; ?t2]),
-    H2: is_true (c_types_agree << drop 2 (CT_type ?cts), CT_unr ?cts >> ?ts) |-
-      exists tx, is_true (c_types_agree ?cts tx) /\ _ =>
-      exists ([::t1; t2] ++ ts); split; first by apply resolve_type_update_agree_aux2
-  | H1: is_true (c_types_agree << take 3 (CT_type ?cts), CT_unr ?cts >> [::?t1; ?t2; ?t3]),
-    H2: is_true (c_types_agree << drop 3 (CT_type ?cts), CT_unr ?cts >> ?ts) |-
-      exists tx, is_true (c_types_agree ?cts tx) /\ _ =>
-      exists ([::t1; t2; t3] ++ ts); split; first by apply resolve_type_update_agree_aux3
+      let l' := constr:(ltac:(is_cons_chain (cons x l))) in
+      exists (l' ++ ts); split; first by eapply resolve_type_update_agree_aux; eauto => //
   end.
 
 Ltac resolve_tc_be_typing :=
