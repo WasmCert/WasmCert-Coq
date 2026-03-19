@@ -918,16 +918,8 @@ Qed.
   
 Ltac invert_update_agree :=
   repeat match goal with
-    | H: type_update _ [::] _ = Some _ |- _ =>
-         let Hagree := fresh "Hagree" in
-         apply type_update_Some_impl in H as [Hagree ->]
-    | H: type_update _ [::?t1] _ = Some _ |- _ =>
-         let Hagree := fresh "Hagree" in
-         apply type_update_Some_impl in H as [Hagree ->]
-    | H: type_update _ [::?t1; ?t2] _ = Some _ |- _ =>
-         let Hagree := fresh "Hagree" in
-         apply type_update_Some_impl in H as [Hagree ->]
-    | H: type_update _ [::?t1; ?t2; ?t3] _ = Some _ |- _ =>
+    | H: type_update _ ?l _ = Some _ |- _ =>
+         is_cons_chain l;
          let Hagree := fresh "Hagree" in
          apply type_update_Some_impl in H as [Hagree ->]
     | H: is_true (c_types_agree << _ :: _, _ >> _) |- _ =>
@@ -965,8 +957,8 @@ Ltac resolve_check_agree :=
   | H1: is_true (c_types_agree << take ?n (CT_type ?cts), CT_unr ?cts >> (cons ?x ?l)),
     H2: is_true (c_types_agree << drop ?n (CT_type ?cts), CT_unr ?cts >> ?ts) |-
       exists tx, is_true (c_types_agree ?cts tx) /\ _ =>
-      let l' := constr:(ltac:(is_cons_chain (cons x l))) in
-      exists (l' ++ ts); split; first by eapply resolve_type_update_agree_aux; eauto => //
+      is_cons_chain (cons x l);
+      exists ((cons x l) ++ ts); split; first by eapply resolve_type_update_agree_aux; eauto => //
   end.
 
 Ltac resolve_tc_be_typing :=

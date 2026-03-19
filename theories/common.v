@@ -888,17 +888,21 @@ Ltac rect'_build_option rect := rect'_build_projection option rect.
 
 (** Check if `l` is of the form `heads ++ tail` where `heads`
     is a cons chain. *)
-Ltac is_cons_chain_before l tail :=
+Ltac get_cons_chain_before l tail :=
   match l with
   | tail => exact [::]
-  | cons ?x ?l' => refine (cons x _); ltac:(is_cons_chain_before l' tail)
+  | cons ?x ?l' => refine (cons x _); ltac:(get_cons_chain_before l' tail)
   | _ => fail "input is not a cons chain before " tail
   end.
 
 (** A specialised version that checks if `l` is a cons chain. *)
 Ltac is_cons_chain l :=
-  match type of l with
-  | list ?T => is_cons_chain_before l (@nil T)
+  match l with
+  | [::] => idtac
+  | ?x :: ?l' =>
+      let T := type of x in
+      let _ := constr:(ltac:(get_cons_chain_before l (@nil T))) in
+      idtac
   end.
 
 (** Convert a cons chain to singleton concatenations. *)

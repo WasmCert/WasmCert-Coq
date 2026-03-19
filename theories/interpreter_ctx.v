@@ -41,7 +41,7 @@ Ltac infer_hole :=
   (* Requires at least one explicit `cons` to avoid excessive matching *)
   | |- ?l1 ++ ?l2 = ?x :: ?l3 =>
       is_evar l1;
-      let heads := constr:(ltac:(is_cons_chain_before (cons x l3) l2)) in
+      let heads := constr:(ltac:(get_cons_chain_before (cons x l3) l2)) in
       try by instantiate (1 := heads) => //
   | |- ?l ++ ?les = ?les =>
       try by instantiate (1 := nil) => //
