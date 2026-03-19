@@ -449,12 +449,9 @@ Ltac invert_be_typing :=
     let H1 := fresh "H1_comp" in
     let H2 := fresh "H2_comp" in
     apply be_composition_typing in H; destruct H as [ts3 [H1 H2]]
-  | H: be_typing _ [::_;_] _ |- _ =>
-    rewrite -cat1s in H
-  | H: be_typing _ [::_;_;_] _ |- _ =>
-    rewrite -cat1s in H
-  | H: be_typing _ [::_;_;_;_] _ |- _ =>
-      rewrite -cat1s in H
+  | H: be_typing _ (cons ?x ?l) _ |- _ =>
+    let cats := constr:(ltac:(cons_chain_to_cat (cons x l))) in
+    replace (cons x l) with cats in H; last reflexivity
   | _ => try by simpl; try resolve_list_eq
   end.
 

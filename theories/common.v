@@ -886,6 +886,27 @@ Ltac rect'_build_option rect := rect'_build_projection option rect.
 
 (** * Miscellaneous **)
 
+(** Check if `l` is of the form `heads ++ tail` where `heads`
+    is a cons chain. *)
+Ltac is_cons_chain_before l tail :=
+  match l with
+  | tail => exact [::]
+  | cons ?x ?l' => refine (cons x _); ltac:(is_cons_chain_before l' tail)
+  | _ => fail "input is not a cons chain before " tail
+  end.
+
+(** A specialised version that checks if `l` is a cons chain. *)
+Ltac is_cons_chain l :=
+  is_cons_chain_before l nil.
+
+(** Convert a cons chain to singleton concatenations. *)
+Ltac cons_chain_to_cat l :=
+  match l with
+  | [::?x] => exact [::x]
+  | cons ?x ?l' => refine (cat x _); ltac:(cons_chain_to_cat l')
+  | _ => fail "input is not a cons chain"
+  end.
+
 (** Calls [cont1] or [cont2] depending on whether [x] is a variable or not.
   This tactic assumes that neither [cont1] nor [cont2] fail. **)
 Ltac is_variable x cont1 cont2 :=
@@ -898,7 +919,7 @@ Ltac is_variable x cont1 cont2 :=
   | _ => cont1
   end.
 
-(* Tactic for dealing with dependent type simplifications *)
+(** Tactic for dealing with dependent type simplifications *)
 Ltac simplify_dependent_case :=
   match goal with
   | |- context [(match ?match_expr as b in bool return (?match_expr = b -> _) with

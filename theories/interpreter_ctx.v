@@ -19,15 +19,6 @@ Variable host_application_impl : host_state -> store_record -> function_type -> 
 Hypothesis host_application_impl_correct :
   (forall hs s ft hf vs hs' hres, (host_application_impl hs s ft hf vs = (hs', hres)) -> host_application hs s ft hf vs hs' hres).
 
-Ltac get_cons_heads_before tail l :=
-  lazymatch l with
-  | cons ?x tail => exact [::x]
-  | cons ?x ?l' =>
-      refine (cons x _);
-      get_cons_heads_before tail l'
-  | _ => fail "no matching tail found"
-  end.
-
 (** Automatically trying to infer what to put aside using the L0 context (r_label) **)
 Ltac infer_hole :=
   repeat match goal with
@@ -50,7 +41,7 @@ Ltac infer_hole :=
   (* Requires at least one explicit `cons` to avoid excessive matching *)
   | |- ?l1 ++ ?l2 = ?x :: ?l3 =>
       is_evar l1;
-      let heads := constr:(ltac:(get_cons_heads_before l2 (cons x l3))) in
+      let heads := constr:(ltac:(is_cons_chain_before (cons x l3) l2)) in
       try by instantiate (1 := heads) => //
   | |- ?l ++ ?les = ?les =>
       try by instantiate (1 := nil) => //
@@ -410,22 +401,22 @@ Proof.
     by remove_bools_options; simpl in *.
 Defined.
 
-(* Auxiliary tactic for getting the length of a fully expanded list without free variables. *)
-Ltac get_expanded_list_length l :=
+(* Auxiliary tactic for getting the length of a cons chain without free variables. *)
+Ltac get_cons_chain_length l :=
   match l with
-  | _ :: ?tl => let n := get_expanded_list_length tl in constr:(S n)
+  | _ :: ?tl => let n := get_cons_chain_length tl in constr:(S n)
   | [::] => constr:(O)
-  | _ => fail "not an expanded list"
+  | _ => fail "not a cons chain"
   end.
 
-(* Getting the first n elements of a list and the rest, but only when they are expanded. *)
-Ltac get_expanded_list_firstn T l n :=
+(* Getting the first n elements of a list and the rest, but only when they are a cons chain. *)
+Ltac get_cons_chain_firstn T l n :=
   match n with
   | O => constr:((@nil T, l))
   | S ?n' => 
       match l with
       | ?h :: ?l' =>
-          let ret := get_expanded_list_firstn T l' n' in
+          let ret := get_cons_chain_firstn T l' n' in
           match ret with
           | (?l_extract, ?rest) => constr:((cons h l_extract, rest))
           end
@@ -437,9 +428,9 @@ Ltac resolve_invalid_value_aux_expanded :=
   repeat match goal with
   | Hvaltype: is_true (values_typing ?s (rev (cons ?t ?vts1)) ?vts2),
       Hsub: (Tf (cons ?h ?l') _ <ti: Tf ?vts2 _) |- _ =>
-      let n := get_expanded_list_length (cons h l') in
+      let n := get_cons_chain_length (cons h l') in
       let T := type of t in
-      let ret := get_expanded_list_firstn T (cons t vts1) (n) in
+      let ret := get_cons_chain_firstn T (cons t vts1) (n) in
       match ret with
       | (?l_extract, ?rest) =>
           let Hopsub := fresh "Hopsub" in
