@@ -19,6 +19,15 @@ Variable host_application_impl : host_state -> store_record -> function_type -> 
 Hypothesis host_application_impl_correct :
   (forall hs s ft hf vs hs' hres, (host_application_impl hs s ft hf vs = (hs', hres)) -> host_application hs s ft hf vs hs' hres).
 
+Ltac get_cons_heads_before tail l :=
+  lazymatch l with
+  | cons ?x tail => exact [::x]
+  | cons ?x ?l' =>
+      refine (cons x _);
+      get_cons_heads_before tail l'
+  | _ => fail "no matching tail found"
+  end.
+
 (** Automatically trying to infer what to put aside using the L0 context (r_label) **)
 Ltac infer_hole :=
   repeat match goal with
@@ -34,28 +43,17 @@ Ltac infer_hole :=
       unfold v_to_e_list, v_to_e => //=
   | |- context C [ ( _ ++ _) ++ _ ] =>
       rewrite -catA => /=
-  | |- ?l1 ++ ?l2 = ?x1 :: ?x2 :: ?x3 :: ?x4 :: ?x5 :: ?x6 :: ?x7 :: ?x8 :: ?l2 =>
-      try by instantiate (1 := [::x1; x2; x3; x4; x5; x6; x7; x8]) => //
-  | |- ?l1 ++ ?l2 = ?x1 :: ?x2 :: ?x3 :: ?x4 :: ?x5 :: ?x6 :: ?x7 :: ?l2 =>
-      try by instantiate (1 := [::x1; x2; x3; x4; x5; x6; x7]) => //
-  | |- ?l1 ++ ?l2 = ?x1 :: ?x2 :: ?x3 :: ?x4 :: ?x5 :: ?x6 :: ?l2 =>
-      try by instantiate (1 := [::x1; x2; x3; x4; x5; x6]) => //
-  | |- ?l1 ++ ?l2 = ?x1 :: ?x2 :: ?x3 :: ?x4 :: ?x5 :: ?l2 =>
-      try by instantiate (1 := [::x1; x2; x3; x4; x5]) => //
-  | |- ?l1 ++ ?l2 = ?x1 :: ?x2 :: ?x3 :: ?x4 :: ?l2 =>
-      try by instantiate (1 := [::x1; x2; x3; x4]) => //
-  | |- ?l1 ++ ?l2 = ?x1 :: ?x2 :: ?x3 :: ?l2 =>
-      try by instantiate (1 := [::x1; x2; x3]) => //
-  | |- ?l1 ++ ?l2 = ?x1 :: ?x2 :: ?l2 =>
-      try by instantiate (1 := [::x1; x2]) => //
-  | |- ?l1 ++ ?l2 = ?x :: ?l2 =>
-      try by instantiate (1 := [::x]) => //
-  | |- ?l ++ ?les = ?les =>
-      try by instantiate (1 := nil) => //
   | |- ?l1 ++ ?l2 = ?l3 ++ ?x :: ?l2 =>
       try instantiate (1 := l3 ++ [::x]); rewrite -catA => //=
   | _: _ |- ?l ++ _ = ?l ++ _ =>
       f_equal => //=
+  (* Requires at least one explicit `cons` to avoid excessive matching *)
+  | |- ?l1 ++ ?l2 = ?x :: ?l3 =>
+      is_evar l1;
+      let heads := constr:(ltac:(get_cons_heads_before l2 (cons x l3))) in
+      try by instantiate (1 := heads) => //
+  | |- ?l ++ ?les = ?les =>
+      try by instantiate (1 := nil) => //
   end.
 
 (* Try to resolve a reduction goal between ctx configs to the `reduce`
