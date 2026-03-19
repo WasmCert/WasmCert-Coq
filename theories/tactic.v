@@ -256,16 +256,10 @@ Ltac resolve_e_typing :=
         eapply ety_subtyping; try by apply H
     | |- e_typing _ _ nil _ =>
         try eapply ety_subtyping; first (by apply ety_a' => //; apply bet_empty; eauto; try apply instr_subtyping_eq); eauto => //
-(*    | |- context [$VN ?v] =>
-        replace ($VN v) with ($V (VAL_num v)); last done*)
-(*    | |- e_typing _ _ [::$V _] _ =>
-        try eapply ety_subtyping; first (by apply et_value_typing; resolve_value_principal_typing; eauto); eauto => //*)
     | |- e_typing _ _ [::AI_basic _] _ =>
         try eapply ety_subtyping; first (by apply ety_a' => //; econstructor; eauto; try apply instr_subtyping_eq); eauto => //
     | |- e_typing _ _ (v_to_e_list _) _ =>
         try eapply ety_subtyping; first (by eapply et_values_typing; eauto); eauto => //
-(*    | |- e_typing _ _ (_ ++ _) _ =>
-        try eapply ety_subtyping; first (eapply et_composition'; eauto); eauto => //*)
     | |- e_typing _ _ ((cons ($VN ?v) ?es)) _ =>
         apply value_num_cons_e_typing
     | |- e_typing _ _ ((cons ($V (VAL_vec ?v)) ?es)) _ =>

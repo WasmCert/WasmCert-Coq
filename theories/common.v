@@ -908,6 +908,7 @@ Ltac is_cons_chain l :=
 (** Convert a cons chain to singleton concatenations. *)
 Ltac cons_chain_to_cat l :=
   match l with
+  | nil => exact l
   | [::?x] => exact [::x]
   | cons ?x ?l' => refine (cat x _); ltac:(cons_chain_to_cat l')
   | _ => fail "input is not a cons chain"

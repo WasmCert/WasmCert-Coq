@@ -83,12 +83,12 @@ Theorem t_simple_preservation: forall s es es' C tf,
     e_typing s C es' tf.
 Proof.
   move => s es es' C [ts1 ts2] HType HReduce.
-  inversion HReduce; subst; (try by apply ety_trap); invert_e_typing; extract_premise => //; unify_principal => //; resolve_e_typing => //.
+  inversion HReduce; subst; (try by apply ety_trap); invert_e_typing; extract_premise => //; repeat (unify_principal => //; resolve_e_typing => //).
   - (* Unop *)
     replace (typeof_num (app_unop op v)) with (typeof_num v); last by destruct op, v.
     by resolve_subtyping.
   - (* Binop_success *)
-    erewrite app_binop_type_preserve; eauto.
+    erewrite app_binop_type_preserve with (v1 := v1); eauto.
     by resolve_subtyping.
   - (* Cvtop *)
     erewrite eval_cvt_type_preserve; eauto.
@@ -112,7 +112,7 @@ Proof.
       by lias.
     }
     {
-      destruct Hconjr as [ts' [Hnth Hsub]].
+      destruct Hconjr as [ts' [Hnth Hsub2]].
       apply ety_subtyping with (t1s := (extr ++ ts')) (t2s := extr0).
       { by apply ety_a' => //; econstructor; eauto => //. }
       { eapply instr_subtyping_weaken1 with (tx1 := extr ++ extr1); eauto; by resolve_subtyping. }
@@ -126,7 +126,7 @@ Proof.
       by rewrite Nat.sub_diag.
     }
     {
-      destruct Hconjr as [ts' [Hnth Hsub]].
+      destruct Hconjr as [ts' [Hnth Hsub2]].
       apply ety_subtyping with (t1s := (extr ++ ts')) (t2s := extr0).
       { by apply ety_a' => //; econstructor; eauto => //. }
       { eapply instr_subtyping_weaken1 with (tx1 := extr ++ extr1); eauto; by resolve_subtyping. }
@@ -1516,15 +1516,15 @@ Proof.
   - (* Invoke host *)
     by eapply host_application_extension; eauto.
   - (* global_set *)
-    unify_principal; simpl in Hsubs; remove_bools_options.
+    unify_principal; simpl in Hsub; remove_bools_options.
     eapply supdate_glob_extension; eauto; first by resolve_value_principal_typing.
     by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
   - (* table update *)
-    unify_principal; simpl in Hsubs; remove_bools_options.
+    unify_principal; simpl in Hsub; remove_bools_options.
     eapply stab_update_extension; eauto; last by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
     by resolve_value_principal_typing.
   - (* table grow *)
-    unify_principal; simpl in Hsubs0; remove_bools_options.
+    unify_principal; simpl in Hsub0; remove_bools_options.
     eapply stab_grow_extension; eauto; last by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
     by resolve_value_principal_typing.
   - (* elem drop *)
@@ -1573,15 +1573,15 @@ Proof.
   - (* host call *)
     by eapply host_application_typing; eauto.
   - (* global_set *)
-    unify_principal; simpl in Hsubs; remove_bools_options.
+    unify_principal; simpl in Hsub; remove_bools_options.
     eapply supdate_glob_typing; eauto; first by resolve_value_principal_typing.
     by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
   - (* table update *)
-    unify_principal; simpl in Hsubs; remove_bools_options.
+    unify_principal; simpl in Hsub; remove_bools_options.
     eapply stab_update_typing; eauto; last by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
     by resolve_value_principal_typing.
   - (* table grow *)
-    unify_principal; simpl in Hsubs0; remove_bools_options.
+    unify_principal; simpl in Hsub0; remove_bools_options.
     eapply stab_grow_typing; eauto; last by unfold inst_match in Hmatch; remove_bools_options; uapply Hconjl0; f_equal.
     by resolve_value_principal_typing.
   - (* elem drop *)
@@ -1670,7 +1670,7 @@ Proof.
   move: C0 t1s t2s.
   induction HReduce => //; move => C0 t1s' t2s' Hmatch Hlocs HType Hvaltype; invert_e_typing; try by eexists; rewrite Hvaltype; split => //; resolve_subtyping.
   - unify_principal.
-    simpl in Hsubs; remove_bools_options.
+    simpl in Hsub; remove_bools_options.
     rewrite H1.
     unfold values_typing in *.
     eapply all2_set_nth1; eauto; by resolve_value_principal_typing.

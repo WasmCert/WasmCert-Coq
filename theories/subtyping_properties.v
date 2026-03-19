@@ -735,7 +735,7 @@ Proof.
   simplify_subtyping.
   by eapply values_subtyping_cat_suffix; eauto.
 Qed.
-  
+
 (*
 Given a subtype of (tx -> ty) and a subtype of (ty -> tz),
 try to figure out the relations that have to be satisfied by the subtypes and
@@ -746,37 +746,36 @@ Ltac unify_principal :=
   | H1: (Tf ?ts1 ?ts2) <ti: (Tf ?tx ?ty),
     H2: (Tf ?ts3 ?ts4) <ti: (Tf ?ty ?tz) |- _ =>
     let Hprincipal := fresh "Hprincipal" in  
-    let Hsubs := fresh "Hsubs" in
-    (* syntactic sugar for matching 2 variables doesn't work in Ltac *)
+    let Hsub := fresh "Hsub" in
     match ts2 with
     | nil => specialize (instr_subtyping_compose_nil1 H1 H2) as Hprincipal; clear H1 H2
-    | [::_] =>
+    | _ =>
         match ts3 with
         | nil => specialize (instr_subtyping_compose_nil2 H1 H2) as Hprincipal
-        | [::_] => specialize (instr_subtyping_compose_eq H1 H2) as [Hprincipal Hsubs] => //
-        | _ => specialize (instr_subtyping_compose_le H1 H2) as [Hprincipal Hsubs] => //
-        end; clear H1 H2
-    | [::_; _] =>
-        match ts3 with
-        | nil => specialize (instr_subtyping_compose_nil2 H1 H2) as Hprincipal
-        | [::_] => specialize (instr_subtyping_compose_ge H1 H2) as [Hprincipal Hsubs] => //
-        | [::_; _] => specialize (instr_subtyping_compose_eq H1 H2) as [Hprincipal Hsubs] => //
-        | _ => specialize (instr_subtyping_compose_le H1 H2) as [Hprincipal Hsubs] => //
-        end; clear H1 H2
-    | [::_; _; _] =>
-        match ts3 with
-        | nil => specialize (instr_subtyping_compose_nil2 H1 H2) as Hprincipal
-        | [::_; _] => specialize (instr_subtyping_compose_ge H1 H2) as [Hprincipal Hsubs] => //
-        | [::_; _] => specialize (instr_subtyping_compose_ge H1 H2) as [Hprincipal Hsubs] => //
-        | [::_; _; _] => specialize (instr_subtyping_compose_eq H1 H2) as [Hprincipal Hsubs] => //
-        | _ => specialize (instr_subtyping_compose_le H1 H2) as [Hprincipal Hsubs] => //
+        | _ =>
+            is_cons_chain ts2;
+            let len2 := constr:(size ts2) in
+            let len2 := eval simpl in len2 in
+            match goal with
+            | _ =>
+                is_cons_chain ts3;
+                let len3 := constr:(size ts3) in
+                let len3 := eval simpl in len3 in
+                let cmp := constr:(Nat.compare len2 len3) in
+                let cmp := eval simpl in cmp in
+                match cmp with
+                | Lt => specialize (instr_subtyping_compose_le H1 H2) as [Hprincipal Hsub] => //  
+                | Eq => specialize (instr_subtyping_compose_eq H1 H2) as [Hprincipal Hsub] => //
+                | Gt => specialize (instr_subtyping_compose_ge H1 H2) as [Hprincipal Hsub] => //
+                end
+             | _ => specialize (instr_subtyping_compose_le H1 H2) as [Hprincipal Hsub] => //
+            end
         end; clear H1 H2
     | _ => idtac
     end; try (move: Hprincipal; rewrite (lock instr_subtyping) /= -lock; move => Hprincipal)
   | |- is_true (size _ <= size _) =>
     try by repeat rewrite size_cat; lias
   end.
-
 
 Section Host.
 
