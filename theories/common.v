@@ -845,6 +845,12 @@ Ltac rect'_build_projection proj rect :=
         generalize a
     | |- _ -> _ => intro
     end);
+  (* Clear leftover variables from list/option induction
+     that would confuse use_hyps *)
+  repeat match goal with
+  | x : t |- _ => clear dependent x
+  | x : list t |- _ => clear dependent x
+  end;
   let rect := fresh "rect" in
   fix rect 1;
   let rect_list := fresh "rect_list" in
