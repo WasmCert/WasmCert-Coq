@@ -7,6 +7,8 @@ From compcert Require Integers Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From HB Require Import structures.
 
+Set SsrOldRewriteGoalsOrder.
+
 From Flocq Require Import Core.
 
 Set Implicit Arguments.
@@ -1449,7 +1451,7 @@ Definition opp : T -> T := Binary.Bopp _ _ wasm_opp_nan.
   The sign is not specified if given 0 as a mantissa. **)
 Definition normalise (m e : Z) : T :=
   Binary.binary_normalize _ _ prec_gt_0 Hmax
-    BinarySingleNaN.mode_NE m e ltac:(abstract exact false).
+    BinarySingleNaN.mode_NE m e false.
 
 (** As Flocq is unfortunately undocumented, let us introduce a unit test here, to check
   that indeed we have the correct understanding of definitions.
@@ -1578,9 +1580,7 @@ Definition BofZ : Z -> T :=
 (** [BofZ] is actually just the same thing than calling [normalise] with an empty exponent. **)
 Lemma BofZ_normalise : forall i, BofZ i = normalise i 0.
 Proof.
-  rewrite /BofZ /IEEE754_extra.BofZ /normalise => i.
-  f_equal; apply: Logic.Eqdep_dec.eq_proofs_unicity_on;
-    move=> c; case: c; by [ left | right ]. (* LATER: Remove this bruteforce. *)
+  rewrite /BofZ /IEEE754_extra.BofZ /normalise => i //.
 Qed.
 
 (** We can then define versions of these operators directly from float to float,

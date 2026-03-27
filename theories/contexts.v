@@ -1101,6 +1101,7 @@ Definition reduce_ctx (hs hs': host_state) (cfg cfg': cfg_tuple_ctx) : Prop :=
       end
   | None => False
   end.
+#[global] Set SsrOldRewriteGoalsOrder.
 
 (** ctx reduction lemmas **)
 (* ctxs reduction can be focused in any partial initial fragments with a pivot cc. *)
@@ -1121,8 +1122,8 @@ Proof.
     unfold reduce_ctx, ctx_to_cfg in * => /=.
     destruct cc as [[fvs0 fk0 ff0 fes0] lcs0].
     rewrite rev_cat rev_cons rev_rcons /=.
-    repeat rewrite rev_cat rev_rcons revK.
-    rewrite rev_cat rev_cons rev_rcons revK /= rev_cat rev_rcons revK revK.
+    rewrite rev_cat rev_cons rev_rcons /= rev_cat revK rev_rcons revK.
+    rewrite rev_cat revK rev_rcons revK.
     apply (list_label_ctx_eval.(ctx_reduce)) => //.
     do 2 rewrite foldl_cat.
     simpl in *.
