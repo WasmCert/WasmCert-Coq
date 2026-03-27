@@ -6,6 +6,8 @@ From mathcomp Require Import ssreflect ssrnat ssrbool seq eqtype.
 From compcert Require Integers.
 From HB Require Import structures.
 
+#[global] Set SsrOldRewriteGoalsOrder.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
