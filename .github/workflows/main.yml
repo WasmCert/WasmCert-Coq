@@ -113,10 +113,7 @@ jobs:
           custom_image: ghcr.io/${{ needs.setup.outputs.owner_lc }}/wasmcert-coq-deps:9.0
 
           before_install: |
-            startGroup "install dependencies"
-              sudo apt update
-              sudo apt install nano --yes
-
+            startGroup "Fix workspace permissions"
               sudo chmod 777 ~/. -R
               sudo chmod 777 . -R
             endGroup

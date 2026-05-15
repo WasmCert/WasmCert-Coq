@@ -1,0 +1,43 @@
+The .v files in this directory are vendored from the CompCert project
+(https://github.com/AbsInt/CompCert) and carry the original LGPL/INRIA
+dual-license headers preserved at the top of each file.
+
+CompCert as a whole is split between (a) parts the project explicitly
+dual-licenses under LGPL v2.1+ / INRIA Non-Commercial, and (b) parts that
+are governed solely by the INRIA Non-Commercial License. Per CompCert's
+top-level LICENSE file, the LGPL-permitted parts include:
+
+  * all files in the lib/ directory
+  * all files in the common/ directory
+  * the Archi.v files in the x86, x86_32, and x86_64 architecture
+    directories
+
+All files vendored here are drawn exclusively from those LGPL-permitted
+parts (see the file list below). No files from CompCert's compiler core
+(cfrontend/, backend/, driver/, etc.), which are INRIA-non-commercial
+only, are included.
+
+We use the vendored files under the LGPL v2.1+ option, which the rest of
+coq-wasm (MIT) can depend on and which permits commercial use. The
+vendored files themselves remain LGPL v2.1+; their per-file header
+notices must be preserved on any redistribution.
+
+Files vendored (from CompCert master at the time of import):
+  lib/Coqlib.v            -> lib/Coqlib.v
+  lib/Zbits.v             -> lib/Zbits.v
+  lib/IEEE754_extra.v     -> lib/IEEE754_extra.v
+  lib/Integers.v          -> lib/Integers.v
+  lib/Floats.v            -> lib/Floats.v
+  x86/Archi.v             -> Archi.v    (32-bit, little-endian; matches Wasm32 semantics)
+  common/Memdata.v        -> common/Memdata.v  (slimmed; see file header)
+
+The vendored copy of common/Memdata.v retains only [encode_int] and
+[decode_int] (the two functions actually used by coq-wasm) plus their
+helpers. The original common/AST.v, common/Values.v, and common/Errors.v
+have not been vendored, since coq-wasm makes no direct use of them and
+the slimmed Memdata.v no longer pulls them in transitively. The retained
+definitions are byte-for-byte identical to the upstream versions; see
+the comment block at the top of common/Memdata.v for the rationale.
+
+For the full text of the GNU Lesser General Public License v2.1, see:
+  https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
