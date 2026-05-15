@@ -62,7 +62,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     container:
-      image: coqorg/coq:9.0
+      image: rocq/rocq-prover:9.0
       options: --user root
 
     steps:
