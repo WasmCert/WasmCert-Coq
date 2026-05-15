@@ -79,8 +79,9 @@ jobs:
 
       - name: Install mdx and run tests in warm opam switch
         run: |
-          chown -R coq:coq .
-          su coq -c '
+          set -euo pipefail
+          chown -R rocq:rocq .
+          su rocq -c '
             set -e
             eval $(opam env)
             opam install mdx --yes
