@@ -18,8 +18,10 @@ if (( ${#files[@]} == 0 )); then
   exit 1
 fi
 
-dune build
-exe="_build/default/src/wasm_coq_interpreter.exe"
+exe="${EXE:-_build/default/src/wasm_coq_interpreter.exe}"
+if [[ ! -x "$exe" ]]; then
+  dune build
+fi
 
 results_dir=$(mktemp -d)
 lockfile="$results_dir/.lock"

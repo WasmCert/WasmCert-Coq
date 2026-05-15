@@ -13,7 +13,7 @@ on:
     inputs:
 
 jobs:
-  build-matrix:
+  build:
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     strategy:
@@ -28,7 +28,6 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
-          submodules: recursive
 
       - uses: coq-community/docker-coq-action@v1
         with:
@@ -42,21 +41,74 @@ jobs:
 
               sudo chmod 777 ~/. -R
               sudo chmod 777 . -R
-
-              opam install mdx --yes
             endGroup
           after_script: |
             startGroup "List installed packages"
               opam list
             endGroup
-            startGroup "Test suites"
-              dune test
+            startGroup "Build interpreter into workspace"
+              dune build src/wasm_coq_interpreter.exe
             endGroup
-            startGroup "Test import"
-              cd .ci/
-              coqc import_test.v
-              cd ..
-            endGroup
-            startGroup "Wasm conformance suite"
-              make run_wast
-            endGroup
+
+      - name: Upload interpreter binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm_coq_interpreter
+          path: _build/default/src/wasm_coq_interpreter.exe
+          if-no-files-found: error
+
+  internal-tests:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    container:
+      image: coqorg/coq:9.0
+      options: --user root
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download interpreter binary
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm_coq_interpreter
+          path: bin/
+
+      - name: Install interpreter on PATH
+        run: install -m 0755 bin/wasm_coq_interpreter.exe /usr/local/bin/wasm_coq_interpreter
+
+      - name: Install mdx and run tests in warm opam switch
+        run: |
+          chown -R coq:coq .
+          su coq -c '
+            set -e
+            eval $(opam env)
+            opam install mdx --yes
+            cd tests
+            for f in *.md; do
+              echo "===== $f ====="
+              opam exec -- mdx test "$f"
+            done
+          '
+
+  external-tests:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - name: Download interpreter binary
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm_coq_interpreter
+          path: _build/default/src/
+
+      - name: Make binary executable
+        run: chmod +x _build/default/src/wasm_coq_interpreter.exe
+
+      - name: Run conformance suite
+        run: make run_wast
