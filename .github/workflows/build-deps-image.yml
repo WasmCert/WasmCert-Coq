@@ -48,5 +48,7 @@ jobs:
           tags: |
             ghcr.io/${{ env.OWNER_LC }}/wasmcert-coq-deps:9.0
             ghcr.io/${{ env.OWNER_LC }}/wasmcert-coq-deps:latest
+          provenance: false
+          sbom: false
           cache-from: type=gha
           cache-to: type=gha,mode=max

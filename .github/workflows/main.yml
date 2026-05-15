@@ -3,7 +3,7 @@ name: Test compilation
 on:
   push:
   pull_request:
-    types: 
+    types:
       - opened
       - synchronize
       - reopened
@@ -13,7 +13,18 @@ on:
     inputs:
 
 jobs:
+  setup:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    outputs:
+      owner_lc: ${{ steps.lower.outputs.owner_lc }}
+    steps:
+      - id: lower
+        shell: bash
+        run: echo "owner_lc=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: setup
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     strategy:
@@ -25,7 +36,7 @@ jobs:
       fail-fast: true
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -33,6 +44,7 @@ jobs:
         with:
           opam_file: ${{ matrix.opam_file }}
           coq_version: ${{ matrix.coq_version }}
+          custom_image: ghcr.io/${{ needs.setup.outputs.owner_lc }}/wasmcert-coq-deps:9.0
 
           before_install: |
             startGroup "install dependencies"
@@ -58,11 +70,11 @@ jobs:
           if-no-files-found: error
 
   internal-tests:
-    needs: build
+    needs: [setup, build]
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     container:
-      image: rocq/rocq-prover:9.0
+      image: ghcr.io/${{ needs.setup.outputs.owner_lc }}/wasmcert-coq-deps:9.0
       options: --user root
 
     steps:
@@ -77,31 +89,14 @@ jobs:
       - name: Install interpreter on PATH
         run: install -m 0755 bin/wasm_coq_interpreter.exe /usr/local/bin/wasm_coq_interpreter
 
-      - name: Install mdx and run tests in warm opam switch
+      - name: Run mdx tests
         shell: bash
         run: |
           set -euo pipefail
-          # Detect the opam user (image-dependent: 'rocq' for rocq/rocq-prover,
-          # 'coq' for legacy coqorg/coq images).
-          if id -u rocq >/dev/null 2>&1; then
-            OPAM_USER=rocq
-          elif id -u coq >/dev/null 2>&1; then
-            OPAM_USER=coq
-          else
-            echo "Could not find an opam user (tried rocq, coq). Diagnostics:" >&2
-            echo "--- /etc/passwd (non-system uids) ---" >&2
-            awk -F: '$3 >= 1000 && $3 < 65000' /etc/passwd >&2 || true
-            echo "--- /home ---" >&2
-            ls -la /home >&2 || true
-            exit 1
-          fi
-          echo "Detected opam user: $OPAM_USER"
-          chown -R "$OPAM_USER":"$OPAM_USER" .
-          su "$OPAM_USER" -s /bin/bash -c '
+          chown -R rocq:rocq .
+          su rocq -s /bin/bash -c '
             set -e
             eval $(opam env)
-            opam install mdx --yes
-            # The opam package "mdx" installs its binary as "ocaml-mdx".
             cd tests
             for f in *.md; do
               echo "===== $f ====="
@@ -110,12 +105,15 @@ jobs:
           '
 
   external-tests:
-    needs: build
+    needs: [setup, build]
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
+    container:
+      image: ghcr.io/${{ needs.setup.outputs.owner_lc }}/wasmcert-coq-deps:9.0
+      options: --user root
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
