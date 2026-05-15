@@ -26,6 +26,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Compute lowercase owner
+        run: echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -43,7 +46,7 @@ jobs:
           file: Dockerfile
           push: true
           tags: |
-            ghcr.io/wasmcert/wasmcert-coq-deps:9.0
-            ghcr.io/wasmcert/wasmcert-coq-deps:latest
+            ghcr.io/${{ env.OWNER_LC }}/wasmcert-coq-deps:9.0
+            ghcr.io/${{ env.OWNER_LC }}/wasmcert-coq-deps:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
