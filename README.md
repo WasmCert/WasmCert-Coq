@@ -2,16 +2,15 @@
 A WebAssembly (aka Wasm) formalisation in Coq(Rocq), based on the [official specification](https://webassembly.github.io/spec/core/).
 
 (C) M. Bodin, P. Gardner, J. Pichon, C. Watt, X. Rao 2019-2026 - see LICENSE.txt
-(C) M. Bodin, P. Gardner, J. Pichon, C. Watt, X. Rao 2019-2026 - see LICENSE.txt
 
 The quotes from the WebAssembly standard (starting with `std-doc`) are (C) their respective authors. 
-The files located in `src/Parray` are adapted from the Rocq kernel and therefore licensed under GNU LPGL 2.1 - see `src/Parray/LICENSE.LGPL`.
+The files located in `src/Parray` are adapted from the Rocq kernel and therefore licensed under GNU LGPL 2.1 - see `src/Parray/LICENSE.LGPL`.
 
 The current project formalises Wasm version 2.0 with the following additions:
 - [+] Subtyping systems (from the future funcref/GC extension proposals);
 - [+] Tail-call.
 
-SIMD execution is implemented via the corresponding evaluation functions in the reference implementations. The Rocq mechanisation uses opauqe opcodes (from the binary format) for parsing the SIMD instructions and handling their execution.
+SIMD execution is implemented via the corresponding evaluation functions in the reference implementations. The Rocq mechanisation uses opaque opcodes (from the binary format) for parsing the SIMD instructions and handling their execution.
 
 A large part of the old Wasm 1.0 formalisation has been published at [FM'21](https://link.springer.com/chapter/10.1007/978-3-030-90870-6_4), with many additions to the repository since then.
 
@@ -72,12 +71,7 @@ Then, run:
 ```bash
 make run_wast
 ```
-The interpreter is expected to pass all the other core tests (last tested on 19th Mar 2026):
-```bash
-Total passed: 54004/54004 (100.00%)
-```
-
-Running the test suite takes around 2-3 minutes.
+The interpreter is expected to pass all the core tests; the conformance suite is run as part of the CI.
 
 It is also possible to run a selected subset of the test by filtering the file names. For example,
 ```bash
