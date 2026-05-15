@@ -78,10 +78,26 @@ jobs:
         run: install -m 0755 bin/wasm_coq_interpreter.exe /usr/local/bin/wasm_coq_interpreter
 
       - name: Install mdx and run tests in warm opam switch
+        shell: bash
         run: |
           set -euo pipefail
-          chown -R rocq:rocq .
-          su rocq -c '
+          # Detect the opam user (image-dependent: 'rocq' for rocq/rocq-prover,
+          # 'coq' for legacy coqorg/coq images).
+          if id -u rocq >/dev/null 2>&1; then
+            OPAM_USER=rocq
+          elif id -u coq >/dev/null 2>&1; then
+            OPAM_USER=coq
+          else
+            echo "Could not find an opam user (tried rocq, coq). Diagnostics:" >&2
+            echo "--- /etc/passwd (non-system uids) ---" >&2
+            awk -F: '$3 >= 1000 && $3 < 65000' /etc/passwd >&2 || true
+            echo "--- /home ---" >&2
+            ls -la /home >&2 || true
+            exit 1
+          fi
+          echo "Detected opam user: $OPAM_USER"
+          chown -R "$OPAM_USER":"$OPAM_USER" .
+          su "$OPAM_USER" -s /bin/bash -c '
             set -e
             eval $(opam env)
             opam install mdx --yes
