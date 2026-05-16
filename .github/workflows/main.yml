@@ -13,117 +13,10 @@ on:
     inputs:
 
 jobs:
-  setup:
-    needs: wait-for-prebake
-    runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false
-    outputs:
-      owner_lc: ${{ steps.lower.outputs.owner_lc }}
-      image: ${{ steps.detect.outputs.image }}
-      is_prebake: ${{ steps.detect.outputs.is_prebake }}
-    steps:
-      - id: lower
-        shell: bash
-        run: echo "owner_lc=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
-
-      # Detect whether the prebake image exists for this repo owner. If yes,
-      # downstream jobs use it (fast path). If not (e.g. first run on a new
-      # fork / upstream before the prebake has ever published), fall back to
-      # the raw rocq image and let docker-coq-action install deps from
-      # scratch.
-      #
-      # We attempt an authenticated login first so that this also works when
-      # the prebake image is private (the default for newly-published GHCR
-      # packages). On fork PRs the login is effectively a no-op (the token
-      # has no write/read scope on the upstream namespace), but the
-      # subsequent anonymous fallback handles that case correctly because
-      # forks need the image to be public anyway.
-      - id: detect
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          PREBAKE="ghcr.io/${{ steps.lower.outputs.owner_lc }}/wasmcert-coq-deps:9.0"
-          echo "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin >/dev/null 2>&1 || true
-          if docker manifest inspect "$PREBAKE" >/dev/null 2>&1; then
-            echo "Prebake image found: $PREBAKE"
-            echo "image=$PREBAKE" >> "$GITHUB_OUTPUT"
-            echo "is_prebake=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "No prebake image for ${{ steps.lower.outputs.owner_lc }}; using rocq/rocq-prover:9.0"
-            echo "image=rocq/rocq-prover:9.0" >> "$GITHUB_OUTPUT"
-            echo "is_prebake=false" >> "$GITHUB_OUTPUT"
-          fi
-
-  # If this push modifies files that cause the prebake image to be rebuilt
-  # (coq-wasm.opam, Dockerfile, or the prebake workflow), wait for the
-  # "Build dependency image" run on this same commit to finish before letting
-  # downstream jobs pull the (potentially stale) image.
-  wait-for-prebake:
-    runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false
-    timeout-minutes: 30
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - id: check
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "${{ github.event_name }}" != "push" ]]; then
-            echo "Event is ${{ github.event_name }}, not push — prebake does not fire, skipping wait."
-            echo "needs_wait=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          BASE="${{ github.event.before }}"
-          HEAD="${{ github.sha }}"
-          if [[ -z "$BASE" || "$BASE" == "0000000000000000000000000000000000000000" ]]; then
-            echo "New branch push (no prior commit); assuming prebake may run."
-            echo "needs_wait=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "Comparing ${BASE}...${HEAD} via API"
-          files=$(gh api "repos/${{ github.repository }}/compare/${BASE}...${HEAD}" --jq '.files[].filename')
-          echo "Changed files in this push:"
-          echo "$files"
-          if echo "$files" | grep -qE '^(coq-wasm\.opam|Dockerfile|\.github/workflows/build-deps-image\.yml)$'; then
-            echo "Image-affecting files changed; will wait for prebake."
-            echo "needs_wait=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "No image-affecting changes; not waiting."
-            echo "needs_wait=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Wait for prebake workflow
-        if: steps.check.outputs.needs_wait == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          SHA="${{ github.sha }}"
-          REPO="${{ github.repository }}"
-          echo "Waiting for build-deps-image.yml run on $SHA in $REPO"
-          run_id=""
-          for i in $(seq 1 18); do
-            run_id=$(gh api \
-              "repos/$REPO/actions/workflows/build-deps-image.yml/runs?head_sha=$SHA&per_page=1" \
-              --jq '.workflow_runs[0].id // empty' 2>/dev/null || true)
-            if [[ -n "$run_id" ]]; then
-              echo "Found prebake run id: $run_id"
-              break
-            fi
-            echo "Run not yet visible (attempt $i/18); sleeping 10s..."
-            sleep 10
-          done
-          if [[ -z "$run_id" ]]; then
-            echo "Timed out waiting for prebake run to appear in the API." >&2
-            exit 1
-          fi
-          # Blocks until the watched run is completed; --exit-status propagates failure.
-          gh run watch "$run_id" --repo "$REPO" --exit-status --interval 15
-
+  # Builds the interpreter binary inside a Rocq container with all opam deps
+  # installed fresh. Uploads the resulting executable as an artifact for the
+  # test jobs to consume — so the heavy compile happens exactly once.
   build:
-    needs: setup
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     strategy:
@@ -143,29 +36,18 @@ jobs:
         with:
           opam_file: ${{ matrix.opam_file }}
           coq_version: ${{ matrix.coq_version }}
-          custom_image: ${{ needs.setup.outputs.image }}
 
           before_install: |
             startGroup "Fix workspace permissions"
               sudo chmod 777 ~/. -R
               sudo chmod 777 . -R
             endGroup
-          install: |
-            startGroup "Pin local package"
-              opam pin add -n -y -k path coq-wasm .
-            endGroup
-            if [ "${{ needs.setup.outputs.is_prebake }}" != "true" ]; then
-              startGroup "Install deps from scratch (no prebake)"
-                opam install --deps-only --with-test --yes coq-wasm
-              endGroup
-            fi
-          script: |
-            startGroup "Build interpreter in workspace"
-              dune build src/wasm_coq_interpreter.exe
-            endGroup
           after_script: |
             startGroup "List installed packages"
               opam list
+            endGroup
+            startGroup "Build interpreter into workspace"
+              dune build src/wasm_coq_interpreter.exe
             endGroup
 
       - name: Upload interpreter binary
@@ -175,16 +57,23 @@ jobs:
           path: _build/default/src/wasm_coq_interpreter.exe
           if-no-files-found: error
 
+  # Runs the .md mdx tests against the already-built interpreter. mdx only
+  # needs an opam switch to install itself; we don't need the heavy Coq
+  # toolchain here.
   internal-tests:
-    needs: [setup, build]
+    needs: build
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
-    container:
-      image: ${{ needs.setup.outputs.image }}
-      options: --user root
 
     steps:
       - uses: actions/checkout@v4
+
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: '4.14'
+
+      - name: Install mdx
+        run: opam install mdx --yes
 
       - name: Download interpreter binary
         uses: actions/download-artifact@v4
@@ -193,34 +82,27 @@ jobs:
           path: bin/
 
       - name: Install interpreter on PATH
-        run: install -m 0755 bin/wasm_coq_interpreter.exe /usr/local/bin/wasm_coq_interpreter
+        run: |
+          chmod +x bin/wasm_coq_interpreter.exe
+          sudo install -m 0755 bin/wasm_coq_interpreter.exe /usr/local/bin/wasm_coq_interpreter
 
       - name: Run mdx tests
         shell: bash
         run: |
           set -euo pipefail
-          chown -R rocq:rocq .
-          su rocq -s /bin/bash -c '
-            set -e
-            eval $(opam env)
-            if ! command -v ocaml-mdx >/dev/null 2>&1; then
-              echo "mdx not preinstalled in this image; installing now."
-              opam install mdx --yes
-            fi
-            cd tests
-            for f in *.md; do
-              echo "===== $f ====="
-              ocaml-mdx test "$f"
-            done
-          '
+          eval $(opam env)
+          cd tests
+          for f in *.md; do
+            echo "===== $f ====="
+            ocaml-mdx test "$f"
+          done
 
+  # Runs the Wasm conformance suite against the already-built interpreter.
+  # No OCaml/opam needed — only the binary plus the wast_testsuite submodule.
   external-tests:
-    needs: [setup, build]
+    needs: build
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
-    container:
-      image: ${{ needs.setup.outputs.image }}
-      options: --user root
 
     steps:
       - uses: actions/checkout@v4
