@@ -14,14 +14,47 @@ on:
 
 jobs:
   setup:
+    needs: wait-for-prebake
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     outputs:
       owner_lc: ${{ steps.lower.outputs.owner_lc }}
+      image: ${{ steps.detect.outputs.image }}
+      is_prebake: ${{ steps.detect.outputs.is_prebake }}
     steps:
       - id: lower
         shell: bash
         run: echo "owner_lc=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      # Detect whether the prebake image exists for this repo owner. If yes,
+      # downstream jobs use it (fast path). If not (e.g. first run on a new
+      # fork / upstream before the prebake has ever published), fall back to
+      # the raw rocq image and let docker-coq-action install deps from
+      # scratch.
+      #
+      # We attempt an authenticated login first so that this also works when
+      # the prebake image is private (the default for newly-published GHCR
+      # packages). On fork PRs the login is effectively a no-op (the token
+      # has no write/read scope on the upstream namespace), but the
+      # subsequent anonymous fallback handles that case correctly because
+      # forks need the image to be public anyway.
+      - id: detect
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          PREBAKE="ghcr.io/${{ steps.lower.outputs.owner_lc }}/wasmcert-coq-deps:9.0"
+          echo "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin >/dev/null 2>&1 || true
+          if docker manifest inspect "$PREBAKE" >/dev/null 2>&1; then
+            echo "Prebake image found: $PREBAKE"
+            echo "image=$PREBAKE" >> "$GITHUB_OUTPUT"
+            echo "is_prebake=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No prebake image for ${{ steps.lower.outputs.owner_lc }}; using rocq/rocq-prover:9.0"
+            echo "image=rocq/rocq-prover:9.0" >> "$GITHUB_OUTPUT"
+            echo "is_prebake=false" >> "$GITHUB_OUTPUT"
+          fi
 
   # If this push modifies files that cause the prebake image to be rebuilt
   # (coq-wasm.opam, Dockerfile, or the prebake workflow), wait for the
@@ -90,7 +123,7 @@ jobs:
           gh run watch "$run_id" --repo "$REPO" --exit-status --interval 15
 
   build:
-    needs: [setup, wait-for-prebake]
+    needs: setup
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     strategy:
@@ -110,7 +143,7 @@ jobs:
         with:
           opam_file: ${{ matrix.opam_file }}
           coq_version: ${{ matrix.coq_version }}
-          custom_image: ghcr.io/${{ needs.setup.outputs.owner_lc }}/wasmcert-coq-deps:9.0
+          custom_image: ${{ needs.setup.outputs.image }}
 
           before_install: |
             startGroup "Fix workspace permissions"
@@ -121,6 +154,11 @@ jobs:
             startGroup "Pin local package"
               opam pin add -n -y -k path coq-wasm .
             endGroup
+            if [ "${{ needs.setup.outputs.is_prebake }}" != "true" ]; then
+              startGroup "Install deps from scratch (no prebake)"
+                opam install --deps-only --with-test --yes coq-wasm
+              endGroup
+            fi
           script: |
             startGroup "Build interpreter in workspace"
               dune build src/wasm_coq_interpreter.exe
@@ -142,7 +180,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     container:
-      image: ghcr.io/${{ needs.setup.outputs.owner_lc }}/wasmcert-coq-deps:9.0
+      image: ${{ needs.setup.outputs.image }}
       options: --user root
 
     steps:
@@ -165,6 +203,10 @@ jobs:
           su rocq -s /bin/bash -c '
             set -e
             eval $(opam env)
+            if ! command -v ocaml-mdx >/dev/null 2>&1; then
+              echo "mdx not preinstalled in this image; installing now."
+              opam install mdx --yes
+            fi
             cd tests
             for f in *.md; do
               echo "===== $f ====="
@@ -177,7 +219,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     container:
-      image: ghcr.io/${{ needs.setup.outputs.owner_lc }}/wasmcert-coq-deps:9.0
+      image: ${{ needs.setup.outputs.image }}
       options: --user root
 
     steps:
