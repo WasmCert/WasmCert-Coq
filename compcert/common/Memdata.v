@@ -15,15 +15,17 @@
 (*                                                                     *)
 (* *********************************************************************)
 
-(** Minimal subset of CompCert's common/Memdata.v.
+(** Modified by the WasmCert-Coq authors, 2026-05-15:
+    Minimal subset of CompCert's common/Memdata.v.
 
     coq-wasm uses only [encode_int] and [decode_int] from this module
     (for Wasm memory load/store byte encoding). The rest of the original
     Memdata.v (memory chunks, byte-level value encoding for CompCert's
-    [Values.val] discriminated union, and all related lemmas) is not
-    used and has been removed, along with its transitive deps on AST.v,
-    Values.v, and Errors.v. The four definitions kept below are unchanged
-    from the upstream file. *)
+    [Values.val] discriminated union, and all related lemmas) has been
+    removed, along with its transitive deps on AST.v, Values.v, and
+    Errors.v. The four definitions kept below ([rev_if_be],
+    [bytes_of_int], [int_of_bytes], [encode_int], [decode_int]) are
+    byte-for-byte unchanged from the upstream file. *)
 
 From Coq Require Import List ZArith.
 From compcert Require Import Integers.

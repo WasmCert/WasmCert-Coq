@@ -5,7 +5,7 @@ A WebAssembly (aka Wasm) formalisation in Coq(Rocq), based on the [official spec
 
 The quotes from the WebAssembly standard (starting with `std-doc`) are (C) their respective authors. 
 The files located in `src/Parray` are adapted from the Rocq kernel and therefore licensed under GNU LGPL 2.1 - see `src/Parray/LICENSE.LGPL`.
-The files located in `compcert/` are vendored from the [CompCert project](https://github.com/AbsInt/CompCert) (specifically the numerics and byte-encoding modules) and are likewise licensed under GNU LGPL 2.1 - see `compcert/LICENSE.LGPL`.
+The files located in `compcert/` are vendored from the [CompCert project](https://github.com/AbsInt/CompCert) (specifically the numerics and byte-encoding modules) under its LGPL 2.1+ dual-license option - see `compcert/LICENSE.LGPL` and `compcert/NOTICE.md`.
 
 The current project formalises Wasm version 2.0 with the following additions:
 - [+] Subtyping systems (from the future funcref/GC extension proposals);
