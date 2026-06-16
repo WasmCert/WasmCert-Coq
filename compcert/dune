@@ -1,0 +1,18 @@
+; Vendored subset of CompCert (LGPL v2.1+) — see LICENSE.LGPL.
+; Provides only the numerics/byte-encoding modules used by coq-wasm:
+; Integers, Floats, Memdata (plus their transitive deps inside CompCert lib/
+; and common/). The rest of CompCert (compiler, optimiser, backends) is not
+; vendored and not depended on.
+
+; Recurse into lib/ and common/ subdirs, using directory names as namespace
+; suffixes (so compcert/lib/Integers.v -> compcert.lib.Integers).
+(include_subdirs qualified)
+
+(coq.theory
+  (name compcert)
+  (package coq-wasm)
+  (theories Stdlib Flocq)
+  ; Warning suppressions mirror the set CompCert's own Makefile uses, plus a
+  ; few extras that arise when these files are compiled outside CompCert's
+  ; build system.
+  (flags -w "-notation-overridden,-deprecated,-deprecated-hint-without-locality,-deprecated-instance-without-locality,-deprecated-syntactic-definition,-deprecated-since-8.19,-deprecated-since-8.20,-deprecated-since-9.0,-deprecated-from-Coq,-undeclared-scope,-unused-pattern-matching-variable,-hiding-delimiting-key,-overwriting-delimiting-key,-abstract-large-number,-ambiguous-paths,-projection-no-head-constant"))

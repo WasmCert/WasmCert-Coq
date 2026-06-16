@@ -13,7 +13,7 @@ bug-reports: "https://github.com/WasmCert/WasmCert-Coq/issues"
 depends: [
   "dune" {>= "3.17"}
   "coq" {>= "9.0" & < "9.2~"}
-  "coq-compcert" {>= "3.14"}
+  "coq-flocq" {>= "4.1.0" & < "5~"}
   "coq-ext-lib" {>= "0.11.8"}
   "coq-mathcomp-ssreflect" {>= "2.4.0" & <= "2.5~"}
   "rocq-parseque" {>= "0.2.0"}
@@ -21,7 +21,7 @@ depends: [
   "mdx" {>= "1.9.0" & with-test}
   "wasm" {>= "2.0.2" & <= "2.0.2"}
   "zarith" {>= "1.11"}
-  "menhir" {<= "20250912"}
+  "menhir"
   "odoc" {with-doc}
 ]
 build: [

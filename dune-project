@@ -13,7 +13,7 @@
   (description "Wasm formalisation in Coq, following the AFP formalisation of Conrad Watt")
   (depends
     (coq (and (>= 9.0) (< 9.2~)))
-    (coq-compcert (>= 3.14))
+    (coq-flocq (and (>= 4.1.0) (< 5~)))
     (coq-ext-lib (>= 0.11.8))
     (coq-mathcomp-ssreflect (and (>= 2.4.0) (<= 2.5~)))
     (rocq-parseque (>= 0.2.0))
@@ -21,7 +21,7 @@
     (mdx (and (>= 1.9.0) :with-test))
     (wasm (and (>= 2.0.2) (<= 2.0.2)))
     (zarith (>= 1.11))
-    (menhir (<= 20250912))
+    menhir
   )
   (maintainers
     "Xiaojia Rao"
