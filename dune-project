@@ -21,7 +21,7 @@
     (mdx (and (>= 1.9.0) :with-test))
     (wasm (and (>= 2.0.2) (<= 2.0.2)))
     (zarith (>= 1.11))
-    (menhir (<= 20250912))
+    (menhir)
   )
   (maintainers
     "Xiaojia Rao"
