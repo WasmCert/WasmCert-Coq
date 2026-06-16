@@ -1,6 +1,21 @@
+Most of this project is distributed under the MIT License (below). However,
+the following directories contain files vendored from external projects and
+are distributed under the GNU Lesser General Public License version 2.1 or
+later (LGPL v2.1+), with the original copyright headers preserved on each
+file:
+
+  - src/Parray/    (adapted from the Rocq kernel; see src/Parray/LICENSE.LGPL)
+  - compcert/      (vendored numerics/byte-encoding modules from the CompCert
+                   project; see compcert/LICENSE.LGPL)
+
+When redistributing this project, the LGPL terms apply to the files in the
+above directories, while the MIT terms below apply to all other files.
+
+----------------------------------------------------------------------
+
 The MIT License (MIT)
 
-Copyright (c) 2019-2024  Martin Bodin, Philippa Gardner, Jean Pichon, Xiaojia Rao, Conrad Watt
+Copyright (c) 2019-2026  Martin Bodin, Philippa Gardner, Jean Pichon, Xiaojia Rao, Conrad Watt
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

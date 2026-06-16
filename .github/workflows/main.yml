@@ -3,7 +3,7 @@ name: Test compilation
 on:
   push:
   pull_request:
-    types: 
+    types:
       - opened
       - synchronize
       - reopened
@@ -13,7 +13,10 @@ on:
     inputs:
 
 jobs:
-  build-matrix:
+  # Builds the interpreter binary inside a Rocq container with all opam deps
+  # installed fresh. Uploads the resulting executable as an artifact for the
+  # test jobs to consume — so the heavy compile happens exactly once.
+  build:
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     strategy:
@@ -25,7 +28,7 @@ jobs:
       fail-fast: true
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -35,24 +38,85 @@ jobs:
           coq_version: ${{ matrix.coq_version }}
 
           before_install: |
-            startGroup "install dependencies"
-              sudo apt update
-              sudo apt install nano --yes
-
+            startGroup "Fix workspace permissions"
               sudo chmod 777 ~/. -R
               sudo chmod 777 . -R
-
-              opam install mdx --yes
             endGroup
           after_script: |
             startGroup "List installed packages"
               opam list
             endGroup
-            startGroup "Test suites"
-              dune test
+            startGroup "Build interpreter into workspace"
+              dune build src/wasm_coq_interpreter.exe
             endGroup
-            startGroup "Test import"
-              cd .ci/
-              coqc import_test.v
-              cd ..
-            endGroup
+
+      - name: Upload interpreter binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm_coq_interpreter
+          path: _build/default/src/wasm_coq_interpreter.exe
+          if-no-files-found: error
+
+  # Runs the .md mdx tests against the already-built interpreter. mdx only
+  # needs an opam switch to install itself; we don't need the heavy Coq
+  # toolchain here.
+  internal-tests:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: '4.14'
+
+      - name: Install mdx
+        run: opam install mdx --yes
+
+      - name: Download interpreter binary
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm_coq_interpreter
+          path: bin/
+
+      - name: Install interpreter on PATH
+        run: |
+          chmod +x bin/wasm_coq_interpreter.exe
+          sudo install -m 0755 bin/wasm_coq_interpreter.exe /usr/local/bin/wasm_coq_interpreter
+
+      - name: Run mdx tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval $(opam env)
+          cd tests
+          for f in *.md; do
+            echo "===== $f ====="
+            ocaml-mdx test "$f"
+          done
+
+  # Runs the Wasm conformance suite against the already-built interpreter.
+  # No OCaml/opam needed — only the binary plus the wast_testsuite submodule.
+  external-tests:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Download interpreter binary
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm_coq_interpreter
+          path: _build/default/src/
+
+      - name: Make binary executable
+        run: chmod +x _build/default/src/wasm_coq_interpreter.exe
+
+      - name: Run conformance suite
+        run: make run_wast
