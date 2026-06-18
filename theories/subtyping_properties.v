@@ -556,6 +556,11 @@ Ltac extract_premise :=
     try specialize (H _ _ erefl)
   | H: forall t ts, ?ts0 ++ [::?t0] = ts ++ [::t] -> _ |- _ =>
     try specialize (H _ _ erefl)
+  (* Same equation, other binder-generalisation order: [dependent induction]
+     may emit the bound list/element in either order across Rocq versions.
+     Mirrors the both-orders handling already done for the cons and Tf cases. *)
+  | H: forall ts t, ?ts0 ++ [::?t0] = ts ++ [::t] -> _ |- _ =>
+    try specialize (H _ _ erefl)
   | H: forall x y z, [:: ?c ?x0 ?y0 ?z0] = [:: ?c z y x] -> _ |- _ =>
     try specialize (H _ _ _ erefl)
   | H: forall x y, (Tf ?x0 ?y0) = (Tf y x) -> _ |- _ =>
