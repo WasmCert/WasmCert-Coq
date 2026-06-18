@@ -1,2 +1,3 @@
 -R _build/default/theories Wasm
+-R _build/default/compcert compcert
 -w -notation-overridden,-abstract-large-number,-hiding-delimiting-key,-overwriting-delimiting-key
