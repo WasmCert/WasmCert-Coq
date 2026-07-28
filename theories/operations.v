@@ -6,6 +6,9 @@ From compcert Require Floats.
 From Wasm Require Export common memory datatypes_properties list_extra simd_execute.
 From Stdlib Require Import ZArith.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.

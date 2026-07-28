@@ -6,7 +6,7 @@
 
   attribute = "wasmcert";
 
-  default-bundle = "9.1";
+  default-bundle = "9.2";
 
   # one bundle per GH actions file
   bundles."9.0" = {

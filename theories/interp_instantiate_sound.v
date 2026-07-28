@@ -6,6 +6,9 @@ From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From Wasm Require Import interpreter_ctx instantiation_func instantiation_properties type_checker_reflects_typing.
 From Stdlib Require Import Program.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Section Host.
 
 Context `{ho: host}.

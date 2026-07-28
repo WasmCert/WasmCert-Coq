@@ -4,6 +4,9 @@ From Stdlib Require Import ZArith String List.
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From Wasm Require Export opsem interpreter_ctx instantiation_spec.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Open Scope string_scope.
 Open Scope seq_scope.
 

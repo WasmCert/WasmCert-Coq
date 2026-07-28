@@ -5,6 +5,9 @@ From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Export bytes_pp datatypes interpreter_ctx ansi list_extra.
 From Stdlib Require Import Strings.String Init.Decimal ZArith.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Open Scope string_scope.
 
 Section Host.

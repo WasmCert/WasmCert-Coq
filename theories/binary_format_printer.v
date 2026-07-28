@@ -5,6 +5,9 @@ From Wasm Require Import datatypes_properties numerics common list_extra leb128.
 From compcert Require Integers.
 From Stdlib Require Import ZArith Strings.Byte.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Definition binary_of_number_type (t: number_type) : byte :=
   match t with
   | T_i32 => x7f

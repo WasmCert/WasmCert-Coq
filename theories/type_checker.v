@@ -4,6 +4,9 @@ From HB Require Import structures.
 From Wasm Require Export typing datatypes_properties operations subtyping_properties.
 From Stdlib Require Import ZArith.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.

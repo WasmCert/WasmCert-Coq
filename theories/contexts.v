@@ -8,6 +8,9 @@ From Stdlib Require Import Program NArith ZArith Wf_nat.
 From Wasm Require Export common operations datatypes_properties properties opsem typing_inversion tactic.
 From Stdlib Require Import FunInd Recdef.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
