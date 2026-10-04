@@ -214,11 +214,11 @@ Definition parse_call_indirect {n} : byte_parser basic_instruction n :=
   (((fun typ tab => BI_call_indirect tab typ) <$> parse_typeidx) <*> parse_tableidx).
 
 Definition parse_return_call {n} : byte_parser basic_instruction n :=
-  exact_byte x12 &> (extract_funcidx BI_call <$> parse_funcidx).
+  exact_byte x12 &> (extract_funcidx BI_return_call <$> parse_funcidx).
 
 Definition parse_return_call_indirect {n} : byte_parser basic_instruction n :=
   exact_byte x13 &>
-  (((fun typ tab => BI_call_indirect tab typ) <$> parse_typeidx) <*> parse_tableidx).
+  (((fun typ tab => BI_return_call_indirect tab typ) <$> parse_typeidx) <*> parse_tableidx).
 
 (* Reference instructions *)
 Definition parse_ref_null {n}: byte_parser basic_instruction n :=
