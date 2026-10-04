@@ -5,8 +5,6 @@ later (LGPL v2.1+), with the original copyright headers preserved on each
 file:
 
   - src/Parray/    (adapted from the Rocq kernel; see src/Parray/LICENSE.LGPL)
-  - compcert/      (vendored numerics/byte-encoding modules from the CompCert
-                   project; see compcert/LICENSE.LGPL)
 
 When redistributing this project, the LGPL terms apply to the files in the
 above directories, while the MIT terms below apply to all other files.
