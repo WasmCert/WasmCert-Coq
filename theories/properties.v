@@ -552,10 +552,11 @@ Lemma concat_cancel_last_n: forall (l1 l2 l3 l4: seq value_type),
     (l1 == l3) && (l2 == l4).
 Proof.
   move => l1 l2 l3 l4 HCat HSize.
-  rewrite -eqseq_cat; first by apply/eqP.
-  assert (size (l1 ++ l2) = size (l3 ++ l4)); first by rewrite HCat.
-  repeat rewrite size_cat in H.
-  rewrite HSize in H. by lias.
+  rewrite -eqseq_cat.
+  - assert (size (l1 ++ l2) = size (l3 ++ l4)); first by rewrite HCat.
+    repeat rewrite size_cat in H.
+    rewrite HSize in H. by lias.
+  - by apply/eqP.
 Qed.
 
 Lemma extract_list1 : forall {X:Type} (es: seq X) (e1 e2:X),
@@ -784,7 +785,8 @@ Proof.
     apply List.Forall2_length in Hall2g.
     apply List.nth_error_None in Hnth.
     specialize (List.nth_error_None l2 i) as [_ Hnone1].
-    rewrite Hnone1; last by lias.
+    have Hnone : List.nth_error l2 i = None by apply Hnone1; lias.
+    rewrite Hnone.
     symmetry. rewrite -> List.nth_error_None. by lias.
   }
 Qed.
@@ -936,7 +938,9 @@ Proof.
   move => Hall.
   assert (size l1 = size l2 + size l3) as Hsize; first by apply all2_size in Hall; rewrite size_cat in Hall.
   rewrite <- (cat_take_drop (size l2) l1) in Hall.
-  by rewrite all2_cat in Hall; last by rewrite size_takel; lias.
+  rewrite all2_cat in Hall.
+  - by rewrite size_takel; lias.
+  - exact Hall.
 Qed.
 
 Lemma all2_split2 {T1 T2: Type} (l1 l2: list T1) (l3: list T2) (f: T1 -> T2 -> bool):
@@ -946,7 +950,9 @@ Proof.
   move => Hall.
   assert (size l3 = size l1 + size l2) as Hsize; first by apply all2_size in Hall; rewrite size_cat in Hall.
   rewrite <- (cat_take_drop (size l1) l3) in Hall.
-  by rewrite all2_cat in Hall; last by rewrite size_takel; lias.
+  rewrite all2_cat in Hall.
+  - by rewrite size_takel; lias.
+  - exact Hall.
 Qed.
 
 Lemma all2_rev {T1 T2: Type} (f: T1 -> T2 -> bool) l1 l2:
@@ -1008,8 +1014,9 @@ Proof.
   - move => [->] => /=.
     rewrite rev_cons -cats1.
     replace (S (length l) - 1) with (length l); last by lias.
-    rewrite List.nth_error_app2; last by rewrite rev_length.
-    by rewrite rev_length Nat.sub_diag.
+    rewrite List.nth_error_app2.
+    + by rewrite rev_length.
+    + by rewrite rev_length Nat.sub_diag.
   - move => Hnth.
     rewrite subSS.
     rewrite rev_cons -cats1.
@@ -1298,8 +1305,9 @@ Proof.
   move => s vs1 vs2 ts1 ts2.
   unfold values_typing.
   intros.
-  rewrite all2_cat; first by lias.
-  by apply all2_size in H.
+  rewrite all2_cat.
+  - by apply all2_size in H.
+  - by lias.
 Qed.
 
 Lemma values_typing_rev: forall s vs ts,
@@ -1377,10 +1385,11 @@ Lemma concat_cancel_first_n: forall (T : eqType) (l1 l2 l3 l4: seq T),
     (l1 == l3) && (l2 == l4).
 Proof.
   move => T l1 l2 l3 l4 HCat HSize.
-  rewrite -eqseq_cat; first by apply/eqP.
-  assert (size (l1 ++ l2) = size (l3 ++ l4)); first by rewrite HCat.
-  repeat rewrite size_cat in H.
-  rewrite HSize in H. by lias.
+  rewrite -eqseq_cat.
+  - assert (size (l1 ++ l2) = size (l3 ++ l4)); first by rewrite HCat.
+    repeat rewrite size_cat in H.
+    rewrite HSize in H. by lias.
+  - by apply/eqP.
 Qed.
 
 Lemma ves_cat_e_split : forall vs vs' e e' es',
@@ -1527,11 +1536,13 @@ Proof.
   - replace (n.+1) with (n+1)%coq_nat; last by lias.
     rewrite List.nth_error_app2; rewrite length_is_size size_takel; try by lias.
     by rewrite Nat.sub_diag.
-  - rewrite List.nth_error_app2; last by rewrite length_is_size; lias.
-    rewrite - cat_nseq.
-    rewrite List.nth_error_app2; last by repeat rewrite length_is_size; rewrite size_nseq.
-    repeat rewrite length_is_size; rewrite size_nseq.
-    by replace (_ - _) with 0; last by lias.
+  - rewrite List.nth_error_app2.
+    + by rewrite length_is_size; lias.
+    + rewrite - cat_nseq.
+      rewrite List.nth_error_app2.
+      * by repeat rewrite length_is_size; rewrite size_nseq.
+      * repeat rewrite length_is_size; rewrite size_nseq.
+        by replace (_ - _) with 0; last by lias.
 Qed.
 
 Lemma nth_error_set_neq: forall {X:Type} l n m {x xd:X},
@@ -1805,10 +1816,12 @@ Lemma cat_lookup {T: Type}: forall (l1 l2: list T) n x,
 Proof.
   move => l1 l2 n x Hnth.
   destruct (n < length l1) eqn:Hlt.
-  - rewrite List.nth_error_app1 in Hnth; last by lias.
-    by left.
-  - rewrite List.nth_error_app2 in Hnth; last by lias.
-    by right.
+  - rewrite List.nth_error_app1 in Hnth.
+    + by lias.
+    + by left.
+  - rewrite List.nth_error_app2 in Hnth.
+    + by lias.
+    + by right.
 Qed.
 
 Lemma cat_lookup2 {T: Type}: forall (l1 l2: list T) n x,
@@ -1817,7 +1830,9 @@ Lemma cat_lookup2 {T: Type}: forall (l1 l2: list T) n x,
     List.nth_error l2 (n - length l1) = Some x.
 Proof.
   move => l1 l2 n x Hnth Hlength.
-  by rewrite List.nth_error_app2 in Hnth; last by lias.
+  rewrite List.nth_error_app2 in Hnth.
+  - by lias.
+  - exact Hnth.
 Qed.
 
 Lemma combine_lookup {T1 T2: Type}: forall (l1: list T1) (l2: list T2) n x y,

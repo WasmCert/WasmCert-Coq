@@ -158,7 +158,10 @@ Proof.
       * rewrite Zbits.P_mod_two_p_eq. destruct Coqlib.zeq as [E'|E'] => //.
         apply Zdiv.Z_mod_zero_opp_full in E. simpl in E.
         unfold modulus, Zpower.two_power_nat in *.
-        rewrite -(Zdiv.Z_mod_plus _ 1) in E; last by lias.
+        have Hpos : (Z.pos (Zpower.shift_nat wordsize 1) > 0)%Z by lias.
+        have Hmod := Zdiv.Z_mod_plus (Z.neg i) 1
+                       (Z.pos (Zpower.shift_nat wordsize 1)) Hpos.
+        rewrite -Hmod in E.
         rewrite Z.mul_1_l in E. rewrite Ep in E.
         by rewrite -Z.mod_opp_l_nz; lias.
     + rewrite/Z_mod_modulus. rewrite /modulus /Zpower.two_power_nat.
@@ -178,10 +181,20 @@ Proof.
         destruct Coqlib.zeq as [E'|E'].
         -- unfold Zpower.two_power_nat in *.
            rewrite Zdiv.Zplus_mod in E'.
-           rewrite Zdiv.Z_mod_zero_opp_full in E'; last by rewrite Zdiv.Z_mod_same_full.
+           have Hopp := Zdiv.Z_mod_zero_opp_full
+                          (Z.pos (Zpower.shift_nat wordsize 1))
+                          (Z.pos (Zpower.shift_nat wordsize 1))
+                          (Zdiv.Z_mod_same_full
+                             (Z.pos (Zpower.shift_nat wordsize 1))).
+           rewrite Hopp in E'.
            rewrite Z.add_0_r in E'. by rewrite Zdiv.Zmod_mod in E'.
         -- rewrite Zdiv.Zplus_mod. rewrite/Zpower.two_power_nat.
-           rewrite Zdiv.Z_mod_zero_opp_full; last by rewrite Zdiv.Z_mod_same_full.
+           have Hopp := Zdiv.Z_mod_zero_opp_full
+                          (Z.pos (Zpower.shift_nat wordsize 1))
+                          (Z.pos (Zpower.shift_nat wordsize 1))
+                          (Zdiv.Z_mod_same_full
+                             (Z.pos (Zpower.shift_nat wordsize 1))).
+           rewrite Hopp.
            rewrite Z.add_0_r. by rewrite Zdiv.Zmod_mod.
 Qed.
 
@@ -364,6 +377,7 @@ Proof.
     have E: intval one = Zpower.two_p Z0.
     { compute. move: WS.wordsize_not_zero. by elim: WS.wordsize. }
     rewrite {} E Zbits.Z_one_bits_two_p /=.
+    + by lias.
     + rewrite nth_rcons nth_nseq size_nseq.
       case E: (i == wordsize - 1); move/ssrnat.eqnP: E => E.
       * rewrite {} E. rewrite_by (wordsize - (wordsize - 1) - 1 = 0).
@@ -372,7 +386,6 @@ Proof.
         rewrite in_cons in_nil Bool.orb_false_r.
         rewrite_by ((Z.of_nat (wordsize - i - 1) == 0%Z) = (wordsize - i - 1 == 0)).
         apply gtn_eqF. move/leP: I E. move: WS.wordsize_not_zero. rewrite/wordsize. by lias.
-    + by lias.
 Qed.
 
 (** As the definitions [zero], [one], and [mone] are used later on,
@@ -413,6 +426,9 @@ Proof.
       + apply: Znat.inj_lt. by apply/leP.
     - exfalso. move: Epp. by case: (p). }
   rewrite {} Rm. rewrite Zbits.Z_one_bits_two_p /=.
+  - split.
+    + by apply: Znat.Nat2Z.is_nonneg.
+    + apply: Znat.inj_lt. by apply/leP.
   - have I': (p < wordsize)%coq_nat; first by apply/ltP. elim: I'.
     + move=> /=. rewrite_by (p.+1 - 1 - p = 0).
       rewrite in_cons in_nil eqxx /=. f_equal.
@@ -420,11 +436,8 @@ Proof.
       move=> i I'. by rewrite in_cons in_nil nat_Z_lt_neq.
     + move=> ws Ip E /=. rewrite E /=.
       rewrite in_cons in_nil nat_Z_gt_neq.
-      * by rewrite_by (ws.+1 - 1 - p = (ws - 1 - p).+1).
       * by lias.
-  - split.
-    + by apply: Znat.Nat2Z.is_nonneg.
-    + apply: Znat.inj_lt. by apply/leP.
+      * by rewrite_by (ws.+1 - 1 - p = (ws - 1 - p).+1).
 Qed.
 
 (** Auxiliary function for [convert_from_bits]. **)
@@ -469,7 +482,8 @@ Proof.
             * rewrite IH => //. destruct Coqlib.zlt as [L'|L'] => //=.
               exfalso. have ?: (a = ws); first by lias. subst. by rewrite I in N.
       }
-    + rewrite -filter_out_zlt; last by rewrite E. by rewrite IH.
+    + have Hnot : (Z.of_nat ws) \notin l by rewrite E.
+      rewrite -(filter_out_zlt Hnot). by rewrite IH.
 Qed.
 
 (** Converting a sequence of bits back to [T]. **)
@@ -507,6 +521,7 @@ Lemma convert_to_from_bits : forall a,
   a = convert_from_bits (convert_to_bits a).
 Proof.
   move=> a. rewrite /convert_from_bits convert_from_bits_to_Z_one_bits_power_index_to_bits.
+  - by apply: Zbits_Z_one_bits_uniq.
   - have E: [seq x <- Zbits.Z_one_bits wordsize (intval a) 0 | Coqlib.zlt x wordsize]
             = Zbits.Z_one_bits wordsize (intval a) 0.
     {
@@ -516,9 +531,8 @@ Proof.
       lias.
     }
     rewrite E -Zbits.Z_one_bits_powerserie.
-    + apply: eq_T_intval => /=. by rewrite Z_mod_modulus_intval.
     + destruct a as [a C] => /=. move: {E} C. rewrite/modulus. by lias.
-  - by apply: Zbits_Z_one_bits_uniq.
+    + apply: eq_T_intval => /=. by rewrite Z_mod_modulus_intval.
 Qed.
 
 
@@ -565,34 +579,55 @@ Local Lemma power_index_to_bits_Zbits_powerserie : forall (wordsize : nat) l1 l2
   = Zbits.powerserie (filter (fun b => Coqlib.zlt (-1) b && Coqlib.zlt b wordsize)%Z l2).
 Proof.
   elim => /=.
-  - move=> l1 l2 U1 U2 _. rewrite filter_none.
-    + rewrite filter_none.
-      * by [].
-      * rewrite list_all_forall => a I.
-        repeat destruct Coqlib.zlt => //. exfalso. by lias.
-    + rewrite list_all_forall => a I.
-      repeat destruct Coqlib.zlt => //. exfalso. by lias.
+  - move=> l1 l2 U1 U2 _.
+    have Hnone1 : filter (fun b => Coqlib.zlt (-1) b && Coqlib.zlt b 0)%Z l1 = [::].
+    { apply filter_none. rewrite list_all_forall => a I.
+      repeat destruct Coqlib.zlt => //. exfalso. by lias. }
+    have Hnone2 : filter (fun b => Coqlib.zlt (-1) b && Coqlib.zlt b 0)%Z l2 = [::].
+    { apply filter_none. rewrite list_all_forall => a I.
+      repeat destruct Coqlib.zlt => //. exfalso. by lias. }
+    by rewrite Hnone1 Hnone2.
   - move=> ws IH l1 l2 U1 U2. case => E1 E2.
     repeat rewrite filter_and. destruct in_mem eqn: E1'.
-    + rewrite (Zbits_powerserie_uniq_in (z := ws)).
-      * rewrite (Zbits_powerserie_uniq_in (z := ws) (l := filter _ (filter _ l2))).
-        -- f_equal. repeat rewrite -filter_and. erewrite eq_in_filter.
-           ++ erewrite IH; try eassumption.
-              f_equal. apply: eq_in_filter.
-              move=> x I2. apply is_true_bool.
-              by repeat destruct Coqlib.zlt => /=;
-                (try by lias_simpl; have ?: (x = ws); [ lias | subst; eauto ]);
-                lias.
-           ++ move=> x I1. apply is_true_bool.
-              by repeat destruct Coqlib.zlt => /=;
-                (try by lias_simpl; have ?: (x = ws); [ lias | subst; eauto ]);
-                lias.
-        -- by repeat apply: filter_uniq.
-        -- repeat rewrite mem_filter. by repeat destruct Coqlib.zlt => //=; lias.
-      * by repeat apply filter_uniq.
-      * repeat rewrite mem_filter. by repeat destruct Coqlib.zlt => //=; lias.
-    + rewrite -filter_out_zlt; last by rewrite E1'.
-      rewrite -filter_out_zlt; last by rewrite -E1.
+    + have Huniq1 := filter_uniq (fun a => Coqlib.zlt (-1) a)
+                       (filter_uniq
+                          (fun a => Coqlib.zlt a (Z.pos (Pos.of_succ_nat ws))) U1).
+      have Hin1 : (Z.of_nat ws) \in
+                    filter (fun a => Coqlib.zlt (-1) a)
+                      (filter (fun a => Coqlib.zlt a (Z.pos (Pos.of_succ_nat ws))) l1).
+      { repeat rewrite mem_filter. by repeat destruct Coqlib.zlt => //=; lias. }
+      have Huniq2 := filter_uniq (fun a => Coqlib.zlt (-1) a)
+                       (filter_uniq
+                          (fun a => Coqlib.zlt a (Z.pos (Pos.of_succ_nat ws))) U2).
+      have Hin2 : (Z.of_nat ws) \in
+                    filter (fun a => Coqlib.zlt (-1) a)
+                      (filter (fun a => Coqlib.zlt a (Z.pos (Pos.of_succ_nat ws))) l2).
+      { repeat rewrite mem_filter. by repeat destruct Coqlib.zlt => //=; lias. }
+      have Hseries1 := Zbits_powerserie_uniq_in Huniq1 Hin1.
+      have Hseries2 := Zbits_powerserie_uniq_in Huniq2 Hin2.
+      rewrite Hseries1 Hseries2. f_equal.
+      repeat rewrite -filter_and.
+      have Hfilter1 :
+          filter (fun x => (x != Z.of_nat ws) && Coqlib.zlt (-1) x
+                           && Coqlib.zlt x (Z.pos (Pos.of_succ_nat ws))) l1
+          = filter (fun x => Coqlib.zlt (-1) x && Coqlib.zlt x (Z.of_nat ws)) l1.
+      { apply: eq_in_filter. move=> x I1. apply is_true_bool.
+        by repeat destruct Coqlib.zlt => /=;
+          (try by lias_simpl; have ?: (x = ws); [ lias | subst; eauto ]);
+          lias. }
+      have Hfilter2 :
+          filter (fun x => (x != Z.of_nat ws) && Coqlib.zlt (-1) x
+                           && Coqlib.zlt x (Z.pos (Pos.of_succ_nat ws))) l2
+          = filter (fun x => Coqlib.zlt (-1) x && Coqlib.zlt x (Z.of_nat ws)) l2.
+      { apply: eq_in_filter. move=> x I2. apply is_true_bool.
+        by repeat destruct Coqlib.zlt => /=;
+          (try by lias_simpl; have ?: (x = ws); [ lias | subst; eauto ]);
+          lias. }
+      by rewrite Hfilter1 Hfilter2 (IH l1 l2 U1 U2 E2).
+    + have Hnot1 : (Z.of_nat ws) \notin l1 by rewrite E1'.
+      have Hnot2 : (Z.of_nat ws) \notin l2 by rewrite -E1.
+      rewrite -(filter_out_zlt Hnot1).
+      rewrite -(filter_out_zlt Hnot2).
       repeat rewrite -filter_and. by apply: IH.
 Qed.
 
@@ -602,8 +637,9 @@ Lemma convert_to_bits_inj : forall a b,
 Proof.
   move=> [a Ra] [b Rb] E. apply: eq_T_intval => /=.
   unfold modulus in Ra, Rb.
-  rewrite (Zbits.Z_one_bits_powerserie wordsize a); last by lias.
-  rewrite (Zbits.Z_one_bits_powerserie wordsize b); last by lias.
+  have Ha := Zbits.Z_one_bits_powerserie wordsize a ltac:(lias).
+  have Hb := Zbits.Z_one_bits_powerserie wordsize b ltac:(lias).
+  rewrite Ha Hb.
   unfold convert_to_bits in E. move: E => /= E.
   apply power_index_to_bits_Zbits_powerserie in E.
   {
@@ -811,7 +847,8 @@ Proof.
   repeat rewrite Z_mod_modulus_eq. rewrite Z.mul_mod_idemp_r => //.
   rewrite Z.add_mod_idemp_l => //. rewrite Z.add_mod_idemp_r => //.
   move: D E R. rewrite /signed. do 2 case: Coqlib.zlt; move=> /= I1 I2 D E R DH.
-  - rewrite Zquot.Zquot_Zdiv_pos; [| by lias | by lias ].
+  - have Hquot := Zquot.Zquot_Zdiv_pos v1 v2 ltac:(lias) ltac:(lias).
+    rewrite Hquot.
     case r0: (v1 mod v2 == 0)%Z.
     + move/eqP: r0 => r0. rewrite r0. by rewrite Zdiv.Zmod_small; lias.
     + case Ir: (v1 mod v2 >=? 0)%Z.
@@ -819,7 +856,8 @@ Proof.
         by rewrite Ij1 Zdiv.Zmod_small; lias.
       * move/geb_spec0: Ir => Ir. by inversion R; try lias.
   - rewrite_by (v1 - modulus = - (modulus - v1))%Z. rewrite Z.quot_opp_l => //.
-    rewrite Zquot.Zquot_Zdiv_pos; [| by lias | by lias ].
+    have Hquot := Zquot.Zquot_Zdiv_pos (modulus - v1) v2 ltac:(lias) ltac:(lias).
+    rewrite Hquot.
     rewrite_by (- (modulus - v1) = v1 - modulus)%Z.
     case r0: ((v1 - modulus) mod v2 == 0)%Z.
     + move/eqP: r0 => r0. move: E. rewrite r0 => E.
@@ -837,8 +875,11 @@ Proof.
       rewrite -E. rewrite Zdiv.Zminus_mod. rewrite Zdiv.Z_mod_same_full.
       rewrite_by (v1 mod modulus - 0 = v1 mod modulus)%Z. rewrite Zdiv.Zmod_mod.
       by rewrite Zdiv.Zmod_small; lias.
-  - rewrite_by (v2 - modulus = - (modulus - v2))%Z. rewrite Z.quot_opp_r => //; last by lias.
-    rewrite Zquot.Zquot_Zdiv_pos; [| by lias | by lias ].
+  - rewrite_by (v2 - modulus = - (modulus - v2))%Z.
+    have Hopp := Z.quot_opp_r v1 (modulus - v2) ltac:(lias).
+    rewrite Hopp.
+    have Hquot := Zquot.Zquot_Zdiv_pos v1 (modulus - v2) ltac:(lias) ltac:(lias).
+    rewrite Hquot.
     rewrite_by (- (modulus - v2) = v2 - modulus)%Z.
     case r0: (v1 mod (v2 - modulus) == 0)%Z.
     + move/eqP: r0 => r0. move: E. rewrite r0 => E.
@@ -860,8 +901,12 @@ Proof.
       rewrite_by (v1 mod modulus + 0 = v1 mod modulus)%Z. rewrite Zdiv.Zmod_mod.
       by rewrite Zdiv.Zmod_small; lias.
   - rewrite_by (v1 - modulus = - (modulus - v1))%Z. rewrite Z.quot_opp_l => //.
-    rewrite_by (v2 - modulus = - (modulus - v2))%Z. rewrite Z.quot_opp_r => //; last by lias.
-    rewrite Zquot.Zquot_Zdiv_pos; [| by lias | by lias ].
+    rewrite_by (v2 - modulus = - (modulus - v2))%Z.
+    have Hopp := Z.quot_opp_r (modulus - v1) (modulus - v2) ltac:(lias).
+    rewrite Hopp.
+    have Hquot := Zquot.Zquot_Zdiv_pos (modulus - v1) (modulus - v2)
+                    ltac:(lias) ltac:(lias).
+    rewrite Hquot.
     rewrite_by (- (modulus - v1) = v1 - modulus)%Z. rewrite_by (- (modulus - v2) = v2 - modulus)%Z.
     case r0: ((v1 - modulus) mod (v2 - modulus) == 0)%Z.
     + move/eqP: r0 => r0. move: E. rewrite r0 => E.
@@ -994,7 +1039,9 @@ Lemma int_of_Z_nat_of_uint : forall i,
   int_of_Z Tmixin (nat_of_uint Tmixin i : Z) = i.
 Proof.
   move=> [i ?]. apply: eq_T_intval => /=.
-  rewrite Coqlib.Z_to_nat_max. rewrite Z.max_l; last by lias.
+  rewrite Coqlib.Z_to_nat_max.
+  have Hmax : Z.max i 0 = i by apply Z.max_l; lias.
+  rewrite Hmax.
   by rewrite Z_mod_modulus_id.
 Qed.
 
@@ -1308,9 +1355,13 @@ Proof.
   }
   rewrite {} R.
   move: I. rewrite Digits.Zpos_digits2_pos.
-  rewrite (Digits.Zdigits_unique _ _ (Z.succ (Z.log2 (Z.pos pl)))); first by lias.
-  rewrite_by (Z.succ (Z.log2 (Z.pos pl)) - 1 = Z.log2 (Z.pos pl)).
-  apply Z.log2_spec. by lias.
+  have Hdigits := Digits.Zdigits_unique radix2 (Z.pos pl)
+                    (Z.succ (Z.log2 (Z.pos pl)))
+                    ltac:(rewrite_by
+                            (Z.succ (Z.log2 (Z.pos pl)) - 1 =
+                             Z.log2 (Z.pos pl));
+                          apply Z.log2_spec; lias).
+  rewrite Hdigits. by lias.
 Qed.
 
 Lemma canonical_pl_is_arithmetic : pl_arithmetic canonical_pl.
@@ -1323,17 +1374,20 @@ Proof.
   apply/Z.ltb_spec0.
   move: prec_gt_0. case Eprec: prec => [|precn|] // _.
   move: prec_gt_2. rewrite {} Eprec => precn2.
-  rewrite (Digits.Zdigits_unique _ _ (Z.pos precn - 1)); first by lias.
-  rewrite Pos2Z.id. rewrite_by (1 * 2 ^ Z.pos (precn - 2) = 2 ^ Z.pos (precn - 2)).
-  rewrite Z.abs_eq; last by apply Z.pow_nonneg; lias.
-  rewrite_by (radix_val radix2 = 2).
-  rewrite_by (Z.pos precn - 1 - 1 = Z.pos (precn - 2)).
-  split; first by lias.
-  rewrite_by (Z.pos precn - 1 = 1 + Z.pos (precn - 2)).
-  rewrite Zpower_plus => //.
-  rewrite_by (2 ^ 1 = 2).
-  assert (0 < 2 ^ Z.pos (precn - 2)); last by lias.
-  by apply Z.pow_pos_nonneg.
+  rewrite (Digits.Zdigits_unique _ _ (Z.pos precn - 1)).
+  - rewrite Pos2Z.id. rewrite_by (1 * 2 ^ Z.pos (precn - 2) = 2 ^ Z.pos (precn - 2)).
+    have Hnonneg : (0 <= 2 ^ Z.pos (precn - 2))%Z
+      by apply Z.pow_nonneg; lias.
+    rewrite (Z.abs_eq _ Hnonneg).
+    rewrite_by (radix_val radix2 = 2).
+    rewrite_by (Z.pos precn - 1 - 1 = Z.pos (precn - 2)).
+    split; first by lias.
+    rewrite_by (Z.pos precn - 1 = 1 + Z.pos (precn - 2)).
+    rewrite Zpower_plus => //.
+    rewrite_by (2 ^ 1 = 2).
+    assert (0 < 2 ^ Z.pos (precn - 2)); last by lias.
+    by apply Z.pow_pos_nonneg.
+  - by lias.
 Qed.
 
 (** There are exactly two canonical [NaN]s: a positive one, and a negative one. **)
@@ -1364,6 +1418,10 @@ Proof.
     rewrite /pl' /Binary.nan_pl /pl_arithmetic => {pl'} /=.
     rewrite Digits.Zpos_digits2_pos.
     rewrite (Digits.Zdigits_unique _ _ (Z.succ (Z.log2 (Z.pos (Pos.lor pl canonical_pl))))).
+    + rewrite_by (Z.succ (Z.log2 (Z.pos (Pos.lor pl canonical_pl))) - 1
+                  = Z.log2 (Z.pos (Pos.lor pl canonical_pl))).
+      apply Z.log2_spec.
+      by lias.
     + rewrite_by (Z.pos (Pos.lor pl canonical_pl) = Z.lor (Z.pos pl) (Z.pos canonical_pl)).
       rewrite Z.log2_lor => //. rewrite shift_pos_correct Z.pow_pos_fold.
       rewrite /canonical_pl Eprec.
@@ -1374,19 +1432,15 @@ Proof.
         move: E. rewrite /Binary.nan_pl. move/Z.ltb_spec0.
         rewrite Digits.Zpos_digits2_pos.
         rewrite (Digits.Zdigits_unique _ _ (Z.succ (Z.log2 (Z.pos pl)))).
-        - by lias.
         - rewrite_by (Z.succ (Z.log2 (Z.pos pl)) - 1
                       = Z.log2 (Z.pos pl)).
           apply Z.log2_spec. by lias.
+        - by lias.
       }
       rewrite_by (Z.pos (precn - 2) + Z.log2 1 = Z.pos (precn - 2))%Z.
       apply/eqP.
       have: (Z.max (Z.log2 (Z.pos pl)) (Z.pos (precn - 2)) = Z.pos precn - 2)%Z; last by lias.
       by rewrite Z.max_r; move: prec_gt_2; lias.
-    + rewrite_by (Z.succ (Z.log2 (Z.pos (Pos.lor pl canonical_pl))) - 1
-                  = Z.log2 (Z.pos (Pos.lor pl canonical_pl))).
-      apply Z.log2_spec.
-      by lias.
 Defined.
 
 Lemma make_arithmetic_arithmetic : forall pl, pl_arithmetic (sval (make_arithmetic pl)).
@@ -1449,7 +1503,7 @@ Definition opp : T -> T := Binary.Bopp _ _ wasm_opp_nan.
   The sign is not specified if given 0 as a mantissa. **)
 Definition normalise (m e : Z) : T :=
   Binary.binary_normalize _ _ prec_gt_0 Hmax
-    BinarySingleNaN.mode_NE m e ltac:(abstract exact false).
+    BinarySingleNaN.mode_NE m e false.
 
 (** As Flocq is unfortunately undocumented, let us introduce a unit test here, to check
   that indeed we have the correct understanding of definitions.
@@ -1579,8 +1633,7 @@ Definition BofZ : Z -> T :=
 Lemma BofZ_normalise : forall i, BofZ i = normalise i 0.
 Proof.
   rewrite /BofZ /IEEE754_extra.BofZ /normalise => i.
-  f_equal; apply: Logic.Eqdep_dec.eq_proofs_unicity_on;
-    move=> c; case: c; by [ left | right ]. (* LATER: Remove this bruteforce. *)
+  reflexivity.
 Qed.
 
 (** We can then define versions of these operators directly from float to float,

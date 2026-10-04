@@ -61,8 +61,8 @@ Proof.
   - apply Byte.to_of_N in HofN.
     rewrite HofN.
     rewrite Znat.Z2N.id.
-    + by rewrite Byte.repr_unsigned.
     + by apply Byte.unsigned_range.
+    + by rewrite Byte.repr_unsigned.
   - apply Byte.of_N_None_iff in HofN.
     exfalso.
     specialize (Byte.unsigned_range b) as [Hrange1 Hrange2].
@@ -77,11 +77,12 @@ Proof.
   unfold compcert_byte_of_byte, byte_of_compcert_byte.
   rewrite Byte.unsigned_repr_eq Z2N.inj_mod; try by lias.
   rewrite N2Z.id.
-  rewrite N.mod_small; first by rewrite Byte.of_to_N.
-  unfold Byte.modulus, Byte.wordsize, Wordsize_8.wordsize.
-  replace (two_power_nat 8) with (256%Z) by lias.
-  specialize (Byte.to_N_bounded b).
-  by lias.
+  rewrite N.mod_small.
+  - unfold Byte.modulus, Byte.wordsize, Wordsize_8.wordsize.
+    replace (two_power_nat 8) with (256%Z) by lias.
+    specialize (Byte.to_N_bounded b).
+    by lias.
+  - by rewrite Byte.of_to_N.
 Qed.
 
 Declare Scope byte_scope.

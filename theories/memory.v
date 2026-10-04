@@ -166,7 +166,9 @@ Section Memory.
   Proof.
     move => m m' Heq Hlt.
     specialize (Heq (mem_length m)).
-    rewrite mem_lookup_oob in Heq; last by lias.
+    have Hoob : mem_lookup (mem_length m) m = None.
+    { apply mem_lookup_oob. by lias. }
+    rewrite Hoob in Heq.
     rewrite eq_refl in Heq; symmetry in Heq; move/eqP in Heq.
     by specialize (mem_lookup_ib Hlt).
   Qed.
