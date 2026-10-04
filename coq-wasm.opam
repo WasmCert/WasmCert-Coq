@@ -13,6 +13,7 @@ bug-reports: "https://github.com/WasmCert/WasmCert-Coq/issues"
 depends: [
   "dune" {>= "3.17"}
   "coq" {= "dev"}
+  "coq-compcert" {= "dev"}
   "coq-flocq" {= "dev"}
   "coq-ext-lib" {= "dev"}
   "coq-mathcomp-ssreflect" {= "dev"}
