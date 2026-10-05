@@ -9,6 +9,9 @@ From HB Require Import structures.
 
 From Flocq Require Import Core.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.

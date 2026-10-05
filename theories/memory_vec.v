@@ -10,6 +10,9 @@ From mathcomp Require Import ssreflect ssrbool eqtype seq ssrnat.
 From Stdlib Require Import ZArith Lia.
 From Wasm Require Export numerics bytes wasm_parray common.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.

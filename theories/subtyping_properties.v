@@ -3,6 +3,9 @@
 From Wasm Require Export operations subtyping properties.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.

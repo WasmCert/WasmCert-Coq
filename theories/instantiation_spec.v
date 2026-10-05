@@ -7,6 +7,9 @@ From Wasm Require Import list_extra datatypes datatypes_properties
                          typing opsem type_checker memory.
 From Stdlib Require Import ZArith.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 (* TODO: Documentation *)
 
 Section Instantiation_spec.

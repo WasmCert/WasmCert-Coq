@@ -5,6 +5,9 @@ From Stdlib Require Import Program.Equality NArith.
 Require Export instantiation_spec.
 Require Export type_preservation properties.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
