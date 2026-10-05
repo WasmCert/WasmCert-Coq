@@ -16,6 +16,8 @@
   bundles."9.1" = {
     rocqPackages.rocq-core.override.version = "9.1";
     rocqPackages.coq.override.version = "9.1";
+    # disable reverse dependency run, decided not to stay compatible
+    rocqPackages.CertiRocq.job = false;
   };
   bundles."9.2" = {
     rocqPackages.rocq-core.override.version = "9.2";
