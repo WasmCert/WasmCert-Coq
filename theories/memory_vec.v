@@ -309,6 +309,8 @@ Proof.
   move => [<-] => /=.
   rewrite /mv_lookup /vector_lookup => /=.
   replace (n + i <? v_size m) with true; last by lias.
+  specialize (@v_size_valid _ _ m) as Hsize.
+  specialize (v_capacity_eq m) as Hcap.
   rewrite arr_set_gen_lookup; by lias.
 Qed.
   
