@@ -98,7 +98,7 @@ Parameter get_make_copy:
   forall (a: A) (size i: N) (t: array) (initlen: N),
     N.ltb i size ->
     N.leb initlen (arr_length t) ->
-    N.ltb i (arr_length t) ->
+    N.ltb i initlen ->
     (arr_make_copy size a t initlen).[i] = t.[i].
 Parameter get_make_copy_default:
   forall (a: A) (size i: N) (t: array) (initlen: N),
@@ -128,6 +128,7 @@ Parameter length_set_gen :
 
 Parameter arr_set_gen_lookup:
   forall n len gen (t: array) i,
+    N.leb (N.add n len) (arr_length t) ->
     N.ltb i len ->
     arr_get (arr_set_gen t n len gen) (N.add n i) = (gen i).
 
