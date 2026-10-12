@@ -164,6 +164,7 @@ let set p n e =
 (* --- new function for block set by a generator --- *)
 
 let set_gen p start_pos block_len generator =
+  if block_len <= 0 then p else
   let a = reroot p in
   let i = to_int start_pos in
   let len = to_int block_len in
