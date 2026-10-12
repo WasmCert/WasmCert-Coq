@@ -4,6 +4,9 @@ From Wasm Require Export datatypes_properties operations typing opsem common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Stdlib Require Import Bool Program NArith ZArith Wf_nat.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.

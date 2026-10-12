@@ -7,6 +7,9 @@ From mathcomp Require Import ssreflect ssrbool eqtype seq ssrnat.
 From Wasm Require Import instantiation_spec instantiation_properties type_preservation.
 From Stdlib Require Import ZArith.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.

@@ -6,6 +6,9 @@ From HB Require Import structures.
 From Wasm Require Import common datatypes operations typing memory.
 From ExtLib Require Import Structures.Monad.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 (* XXX unused? *)
 (* Import Monads. *)
 

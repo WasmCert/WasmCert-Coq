@@ -1,6 +1,9 @@
 From Wasm Require Import datatypes_properties.
 From mathcomp Require Import ssreflect eqtype ssrbool seq ssrnat.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 (** The mechanisation implements a restricted version of the subtyping system
 from the upcoming GC proposal to the current set of Wasm 2.0 types.
 Namely, t_1 <: t_2 iff t_1 is the bottom type, or the two types are equal.

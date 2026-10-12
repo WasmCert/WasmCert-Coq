@@ -2,6 +2,9 @@ From mathcomp Require Import ssreflect ssrbool eqtype seq ssrnat.
 From Wasm Require Import datatypes.
 From Stdlib Require Import String.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.

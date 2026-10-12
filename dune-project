@@ -12,11 +12,11 @@
   (synopsis "Wasm formalisation in Coq")
   (description "Wasm formalisation in Coq, following the AFP formalisation of Conrad Watt")
   (depends
-    (coq (and (>= 9.0) (< 9.2~)))
+    (coq (and (>= 9.0) (< 9.3~)))
     (coq-compcert (>= 3.14))
     (coq-flocq (and (>= 4.1.0) (< 5~)))
     (coq-ext-lib (>= 0.11.8))
-    (coq-mathcomp-ssreflect (and (>= 2.4.0) (<= 2.5~)))
+    (coq-mathcomp-ssreflect (and (>= 2.4.0) (< 2.7~)))
     (rocq-parseque (>= 0.2.0))
     (cmdliner (>= 1.1.0))
     (mdx (and (>= 1.9.0) :with-test))

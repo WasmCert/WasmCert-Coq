@@ -37,3 +37,5 @@
 
 !_build/
 !_build/default/src/extract.ml
+
+result

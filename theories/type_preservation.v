@@ -4,6 +4,9 @@ From Wasm Require Export typing_inversion tactic.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Stdlib Require Import Program.Equality ZArith.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.

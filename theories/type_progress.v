@@ -2,6 +2,9 @@ From Wasm Require Export interpreter_ctx.
 From mathcomp Require Import ssreflect ssrbool eqtype.
 From Stdlib Require Import ZArith.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.

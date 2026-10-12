@@ -4,6 +4,9 @@ From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Stdlib Require Import Program.Equality NArith ZArith.
 From Wasm Require Export common properties subtyping_properties.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.

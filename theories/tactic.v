@@ -1,6 +1,9 @@
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Import properties typing_inversion.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Ltac size_unequal H :=
   repeat rewrite length_is_size in H;
   revert H;

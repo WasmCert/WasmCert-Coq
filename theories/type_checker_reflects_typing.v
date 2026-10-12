@@ -4,6 +4,9 @@ From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Stdlib Require Import Program Wf_nat ZArith.
 From Wasm Require Import type_checker typing_inversion.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.

@@ -4,6 +4,9 @@ From mathcomp Require Import ssreflect ssrbool eqtype seq ssrnat.
 From Stdlib Require Import BinNums ZArith NArith Lia.
 From Wasm Require Import numerics bytes memory common.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.

@@ -8,6 +8,9 @@ From Stdlib Require Import Program NArith ZArith Wf_nat.
 From Wasm Require Export common operations datatypes_properties properties opsem typing_inversion tactic.
 From Stdlib Require Import FunInd Recdef.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
@@ -1120,9 +1123,8 @@ Proof.
   - intros ????? [fc lcs] [fc' lcs'] Heqval Heqpost Heqarity Hred.
     unfold reduce_ctx, ctx_to_cfg in * => /=.
     destruct cc as [[fvs0 fk0 ff0 fes0] lcs0].
-    rewrite rev_cat rev_cons rev_rcons /=.
-    repeat rewrite rev_cat rev_rcons revK.
-    rewrite rev_cat rev_cons rev_rcons revK /= rev_cat rev_rcons revK revK.
+    rewrite !rev_cat !rev_cons !rev_rcons /=.
+    rewrite !rev_cat !rev_rcons !revK.
     apply (list_label_ctx_eval.(ctx_reduce)) => //.
     do 2 rewrite foldl_cat.
     simpl in *.

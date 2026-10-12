@@ -5,6 +5,9 @@ From Wasm Require Import bytes common.
 From HB Require Import structures.
 From mathcomp Require Import ssreflect ssrbool eqtype.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.

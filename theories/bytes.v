@@ -8,6 +8,9 @@ From compcert Require Import Integers.
 From parseque Require Import Char.
 From HB Require Import structures.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Definition byte := Integers.byte.
 
 #[export]

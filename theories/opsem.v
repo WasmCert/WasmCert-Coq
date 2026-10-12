@@ -6,6 +6,9 @@ From Stdlib Require Import ZArith.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Export operations host.
 
+(* see common.v *)
+Set SsrOldRewriteGoalsOrder.
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive. 
